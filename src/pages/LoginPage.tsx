@@ -1,6 +1,53 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
+    const navigate = useNavigate();
+    const [formData, setFormData] = useState({
+        email: "",
+        password: ""
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Login failed');
+            }
+
+            // Successfully logged in
+            if (data.accessToken) {
+                localStorage.setItem("accessToken", data.accessToken);
+                localStorage.setItem("refreshToken", data.refreshToken);
+                localStorage.setItem("user", JSON.stringify(data.user));
+            }
+
+            // Redirect to dashboard
+            navigate("/");
+        } catch (err: any) {
+            setError(err.message || "An unexpected error occurred");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#0d0d0f] px-4 relative overflow-hidden">
             {/* Background glows */}
@@ -25,17 +72,27 @@ export default function LoginPage() {
                 </div>
 
                 <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">Welcome back</h1>
-                <p className="text-sm text-white/40 mb-8">Sign in to your workspace</p>
+                <p className="text-sm text-white/40 mb-6">Sign in to your workspace</p>
+
+                {error && (
+                    <div className="mb-4 p-3 rounded-[10px] bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                        {error}
+                    </div>
+                )}
 
                 {/* Form */}
-                <div className="space-y-4">
+                <form className="space-y-4" onSubmit={handleSubmit}>
                     <div>
                         <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
                             Email
                         </label>
                         <input
                             type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
                             placeholder="you@company.com"
+                            required
                             className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
                         />
                     </div>
@@ -46,22 +103,30 @@ export default function LoginPage() {
                         </label>
                         <input
                             type="password"
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
                             placeholder="••••••••"
+                            required
                             className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
                         />
                     </div>
-                </div>
+                    
+                    <div className="text-right mt-2 mb-6">
+                        <a href="#" className="text-xs text-[#534AB7] hover:opacity-80 transition-opacity">
+                            Forgot password?
+                        </a>
+                    </div>
 
-                <div className="text-right mt-2 mb-6">
-                    <a href="#" className="text-xs text-[#534AB7] hover:opacity-80 transition-opacity">
-                        Forgot password?
-                    </a>
-                </div>
-
-                <button className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99]"
-                        style={{ background: "linear-gradient(135deg, #534AB7, #3C3489)" }}>
-                    Sign in →
-                </button>
+                    <button 
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
+                        style={{ background: "linear-gradient(135deg, #534AB7, #3C3489)" }}
+                    >
+                        {loading ? "Signing in..." : "Sign in →"}
+                    </button>
+                </form>
 
                 <div className="flex items-center gap-3 my-6">
                     <div className="flex-1 h-px bg-white/[0.08]" />
