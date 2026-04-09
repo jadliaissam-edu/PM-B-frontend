@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { register } from "../api/authApi";
+
 
 export default function RegisterPage() {
     const navigate = useNavigate();
@@ -28,23 +30,14 @@ export default function RegisterPage() {
         setLoading(true);
 
         try {
-            const response = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    firstName: formData.firstName,
-                    lastName: formData.lastName,
-                    email: formData.email,
-                    password: formData.password,
-                    role: "USER"
-                })
+            const data = await register({
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                password: formData.password,
+                role: "USER"
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || data.error || 'Registration failed');
-            }
+            console.log("Register response:", data);
 
             // Successfully registered, optionally store token if we want auto-login
             if (data.accessToken) {

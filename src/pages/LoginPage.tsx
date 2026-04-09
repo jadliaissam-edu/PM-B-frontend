@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { login } from "../api/authApi";
 
 export default function LoginPage() {
     const navigate = useNavigate();
@@ -20,17 +21,8 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || data.error || 'Login failed');
-            }
+            const data = await login(formData);
+            console.log("Login response:", data);
 
             // Successfully logged in
             if (data.accessToken) {
