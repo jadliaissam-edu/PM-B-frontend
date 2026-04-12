@@ -32,7 +32,7 @@ export default function LoginPage() {
             }
 
             // Redirect to dashboard
-            navigate("/");
+            navigate("/workspace");
         } catch (err: any) {
             setError(err.message || "An unexpected error occurred");
         } finally {

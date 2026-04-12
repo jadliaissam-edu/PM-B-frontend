@@ -1,6 +1,6 @@
 const AUTH_BASE_URL = "/api/auth";
 
-export async function login(payload) {
+export async function login(payload: Record<string, unknown>): Promise<any> {
 	const response = await fetch(`${AUTH_BASE_URL}/login`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -16,7 +16,7 @@ export async function login(payload) {
 	return data;
 }
 
-export async function register(payload) {
+export async function register(payload: Record<string, unknown>): Promise<any> {
 	const response = await fetch(`${AUTH_BASE_URL}/register`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
