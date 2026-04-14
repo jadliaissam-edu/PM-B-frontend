@@ -1,4 +1,4 @@
-import { AUTH_BASE_URL } from "../config/baseURL.jsx";
+import { AUTH_BASE_URL } from "../config/baseURL";
 
 
 export async function login(payload: Record<string, any>) {

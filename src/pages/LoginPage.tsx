@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-// import { login, verifyMfa } from "../api/authApi";
-import { login, verifyMfa } from "../api/authApi.js";
+import { login, verifyMfa } from "../api/authApi";
+//import { login, verifyMfa } from "../api/authApi.js";
 export default function LoginPage() {
     const navigate = useNavigate();
     // Etat du formulaire de la premiere etape (email + password).
@@ -45,7 +45,7 @@ export default function LoginPage() {
         alert("Login successful! Redirecting to dashboard...");
 
         // Redirection apres authentification.
-        navigate("/");
+        navigate("/workspace");
     };
 
     const handleFirstStepSubmit = async (e: React.FormEvent) => {
