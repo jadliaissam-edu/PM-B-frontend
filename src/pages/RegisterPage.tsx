@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { register } from "../api/authApi";
+// import { register } from "../api/authApii";
 
 
 export default function RegisterPage() {
@@ -10,13 +11,18 @@ export default function RegisterPage() {
         lastName: "",
         email: "",
         password: "",
-        confirmPassword: ""
+        confirmPassword: "",
+        mfaEnabled: false
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === "checkbox" ? checked : value
+        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +41,8 @@ export default function RegisterPage() {
                 lastName: formData.lastName,
                 email: formData.email,
                 password: formData.password,
-                role: "USER"
+                role: "USER",
+                mfaEnabled: formData.mfaEnabled
             });
             console.log("Register response:", data);
 
@@ -163,6 +170,17 @@ export default function RegisterPage() {
                             className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
                         />
                     </div>
+
+                    <label className="flex items-center gap-2 text-sm text-white/70">
+                        <input
+                            type="checkbox"
+                            name="mfaEnabled"
+                            checked={formData.mfaEnabled}
+                            onChange={handleChange}
+                            className="h-4 w-4 accent-[#1D9E75]"
+                        />
+                        Enable MFA on this account
+                    </label>
 
                     <button 
                         type="submit"
