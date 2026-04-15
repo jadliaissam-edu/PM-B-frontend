@@ -7,8 +7,8 @@ import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
-import { getWorkspacesByUser } from "../api/workspaceApi";
-import type { WorkspaceResponseDto } from "../api/workspaceApi";
+import { getWorkspacesByUser } from "../api/workspaceApi.tsx";
+import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
 
 const navItems = [
     { icon: LayoutDashboard, label: "Dashboard" },

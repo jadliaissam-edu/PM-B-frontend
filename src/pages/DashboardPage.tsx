@@ -22,14 +22,14 @@ import {
     createWorkspace,
     updateWorkspace,
     deleteWorkspace,
-} from "../api/workspaceApi";
+} from "../api/workspaceApi.tsx";
 import type {
     WorkspaceResponseDto,
     SpaceResponseDto,
     FolderResponseDto,
     SprintResponseDto,
     TaskResponseDto,
-} from "../api/workspaceApi";
+} from "../api/workspaceApi.tsx";
 
 // ============================================================================
 // STATIC CONFIG

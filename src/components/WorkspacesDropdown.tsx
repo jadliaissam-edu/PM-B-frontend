@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
-import type { WorkspaceResponseDto } from "../api/workspaceApi";
+import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
 
 interface WorkspacesDropdownProps {
     workspaces: WorkspaceResponseDto[];
