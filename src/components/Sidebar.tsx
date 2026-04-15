@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, LogOut, Settings } from "lucide-react";
+import { logout } from "../api/authApi";
 
 export interface SidebarNavItem {
     icon: LucideIcon;
@@ -42,6 +44,108 @@ function SidebarAvatar({ initials, size = 28, color = "#534AB7" }: { initials: s
     );
 }
 
+interface LogoutConfirmModalProps {
+    isLoading: boolean;
+    onConfirm: () => Promise<void>;
+    onClose: () => void;
+}
+
+function LogoutConfirmModal({ isLoading, onConfirm, onClose }: LogoutConfirmModalProps) {
+    return (
+        <div
+            style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 1400,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(0,0,0,0.65)",
+                backdropFilter: "blur(6px)",
+            }}
+            onClick={() => {
+                if (!isLoading) onClose();
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    background: "#16161a",
+                    border: "0.5px solid rgba(226,75,74,0.22)",
+                    borderRadius: 18,
+                    padding: "24px 28px",
+                    width: 360,
+                    maxWidth: "calc(100vw - 30px)",
+                    boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+                    fontFamily: "'DM Sans', sans-serif",
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div
+                        style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 10,
+                            background: "rgba(226,75,74,0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <LogOut size={16} style={{ color: "#E24B4A" }} />
+                    </div>
+                    <h2 style={{ margin: 0, fontSize: 16, color: "#fff", fontWeight: 700 }}>Confirmer la deconnexion</h2>
+                </div>
+
+                <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
+                    Voulez-vous vraiment vous deconnecter ?
+                </p>
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+                    <button
+                        onClick={onClose}
+                        disabled={isLoading}
+                        style={{
+                            background: "rgba(255,255,255,0.05)",
+                            border: "0.5px solid rgba(255,255,255,0.1)",
+                            borderRadius: 10,
+                            padding: "9px 16px",
+                            color: "rgba(255,255,255,0.7)",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: isLoading ? "not-allowed" : "pointer",
+                            opacity: isLoading ? 0.7 : 1,
+                        }}
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={isLoading}
+                        style={{
+                            background: "#E24B4A",
+                            border: "none",
+                            borderRadius: 10,
+                            padding: "9px 16px",
+                            color: "#fff",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: isLoading ? "not-allowed" : "pointer",
+                            opacity: isLoading ? 0.7 : 1,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 7,
+                        }}
+                    >
+                        {isLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                        Se deconnecter
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function Sidebar({
     collapsed,
     onToggleCollapse,
@@ -51,6 +155,29 @@ export default function Sidebar({
     userAvatar,
 }: SidebarProps) {
     const sidebarWidth = collapsed ? 64 : 240;
+    const navigate = useNavigate();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+    const handleLogout = async () => {
+        if (isLoggingOut) return;
+
+        setIsLoggingOut(true);
+        try {
+            const refreshToken = localStorage.getItem("refreshToken") || undefined;
+            await logout({ refreshToken });
+        } catch (error) {
+            console.error("Logout request failed", error);
+        } finally {
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            localStorage.removeItem("user");
+            localStorage.removeItem("activeWorkspaceId");
+            setShowLogoutConfirm(false);
+            navigate("/login", { replace: true });
+            setIsLoggingOut(false);
+        }
+    };
 
     return (
         <div
@@ -189,7 +316,7 @@ export default function Sidebar({
                 {!collapsed && (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 0" }}>
                         <SidebarAvatar initials={userAvatar} size={30} color="#534AB7" />
-                        <div style={{ overflow: "hidden" }}>
+                        <div style={{ overflow: "hidden", flex: 1 }}>
                             <p
                                 style={{
                                     fontSize: 13,
@@ -204,10 +331,38 @@ export default function Sidebar({
                             </p>
                             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Admin</p>
                         </div>
+                        <button
+                            onClick={() => setShowLogoutConfirm(true)}
+                            title="Deconnexion"
+                            disabled={isLoggingOut}
+                            style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 8,
+                                border: "0.5px solid rgba(255,255,255,0.12)",
+                                background: "rgba(255,255,255,0.04)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "rgba(255,255,255,0.7)",
+                                cursor: isLoggingOut ? "not-allowed" : "pointer",
+                                opacity: isLoggingOut ? 0.6 : 1,
+                            }}
+                        >
+                            <LogOut size={14} />
+                        </button>
                     </div>
                 )}
             </div>
         </aside>
+
+        {showLogoutConfirm && (
+            <LogoutConfirmModal
+                isLoading={isLoggingOut}
+                onConfirm={handleLogout}
+                onClose={() => setShowLogoutConfirm(false)}
+            />
+        )}
         </div>
     );
 }

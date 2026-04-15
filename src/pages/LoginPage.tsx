@@ -42,7 +42,7 @@ export default function LoginPage() {
             localStorage.setItem("user", JSON.stringify(data.user));
         }
         
-        alert("Login successful! Redirecting to dashboard...");
+        // alert("Login successful! Redirecting to dashboard...");
 
         // Redirection apres authentification.
         navigate("/");
