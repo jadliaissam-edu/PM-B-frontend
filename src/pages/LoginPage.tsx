@@ -1,54 +1,27 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login, verifyMfa } from "../api/authApi";
-//import { login, verifyMfa } from "../api/authApi.js";
+import { Loader2 } from "lucide-react";
+
 export default function LoginPage() {
     const navigate = useNavigate();
-    // Etat du formulaire de la premiere etape (email + password).
     const [formData, setFormData] = useState({
         email: "",
         password: ""
     });
-
-    // Etat de la deuxieme etape MFA (challenge + OTP).
-    const [mfaData, setMfaData] = useState({
-        challengeToken: "",
-        otp: "",
-        destination: "",
-        expiresInSeconds: 0
-    });
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    // Indique si on est dans l'etape OTP.
-    const isMfaStep = Boolean(mfaData.challengeToken);
+    // MFA state
+    const [showMfaView, setShowMfaView] = useState(false);
+    const [mfaData, setMfaData] = useState<{ challengeToken: string; mfaDestination?: string; expiresInSeconds?: number } | null>(null);
+    const [otp, setOtp] = useState("");
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // On garde uniquement les chiffres pour eviter les erreurs de saisie.
-        const onlyDigits = e.target.value.replace(/\D/g, "").slice(0, 6);
-        setMfaData(prev => ({ ...prev, otp: onlyDigits }));
-    };
-
-    const storeAuthAndRedirect = (data: any) => {
-        // Stockage des tokens finaux et du profil user apres login complet.
-        if (data.accessToken) {
-            localStorage.setItem("accessToken", data.accessToken);
-            localStorage.setItem("refreshToken", data.refreshToken);
-            localStorage.setItem("user", JSON.stringify(data.user));
-        }
-        
-        alert("Login successful! Redirecting to dashboard...");
-
-        // Redirection apres authentification.
-        navigate("/workspace");
-    };
-
-    const handleFirstStepSubmit = async (e: React.FormEvent) => {
+    const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setLoading(true);
@@ -57,19 +30,16 @@ export default function LoginPage() {
             const data = await login(formData);
             console.log("Login response:", data);
 
-            // Si le backend demande la MFA, on passe sur l'ecran OTP.
-            if (data.mfaRequired && data.challengeToken) {
+            if (data.mfaRequired) {
                 setMfaData({
                     challengeToken: data.challengeToken,
-                    otp: "",
-                    destination: data.mfaDestination || "votre email",
-                    expiresInSeconds: data.mfaExpiresInSeconds || 0
+                    mfaDestination: data.mfaDestination,
+                    expiresInSeconds: data.mfaExpiresInSeconds
                 });
-                return;
+                setShowMfaView(true);
+            } else if (data.accessToken) {
+                finalizeLogin(data);
             }
-
-            // Sinon on termine le login classique.
-            storeAuthAndRedirect(data);
         } catch (err: any) {
             setError(err.message || "An unexpected error occurred");
         } finally {
@@ -79,35 +49,28 @@ export default function LoginPage() {
 
     const handleMfaSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!otp.trim()) return;
         setError("");
         setLoading(true);
 
         try {
-            // On valide le code OTP avec le challenge recu a l'etape 1.
             const data = await verifyMfa({
-                challengeToken: mfaData.challengeToken,
-                otp: mfaData.otp
+                challengeToken: mfaData?.challengeToken,
+                otp: otp.trim()
             });
-            console.log("MFA verify response:", data);
-
-            // Une verification OTP valide renvoie les tokens finaux.
-            storeAuthAndRedirect(data);
+            finalizeLogin(data);
         } catch (err: any) {
-            setError(err.message || "An unexpected error occurred");
+            setError(err.message || "Invalid or expired MFA code.");
         } finally {
             setLoading(false);
         }
     };
 
-    const resetMfaStep = () => {
-        // Permet de revenir a l'etape email/password.
-        setMfaData({
-            challengeToken: "",
-            otp: "",
-            destination: "",
-            expiresInSeconds: 0
-        });
-        setError("");
+    const finalizeLogin = (data: any) => {
+        localStorage.setItem("accessToken", data.accessToken);
+        localStorage.setItem("refreshToken", data.refreshToken);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        navigate("/workspace");
     };
 
     return (
@@ -133,112 +96,116 @@ export default function LoginPage() {
                     <span className="font-bold text-lg text-white tracking-tight">AgileFlow</span>
                 </div>
 
-                <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">
-                    {isMfaStep ? "Verify your identity" : "Welcome back"}
-                </h1>
-                <p className="text-sm text-white/40 mb-6">
-                    {isMfaStep
-                        ? `Enter the 6-digit code sent to ${mfaData.destination}`
-                        : "Sign in to your workspace"}
-                </p>
+                {!showMfaView ? (
+                    <>
+                        <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">Welcome back</h1>
+                        <p className="text-sm text-white/40 mb-6">Sign in to your workspace</p>
 
-                {error && (
-                    <div className="mb-4 p-3 rounded-[10px] bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
-                        {error}
-                    </div>
-                )}
-
-                {!isMfaStep ? (
-                    <form className="space-y-4" onSubmit={handleFirstStepSubmit}>
-                        <div>
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                placeholder="you@company.com"
-                                required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                placeholder="••••••••"
-                                required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
-                            />
-                        </div>
-
-                        <div className="text-right mt-2 mb-6">
-                            <a href="#" className="text-xs text-[#534AB7] hover:opacity-80 transition-opacity">
-                                Forgot password?
-                            </a>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
-                            style={{ background: "linear-gradient(135deg, #534AB7, #3C3489)" }}
-                        >
-                            {loading ? "Signing in..." : "Sign in →"}
-                        </button>
-                    </form>
-                ) : (
-                    <form className="space-y-4" onSubmit={handleMfaSubmit}>
-                        <div>
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
-                                OTP Code
-                            </label>
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                name="otp"
-                                value={mfaData.otp}
-                                onChange={handleOtpChange}
-                                placeholder="123456"
-                                minLength={6}
-                                maxLength={6}
-                                required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#1D9E75]/70 transition-colors tracking-[0.25em]"
-                            />
-                        </div>
-
-                        {mfaData.expiresInSeconds > 0 && (
-                            <p className="text-xs text-white/40">
-                                Code valid for about {mfaData.expiresInSeconds} seconds.
-                            </p>
+                        {error && (
+                            <div className="mb-4 p-3 rounded-[10px] bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                                {error}
+                            </div>
                         )}
 
-                        <button
-                            type="submit"
-                            disabled={loading || mfaData.otp.length !== 6}
-                            className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
-                            style={{ background: "linear-gradient(135deg, #1D9E75, #147557)" }}
-                        >
-                            {loading ? "Verifying..." : "Verify OTP →"}
-                        </button>
+                        <form className="space-y-4" onSubmit={handleLoginSubmit}>
+                            <div>
+                                <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    placeholder="you@company.com"
+                                    required
+                                    className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                                />
+                            </div>
 
-                        <button
-                            type="button"
-                            onClick={resetMfaStep}
-                            disabled={loading}
-                            className="w-full py-3 rounded-[10px] border border-white/10 text-white/75 text-sm transition-colors hover:bg-white/5 disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            Back to password step
-                        </button>
-                    </form>
+                            <div>
+                                <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                                />
+                            </div>
+
+                            <div className="text-right mt-2 mb-6">
+                                <a href="#" className="text-xs text-[#534AB7] hover:opacity-80 transition-opacity">
+                                    Forgot password?
+                                </a>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                style={{ background: "linear-gradient(135deg, #534AB7, #3C3489)" }}
+                            >
+                                {loading && <Loader2 size={16} className="animate-spin" />}
+                                {loading ? "Signing in..." : "Sign in →"}
+                            </button>
+                        </form>
+                    </>
+                ) : (
+                    <>
+                        <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">Verify your identity</h1>
+                        <p className="text-sm text-white/40 mb-6">
+                            Enter the code sent to <span className="text-white/70 font-medium">{mfaData?.mfaDestination}</span>
+                        </p>
+
+                        {error && (
+                            <div className="mb-4 p-3 rounded-[10px] bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        <form className="space-y-4" onSubmit={handleMfaSubmit}>
+                            <div>
+                                <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                                    Verification Code
+                                </label>
+                                <input
+                                    type="text"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                    placeholder="000000"
+                                    maxLength={6}
+                                    required
+                                    autoFocus
+                                    className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-4 text-center text-xl font-bold tracking-[0.5em] text-white placeholder:tracking-normal placeholder-white/10 outline-none focus:border-[#1D9E75]/70 transition-colors"
+                                />
+                            </div>
+
+                            {mfaData?.expiresInSeconds && mfaData.expiresInSeconds > 0 && (
+                                <p className="text-[10px] text-white/20 text-center uppercase tracking-wider">
+                                    Valid for {mfaData.expiresInSeconds} seconds
+                                </p>
+                            )}
+
+                            <p className="text-xs text-white/25 text-center mt-4 mb-6">
+                                Didn't receive code? <button type="button" onClick={() => setShowMfaView(false)} className="text-[#534AB7] hover:underline">Try again</button>
+                            </p>
+
+                            <button
+                                type="submit"
+                                disabled={loading || otp.length !== 6}
+                                className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                style={{ background: "linear-gradient(135deg, #1D9E75, #146D51)" }}
+                            >
+                                {loading && <Loader2 size={16} className="animate-spin" />}
+                                {loading ? "Verifying..." : "Verify Code"}
+                            </button>
+                        </form>
+                    </>
                 )}
 
                 <div className="flex items-center gap-3 my-6">

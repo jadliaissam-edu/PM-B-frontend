@@ -16,9 +16,14 @@ import {
     createWorkspace,
     updateWorkspace,
     deleteWorkspace,
+    getWorkspaceMembers,
+    addWorkspaceMember,
+    updateWorkspaceMemberRole,
+    deleteWorkspaceMember,
 } from "../api/workspaceApi";
 import type {
     WorkspaceResponseDto,
+    WorkspaceMemberResponseDto,
     SpaceResponseDto,
     FolderResponseDto,
     SprintResponseDto,
@@ -98,17 +103,80 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
 
 interface WorkspaceFormModalProps {
     mode: "create" | "edit";
+    workspaceId?: string;
     initialName?: string;
     initialSlug?: string;
     onSubmit: (name: string, slug: string) => Promise<void>;
     onClose: () => void;
 }
 
-function WorkspaceFormModal({ mode, initialName = "", initialSlug = "", onSubmit, onClose }: WorkspaceFormModalProps) {
+function WorkspaceFormModal({ mode, workspaceId, initialName = "", initialSlug = "", onSubmit, onClose }: WorkspaceFormModalProps) {
+    const [activeTab, setActiveTab] = useState<"general" | "members">("general");
     const [name, setName] = useState(initialName);
     const [slug, setSlug] = useState(initialSlug);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Members management state
+    const [members, setMembers] = useState<WorkspaceMemberResponseDto[]>([]);
+    const [membersLoading, setMembersLoading] = useState(false);
+    const [newMemberUserId, setNewMemberUserId] = useState("");
+    const [newMemberRole, setNewMemberRole] = useState("MEMBER");
+
+    useEffect(() => {
+        if (activeTab === "members" && workspaceId) {
+            loadMembers();
+        }
+    }, [activeTab, workspaceId]);
+
+    const loadMembers = async () => {
+        if (!workspaceId) return;
+        setMembersLoading(true);
+        try {
+            const data = await getWorkspaceMembers(workspaceId);
+            setMembers(data);
+        } catch (err: any) {
+            setError(err.message || "Failed to load members.");
+        } finally {
+            setMembersLoading(false);
+        }
+    };
+
+    const handleAddMember = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMemberUserId.trim() || !workspaceId) return;
+        setError(null);
+        try {
+            await addWorkspaceMember({
+                workspaceId,
+                userId: newMemberUserId.trim(),
+                role: newMemberRole,
+            });
+            setNewMemberUserId("");
+            loadMembers();
+        } catch (err: any) {
+            setError(err.message || "Failed to add member.");
+        }
+    };
+
+    const handleUpdateRole = async (memberId: string, newRole: string) => {
+        try {
+            await updateWorkspaceMemberRole(memberId, newRole);
+            loadMembers();
+        } catch (err: any) {
+            setError(err.message || "Failed to update role.");
+        }
+    };
+
+    const handleRemoveMember = async (memberId: string) => {
+        if (!confirm("Are you sure you want to remove this member?")) return;
+        try {
+            await deleteWorkspaceMember(memberId);
+            loadMembers();
+        } catch (err: any) {
+            setError(err.message || "Failed to remove member.");
+        }
+    };
 
     const handleNameChange = (val: string) => {
         setName(val);
@@ -145,14 +213,14 @@ function WorkspaceFormModal({ mode, initialName = "", initialSlug = "", onSubmit
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     background: "#16161a", border: "0.5px solid rgba(255,255,255,0.1)",
-                    borderRadius: 18, padding: "28px 32px", width: 420, maxWidth: "calc(100vw - 40px)",
+                    borderRadius: 18, padding: "28px 32px", width: mode === "edit" ? 520 : 420, maxWidth: "calc(100vw - 40px)",
                     boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
                     fontFamily: "'DM Sans', sans-serif",
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
                     <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 17, fontWeight: 700, color: "#fff", margin: 0 }}>
-                        {mode === "create" ? "Create Workspace" : "Edit Workspace"}
+                        {mode === "create" ? "Create Workspace" : "Workspace Settings"}
                     </h2>
                     <button
                         onClick={onClose}
@@ -162,93 +230,212 @@ function WorkspaceFormModal({ mode, initialName = "", initialSlug = "", onSubmit
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: 16 }}>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.6px" }}>
-                            Workspace Name
-                        </label>
-                        <input
-                            id="ws-name-input"
-                            type="text"
-                            value={name}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                            placeholder="e.g. My Team"
-                            autoFocus
+                {mode === "edit" && (
+                    <div style={{ display: "flex", gap: 20, borderBottom: "0.5px solid rgba(255,255,255,0.07)", marginBottom: 24 }}>
+                        <button
+                            onClick={() => setActiveTab("general")}
                             style={{
-                                width: "100%", background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
-                                borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#fff",
-                                fontFamily: "'DM Sans', sans-serif", outline: "none", transition: "border-color 0.2s",
-                                boxSizing: "border-box",
+                                background: "none", border: "none", padding: "8px 0",
+                                color: activeTab === "general" ? "#a89ef5" : "rgba(255,255,255,0.4)",
+                                borderBottom: activeTab === "general" ? "2px solid #534AB7" : "2px solid transparent",
+                                fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s"
                             }}
-                            onFocus={(e) => (e.target.style.borderColor = "rgba(83,74,183,0.6)")}
-                            onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
-                        />
+                        >
+                            General
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("members")}
+                            style={{
+                                background: "none", border: "none", padding: "8px 0",
+                                color: activeTab === "members" ? "#a89ef5" : "rgba(255,255,255,0.4)",
+                                borderBottom: activeTab === "members" ? "2px solid #534AB7" : "2px solid transparent",
+                                fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s"
+                            }}
+                        >
+                            Members
+                        </button>
                     </div>
+                )}
 
-                    <div style={{ marginBottom: 22 }}>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.6px" }}>
-                            Slug
-                        </label>
-                        <div style={{ position: "relative" }}>
-                            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "rgba(255,255,255,0.25)", pointerEvents: "none" }}>
-                                /
-                            </span>
+                {activeTab === "general" ? (
+                    <form onSubmit={handleSubmit}>
+                        <div style={{ marginBottom: 16 }}>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                                Workspace Name
+                            </label>
                             <input
-                                id="ws-slug-input"
+                                id="ws-name-input"
                                 type="text"
-                                value={slug}
-                                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
-                                placeholder="my-team"
+                                value={name}
+                                onChange={(e) => handleNameChange(e.target.value)}
+                                placeholder="e.g. My Team"
+                                autoFocus
                                 style={{
                                     width: "100%", background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
-                                    borderRadius: 10, padding: "10px 14px 10px 24px", fontSize: 14, color: "#fff",
+                                    borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#fff",
                                     fontFamily: "'DM Sans', sans-serif", outline: "none", transition: "border-color 0.2s",
                                     boxSizing: "border-box",
                                 }}
-                                onFocus={(e) => (e.target.style.borderColor = "rgba(83,74,183,0.6)")}
-                                onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
                             />
                         </div>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 5 }}>
-                            Only lowercase letters, numbers, and hyphens.
-                        </p>
-                    </div>
 
-                    {error && (
-                        <p style={{ fontSize: 12, color: "#E24B4A", marginBottom: 14, background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8 }}>
-                            {error}
-                        </p>
-                    )}
+                        <div style={{ marginBottom: 22 }}>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                                Slug
+                            </label>
+                            <div style={{ position: "relative" }}>
+                                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "rgba(255,255,255,0.25)", pointerEvents: "none" }}>
+                                    /
+                                </span>
+                                <input
+                                    id="ws-slug-input"
+                                    type="text"
+                                    value={slug}
+                                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
+                                    placeholder="my-team"
+                                    style={{
+                                        width: "100%", background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
+                                        borderRadius: 10, padding: "10px 14px 10px 24px", fontSize: 14, color: "#fff",
+                                        fontFamily: "'DM Sans', sans-serif", outline: "none", transition: "border-color 0.2s",
+                                        boxSizing: "border-box",
+                                    }}
+                                />
+                            </div>
+                        </div>
 
-                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            style={{
-                                background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)",
-                                borderRadius: 10, padding: "9px 18px", color: "rgba(255,255,255,0.6)",
-                                fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                            }}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            id="ws-form-submit-btn"
-                            type="submit"
-                            disabled={isSubmitting}
-                            style={{
-                                background: "linear-gradient(135deg, #534AB7, #3C3489)", border: "none",
-                                borderRadius: 10, padding: "9px 20px", color: "#fff",
-                                fontSize: 13, fontWeight: 600, cursor: isSubmitting ? "not-allowed" : "pointer",
-                                fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 7,
-                                opacity: isSubmitting ? 0.7 : 1,
-                            }}
-                        >
-                            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                            {mode === "create" ? "Create" : "Save Changes"}
-                        </button>
+                        {error && (
+                            <p style={{ fontSize: 12, color: "#E24B4A", marginBottom: 14, background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8 }}>
+                                {error}
+                            </p>
+                        )}
+
+                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                style={{
+                                    background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)",
+                                    borderRadius: 10, padding: "9px 18px", color: "rgba(255,255,255,0.6)",
+                                    fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                id="ws-form-submit-btn"
+                                type="submit"
+                                disabled={isSubmitting}
+                                style={{
+                                    background: "linear-gradient(135deg, #534AB7, #3C3489)", border: "none",
+                                    borderRadius: 10, padding: "9px 20px", color: "#fff",
+                                    fontSize: 13, fontWeight: 600, cursor: isSubmitting ? "not-allowed" : "pointer",
+                                    fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 7,
+                                    opacity: isSubmitting ? 0.7 : 1,
+                                }}
+                            >
+                                {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                {mode === "create" ? "Create" : "Save Changes"}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <div style={{ color: "#fff" }}>
+                        <div style={{ marginBottom: 20 }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: 12 }}>Invite Team Member</h3>
+                            <form onSubmit={handleAddMember} style={{ display: "flex", gap: 10 }}>
+                                <input
+                                    placeholder="Enter User ID"
+                                    value={newMemberUserId}
+                                    onChange={(e) => setNewMemberUserId(e.target.value)}
+                                    style={{
+                                        flex: 1, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
+                                        borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#fff", outline: "none",
+                                    }}
+                                />
+                                <select
+                                    value={newMemberRole}
+                                    onChange={(e) => setNewMemberRole(e.target.value)}
+                                    style={{
+                                        background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
+                                        borderRadius: 10, padding: "0 10px", fontSize: 13, color: "#fff", outline: "none",
+                                    }}
+                                >
+                                    <option value="ADMIN" style={{ background: "#16161a" }}>Admin</option>
+                                    <option value="MEMBER" style={{ background: "#16161a" }}>Member</option>
+                                    <option value="GUEST" style={{ background: "#16161a" }}>Guest</option>
+                                </select>
+                                <button
+                                    type="submit"
+                                    style={{
+                                        background: "rgba(83,74,183,1)", border: "none", borderRadius: 10,
+                                        width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center",
+                                        cursor: "pointer", color: "#fff"
+                                    }}
+                                >
+                                    <Plus size={16} />
+                                </button>
+                            </form>
+                        </div>
+
+                        {/* Members List */}
+                        <div style={{ maxHeight: 260, overflowY: "auto", border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 12, background: "rgba(255,255,255,0.02)" }}>
+                            {membersLoading ? (
+                                <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
+                                    <Loader2 size={24} className="animate-spin" style={{ opacity: 0.3 }} />
+                                </div>
+                            ) : members.length === 0 ? (
+                                <div style={{ padding: 40, textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                                    No members found.
+                                </div>
+                            ) : (
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: "0.5px solid rgba(255,255,255,0.07)" }}>
+                                            <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>User</th>
+                                            <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Role</th>
+                                            <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {members.map((m) => (
+                                            <tr key={m.id} style={{ borderBottom: "0.5px solid rgba(255,255,255,0.04)" }}>
+                                                <td style={{ padding: "12px 16px" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                                        <Avatar initials={m.userName?.substring(0, 2).toUpperCase() || "UN"} size={26} color="#534AB7" />
+                                                        <span style={{ fontSize: 13, color: "#fff" }}>{m.userName || "Unknown User"}</span>
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: "12px 16px" }}>
+                                                    <select
+                                                        value={m.role}
+                                                        onChange={(e) => handleUpdateRole(m.id, e.target.value)}
+                                                        style={{
+                                                            background: "rgba(255,255,255,0.05)", border: "none", borderRadius: 6,
+                                                            padding: "4px 8px", fontSize: 12, color: "rgba(255,255,255,0.7)", outline: "none",
+                                                        }}
+                                                    >
+                                                        <option value="ADMIN" style={{ background: "#16161a" }}>Admin</option>
+                                                        <option value="MEMBER" style={{ background: "#16161a" }}>Member</option>
+                                                        <option value="GUEST" style={{ background: "#16161a" }}>Guest</option>
+                                                    </select>
+                                                </td>
+                                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                                                    <button
+                                                        onClick={() => handleRemoveMember(m.id)}
+                                                        style={{ background: "none", border: "none", color: "rgba(226,75,74,0.6)", cursor: "pointer", padding: 4 }}
+                                                        title="Remove member"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
                     </div>
-                </form>
+                )}
             </div>
         </div>
     );
@@ -1017,6 +1204,7 @@ export default function WorkspacePage() {
             {editingWorkspace && (
                 <WorkspaceFormModal
                     mode="edit"
+                    workspaceId={editingWorkspace.id}
                     initialName={editingWorkspace.name}
                     initialSlug={editingWorkspace.slug}
                     onSubmit={handleUpdateWorkspace}

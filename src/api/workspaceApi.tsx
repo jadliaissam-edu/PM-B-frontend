@@ -47,7 +47,14 @@ export interface WorkspaceRequestDto {
 
 export interface WorkspaceMemberResponseDto {
     id: string;
+    userName: string;
+    role: string;
+    workspaceId: string;
+}
+
+export interface WorkspaceMemberRequestDto {
     userId: string;
+    workspaceId: string;
     role: string;
 }
 
@@ -118,6 +125,26 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
 
 export async function getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMemberResponseDto[]> {
     return fetchWithAuth<WorkspaceMemberResponseDto[]>(`${API_BASE_URL}/workspaceMembers/workspace/${workspaceId}`);
+}
+
+export async function addWorkspaceMember(body: WorkspaceMemberRequestDto): Promise<WorkspaceMemberResponseDto> {
+    return fetchWithAuth<WorkspaceMemberResponseDto>(`${API_BASE_URL}/workspaceMembers`, {
+        method: "POST",
+        body: JSON.stringify(body),
+    });
+}
+
+export async function updateWorkspaceMemberRole(memberId: string, role: string): Promise<WorkspaceMemberResponseDto> {
+    return fetchWithAuth<WorkspaceMemberResponseDto>(`${API_BASE_URL}/workspaceMembers/${memberId}`, {
+        method: "PUT",
+        body: JSON.stringify({ role }),
+    });
+}
+
+export async function deleteWorkspaceMember(memberId: string): Promise<void> {
+    await fetchWithAuth<void>(`${API_BASE_URL}/workspaceMembers/${memberId}`, {
+        method: "DELETE",
+    });
 }
 
 // ============================================================================
