@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { 
     LayoutDashboard, CheckSquare, Inbox, BarChart2, 
-    Sparkles, Bot, Send, Loader2, Plus, 
+    Sparkles, Send, Loader2, Plus, 
     X, Check, Trash2, Pencil
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +15,15 @@ import {
 } from "../api/workspaceApi";
 import type { WorkspaceResponseDto } from "../api/workspaceApi";
 import { analyzeRepo } from "../api/iaApi";
+import {
+    addConversationMessage,
+    createConversation,
+    deleteConversation,
+    getConversationMessages,
+    getMyConversations,
+    updateConversationTitle,
+} from "../api/conversationApi";
+import type { ConversationResponseDto } from "../api/conversationApi";
 
 import Sidebar from "../components/Sidebar";
 import Layout from "../components/Layout";
@@ -246,6 +255,132 @@ function DeleteConfirmModal({ workspaceName, onConfirm, onClose }: DeleteConfirm
     );
 }
 
+interface ConversationDeleteConfirmModalProps {
+    conversationTitle: string;
+    onConfirm: () => Promise<void>;
+    onClose: () => void;
+}
+
+function ConversationDeleteConfirmModal({ conversationTitle, onConfirm, onClose }: ConversationDeleteConfirmModalProps) {
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleConfirm = async () => {
+        setIsDeleting(true);
+        setError(null);
+        try {
+            await onConfirm();
+            onClose();
+        } catch (err: any) {
+            setError(err?.message || "Suppression impossible.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    return (
+        <div
+            style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 1400,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(0,0,0,0.65)",
+                backdropFilter: "blur(6px)",
+            }}
+            onClick={() => {
+                if (!isDeleting) onClose();
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    background: "#16161a",
+                    border: "0.5px solid rgba(226,75,74,0.22)",
+                    borderRadius: 18,
+                    padding: "24px 28px",
+                    width: 360,
+                    maxWidth: "calc(100vw - 30px)",
+                    boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+                    fontFamily: "'DM Sans', sans-serif",
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div
+                        style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 10,
+                            background: "rgba(226,75,74,0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Trash2 size={16} style={{ color: "#E24B4A" }} />
+                    </div>
+                    <h2 style={{ margin: 0, fontSize: 16, color: "#fff", fontWeight: 700 }}>
+                        Confirmer la suppression
+                    </h2>
+                </div>
+
+                <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
+                    Voulez-vous vraiment supprimer la conversation <span style={{ color: "#fff", fontWeight: 600 }}>"{conversationTitle || "Nouvelle conversation"}"</span> ?
+                </p>
+
+                {error && (
+                    <p style={{ fontSize: 12, color: "#E24B4A", marginTop: 12, background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8 }}>
+                        {error}
+                    </p>
+                )}
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+                    <button
+                        onClick={onClose}
+                        disabled={isDeleting}
+                        style={{
+                            background: "rgba(255,255,255,0.05)",
+                            border: "0.5px solid rgba(255,255,255,0.1)",
+                            borderRadius: 10,
+                            padding: "9px 16px",
+                            color: "rgba(255,255,255,0.7)",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: isDeleting ? "not-allowed" : "pointer",
+                            opacity: isDeleting ? 0.7 : 1,
+                        }}
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        onClick={handleConfirm}
+                        disabled={isDeleting}
+                        style={{
+                            background: "#E24B4A",
+                            border: "none",
+                            borderRadius: 10,
+                            padding: "9px 16px",
+                            color: "#fff",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: isDeleting ? "not-allowed" : "pointer",
+                            opacity: isDeleting ? 0.7 : 1,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 7,
+                        }}
+                    >
+                        {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ============================================================================
 // REPO FORM MODAL
 // ============================================================================
@@ -326,6 +461,37 @@ const navItems = [
     { icon: BarChart2, label: "Reporting" },
 ];
 
+type ChatRole = "user" | "assistant" | "system";
+
+interface ChatMessage {
+    role: ChatRole;
+    content: string;
+    timestamp: string | Date;
+}
+
+const INITIAL_VISIBLE_MESSAGES = 20;
+const MESSAGE_BATCH_SIZE = 20;
+
+function normalizeChatRole(role: string): ChatRole {
+    if (role === "assistant" || role === "system") {
+        return role;
+    }
+    return "user";
+}
+
+function buildConversationTitleFromMessage(message: string): string {
+    const singleLine = message.replace(/\s+/g, " ").trim();
+    if (!singleLine) {
+        return "Nouvelle conversation";
+    }
+
+    if (singleLine.length <= 60) {
+        return singleLine;
+    }
+
+    return `${singleLine.slice(0, 57)}...`;
+}
+
 export default function AIPage() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -345,15 +511,27 @@ export default function AIPage() {
         return saved ? JSON.parse(saved) : [{ owner: "ilyass-hm-04", repo: "Medical-chatbot", branch: "main" }];
     });
     const [activeRepoIndex, setActiveRepoIndex] = useState(0);
-    const [messages, setMessages] = useState<any[]>(() => {
-        const saved = localStorage.getItem("ai_messages");
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [conversations, setConversations] = useState<ConversationResponseDto[]>([]);
+    const [conversationId, setConversationId] = useState<string | null>(null);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [messageFetchLimit, setMessageFetchLimit] = useState(INITIAL_VISIBLE_MESSAGES);
+    const [hasMoreMessages, setHasMoreMessages] = useState(false);
+    const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
+    const [isConversationLoading, setIsConversationLoading] = useState(false);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [showRepoModal, setShowRepoModal] = useState(false);
     const [editingRepoIndex, setEditingRepoIndex] = useState<number | null>(null);
     const [deletingRepoIndex, setDeletingRepoIndex] = useState<number | null>(null);
+    const [deletingConversation, setDeletingConversation] = useState<ConversationResponseDto | null>(null);
+
+    const toChatMessages = (conversationMessages: { role: string; content: string; createdAt: string }[]): ChatMessage[] => {
+        return conversationMessages.map((msg) => ({
+            role: normalizeChatRole(msg.role),
+            content: msg.content,
+            timestamp: msg.createdAt,
+        }));
+    };
 
     useEffect(() => {
         try {
@@ -378,8 +556,30 @@ export default function AIPage() {
                     const savedWorkspace = wsData.find((ws) => ws.id === savedWorkspaceId);
                     setActiveWorkspace(savedWorkspace ?? wsData[0]);
                 }
+
+                const savedConversationId = localStorage.getItem("activeConversationId");
+                const existingConversations = await getMyConversations();
+
+                let selectedConversation = existingConversations.find((conv) => conv.id === savedConversationId)
+                    ?? existingConversations[0];
+
+                if (!selectedConversation) {
+                    selectedConversation = await createConversation({ title: "Nouvelle conversation" });
+                }
+
+                setConversations(existingConversations);
+
+                setConversationId(selectedConversation.id);
+
+                setIsConversationLoading(true);
+                const conversationMessages = await getConversationMessages(selectedConversation.id, INITIAL_VISIBLE_MESSAGES);
+                setMessages(toChatMessages(conversationMessages));
+                setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
+                setHasMoreMessages(conversationMessages.length >= INITIAL_VISIBLE_MESSAGES);
             } catch (error) {
                 console.error("Failed to load workspaces", error);
+            } finally {
+                setIsConversationLoading(false);
             }
         };
 
@@ -392,14 +592,16 @@ export default function AIPage() {
         }
     }, [activeWorkspace]);
 
+    useEffect(() => {
+        if (conversationId) {
+            localStorage.setItem("activeConversationId", conversationId);
+        }
+    }, [conversationId]);
+
     // Persistance des données IA
     useEffect(() => {
         localStorage.setItem("ai_repo_list", JSON.stringify(repoList));
     }, [repoList]);
-
-    useEffect(() => {
-        localStorage.setItem("ai_messages", JSON.stringify(messages));
-    }, [messages]);
 
     // Workspace CRUD handlers
     const handleCreateWorkspace = async (name: string, slug: string) => {
@@ -450,19 +652,162 @@ export default function AIPage() {
         return item;
     });
 
+    const refreshConversations = async () => {
+        const updatedConversations = await getMyConversations();
+        setConversations(updatedConversations);
+        return updatedConversations;
+    };
+
+    const handleSelectConversation = async (targetConversationId: string) => {
+        if (!targetConversationId || targetConversationId === conversationId || isConversationLoading) {
+            return;
+        }
+
+        setIsConversationLoading(true);
+        try {
+            const conversationMessages = await getConversationMessages(targetConversationId, INITIAL_VISIBLE_MESSAGES);
+            setConversationId(targetConversationId);
+            setMessages(toChatMessages(conversationMessages));
+            setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
+            setHasMoreMessages(conversationMessages.length >= INITIAL_VISIBLE_MESSAGES);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsConversationLoading(false);
+        }
+    };
+
+    const handleCreateConversation = async () => {
+        try {
+            const createdConversation = await createConversation({ title: "Nouvelle conversation" });
+            setConversationId(createdConversation.id);
+            setMessages([]);
+            setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
+            setHasMoreMessages(false);
+            setIsConversationPanelOpen(true);
+
+            await refreshConversations();
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDeleteConversation = async (conversationToDeleteId: string) => {
+        if (!conversationToDeleteId) return;
+
+        try {
+            await deleteConversation(conversationToDeleteId);
+
+            let updatedConversations = await getMyConversations();
+            if (updatedConversations.length === 0) {
+                const createdConversation = await createConversation({ title: "Nouvelle conversation" });
+                setConversations([]);
+                setConversationId(createdConversation.id);
+                setMessages([]);
+                setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
+                setHasMoreMessages(false);
+                return;
+            }
+
+            setConversations(updatedConversations);
+
+            if (conversationId === conversationToDeleteId || !conversationId) {
+                const nextConversation = updatedConversations[0];
+                setConversationId(nextConversation.id);
+                setIsConversationLoading(true);
+
+                const nextConversationMessages = await getConversationMessages(nextConversation.id, INITIAL_VISIBLE_MESSAGES);
+                setMessages(toChatMessages(nextConversationMessages));
+                setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
+                setHasMoreMessages(nextConversationMessages.length >= INITIAL_VISIBLE_MESSAGES);
+                setIsConversationLoading(false);
+            }
+        } catch (error) {
+            console.error(error);
+            setIsConversationLoading(false);
+        }
+    };
+
+    const promptDeleteConversation = (conversationToDeleteId: string) => {
+        const targetConversation = conversations.find((conv) => conv.id === conversationToDeleteId);
+        if (!targetConversation) {
+            return;
+        }
+
+        setDeletingConversation(targetConversation);
+    };
+
+    const handleShowMoreMessages = async () => {
+        if (!conversationId || isConversationLoading) {
+            return;
+        }
+
+        const nextLimit = messageFetchLimit + MESSAGE_BATCH_SIZE;
+
+        setIsConversationLoading(true);
+        try {
+            const conversationMessages = await getConversationMessages(conversationId, nextLimit);
+            setMessages(toChatMessages(conversationMessages));
+            setMessageFetchLimit(nextLimit);
+            setHasMoreMessages(conversationMessages.length >= nextLimit);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsConversationLoading(false);
+        }
+    };
+
     const handleSend = async () => {
-        if (!input.trim() || isTyping) return;
-        const userMsg = { role: "user", content: input, timestamp: new Date() };
+        const userInput = input.trim();
+        if (!userInput || isTyping) return;
+
+        const isFirstMessageInConversation = messages.length === 0;
+        const nextConversationTitle = buildConversationTitleFromMessage(userInput);
+
+        const userMsg: ChatMessage = { role: "user", content: userInput, timestamp: new Date() };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
 
         try {
+            let currentConversationId = conversationId;
+            if (!currentConversationId) {
+                const createdConversation = await createConversation({ title: "Nouvelle conversation" });
+                currentConversationId = createdConversation.id;
+                setConversationId(createdConversation.id);
+                setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
+                setHasMoreMessages(false);
+            }
+
+            if (isFirstMessageInConversation) {
+                const updatedConversation = await updateConversationTitle(currentConversationId, {
+                    title: nextConversationTitle,
+                });
+
+                setConversations((prev) => prev.map((conv) => (
+                    conv.id === updatedConversation.id ? updatedConversation : conv
+                )));
+            }
+
+            await addConversationMessage(currentConversationId, {
+                role: "user",
+                content: userInput,
+            });
+
             const res = await analyzeRepo({
                 repositories: repoList,
-                user_query: input
+                user_query: userInput
             });
-            setMessages(prev => [...prev, { role: "assistant", content: res.response, timestamp: new Date() }]);
+
+            const assistantMsg: ChatMessage = { role: "assistant", content: res.response, timestamp: new Date() };
+            setMessages(prev => [...prev, assistantMsg]);
+
+            await addConversationMessage(currentConversationId, {
+                role: "assistant",
+                content: res.response,
+            });
+
+            await refreshConversations();
         } catch (err) {
             console.error(err);
         } finally {
@@ -532,11 +877,13 @@ export default function AIPage() {
                 /* AI Page Layout */
                 .ai-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: #0d0d0f; }
                 .ai-top-bar { display: flex; align-items: center; gap: 10px; padding: 0 20px; height: 52px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; background: rgba(13,13,15,0.95); backdrop-filter: blur(12px); }
+                .ai-main-layout { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
                 .repo-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.18s; border: 1px solid rgba(255,255,255,0.08); background: transparent; color: rgba(255,255,255,0.5); }
                 .repo-chip.active { background: rgba(83,74,183,0.2); border-color: rgba(83,74,183,0.5); color: #c4beff; }
                 .repo-chip:hover:not(.active) { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
                 .repo-chip-icon { opacity: 0.7; display: flex; align-items: center; }
-                .messages-scroll { flex: 1; overflow-y: auto; padding: 0; }
+                .messages-scroll { flex: 1; overflow-y: auto; padding: 0; transition: padding-right 0.25s ease; }
+                .messages-scroll.with-panel { padding-right: 320px; }
                 .messages-inner { max-width: 820px; margin: 0 auto; padding: 40px 24px 24px; display: flex; flex-direction: column; gap: 0; }
                 .msg-row { display: flex; gap: 14px; padding: 20px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); align-items: flex-start; }
                 .msg-row:last-child { border-bottom: none; }
@@ -552,6 +899,7 @@ export default function AIPage() {
                 .msg-meta { font-size: 11px; color: rgba(255,255,255,0.18); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
                 .msg-row.user .msg-meta { justify-content: flex-end; }
                 .input-dock { flex-shrink: 0; padding: 16px 24px 20px; background: #0d0d0f; }
+                .input-dock.with-panel { padding-right: 344px; }
                 .input-dock-inner { max-width: 820px; margin: 0 auto; }
                 .input-box { display: flex; align-items: flex-end; gap: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 8px 8px 8px 20px; transition: border-color 0.2s, box-shadow 0.2s; }
                 .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 3px rgba(83,74,183,0.08), 0 8px 32px rgba(0,0,0,0.2); }
@@ -569,11 +917,32 @@ export default function AIPage() {
                 .typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: #a89ef5; animation: typing-pulse 1.4s ease-in-out infinite; }
                 .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
                 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+                .show-more-btn { background: rgba(83,74,183,0.12); border: 0.5px solid rgba(83,74,183,0.35); color: #cfc8ff; border-radius: 99px; padding: 8px 14px; font-size: 12px; cursor: pointer; transition: background 0.18s; }
+                .show-more-btn:hover { background: rgba(83,74,183,0.2); }
+                .conversation-panel { position: absolute; top: 0; right: 0; width: 320px; height: 100%; background: rgba(17,17,20,0.96); border-left: 0.5px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); display: flex; flex-direction: column; transform: translateX(100%); opacity: 0; pointer-events: none; transition: transform 0.25s ease, opacity 0.25s ease; }
+                .conversation-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+                .conversation-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; border-bottom: 0.5px solid rgba(255,255,255,0.07); }
+                .conversation-new-btn { margin: 12px 14px; background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.32); color: #d6d2ff; border-radius: 10px; padding: 9px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+                .conversation-new-btn:hover { background: rgba(83,74,183,0.26); }
+                .conversation-list { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
+                .conversation-item { width: 100%; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; transition: border-color 0.18s, background 0.18s; }
+                .conversation-item:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+                .conversation-item.active { border-color: rgba(83,74,183,0.45); background: rgba(83,74,183,0.14); }
+                .conversation-item-main { flex: 1; min-width: 0; }
+                .conversation-item-title { color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .conversation-item-time { color: rgba(255,255,255,0.32); font-size: 11px; margin-top: 4px; }
+                .conversation-delete-btn { width: 26px; height: 26px; border: none; border-radius: 8px; background: rgba(226,75,74,0.08); color: #f87171; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+                .conversation-delete-btn:hover { background: rgba(226,75,74,0.18); }
                 @keyframes typing-pulse { 0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
                 @keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                 .msg-row { animation: msg-in 0.25s ease-out; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
                 .animate-spin { animation: spin 1s linear infinite; }
+                @media (max-width: 900px) {
+                    .messages-scroll.with-panel { padding-right: 0; }
+                    .input-dock.with-panel { padding-right: 24px; }
+                    .conversation-panel { width: min(92vw, 320px); }
+                }
             `}</style>
             
             <Content>
@@ -607,76 +976,150 @@ export default function AIPage() {
                         <button onClick={() => setShowRepoModal(true)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px dashed rgba(29,158,117,0.4)", background: "rgba(29,158,117,0.06)", color: "#34d399", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
                             <Plus size={12} /> Add repo
                         </button>
-                        <button onClick={() => setMessages([])} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px solid rgba(226,75,74,0.2)", background: "rgba(226,75,74,0.06)", color: "#f87171", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
-                            <Trash2 size={12} /> Clear
+                        <button onClick={handleCreateConversation} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px solid rgba(83,74,183,0.35)", background: "rgba(83,74,183,0.15)", color: "#d6d2ff", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
+                            <Plus size={12} /> New chat
+                        </button>
+                        <button onClick={() => setIsConversationPanelOpen((prev) => !prev)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.75)", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
+                            {isConversationPanelOpen ? "Hide Chat history" : "Chat History"}
                         </button>
                     </div>
 
-                    {/* ── Messages Scroll Area ── */}
-                    <div className="messages-scroll">
-                        <div className="messages-inner">
-                            {messages.length === 0 ? (
-                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 80, textAlign: "center" }}>
-                                    <div style={{ width: 72, height: 72, borderRadius: 20, background: "linear-gradient(135deg, #534AB7, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24, boxShadow: "0 12px 40px rgba(83,74,183,0.3)" }}>
-                                        <Sparkles size={32} color="white" />
+                    <div className="ai-main-layout">
+                        {/* ── Messages Scroll Area ── */}
+                        <div className={`messages-scroll${isConversationPanelOpen ? " with-panel" : ""}`}>
+                            <div className="messages-inner">
+                                {hasMoreMessages && (
+                                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                                        <button className="show-more-btn" onClick={handleShowMoreMessages}>
+                                            Show more
+                                        </button>
                                     </div>
-                                    <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 700, color: "#fff", marginBottom: 10, letterSpacing: "-0.5px" }}>
-                                        Bonjour, que puis-je analyser ?
-                                    </h2>
-                                    <p style={{ fontSize: 15, color: "rgba(255,255,255,0.35)", maxWidth: 400, lineHeight: 1.6 }}>
-                                        Je peux analyser votre code, suggérer des améliorations, détecter des bugs ou générer des tickets techniques.
-                                    </p>
-                                    <div className="suggestion-chips">
-                                        {["Explique l'architecture du projet", "Quels bugs potentiels vois-tu ?", "Génère des tickets techniques", "Revue du code en profondeur"].map(s => (
-                                            <button key={s} className="sugg-chip" onClick={() => { setInput(s); }}>
-                                                {s}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                messages.map((m, i) => (
-                                    <div key={i} className={`msg-row${m.role === "user" ? " user" : ""}`}>
-                                        <div className={`msg-avatar${m.role === "user" ? " user-av" : " ai"}`}>
-                                            {m.role === "user" 
-                                                ? <span style={{ fontSize: 16 }}>👤</span>
-                                                : <Sparkles size={16} color="white" />}
+                                )}
+
+                                {messages.length === 0 ? (
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 80, textAlign: "center" }}>
+                                        <div style={{ width: 72, height: 72, borderRadius: 20, background: "linear-gradient(135deg, #534AB7, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24, boxShadow: "0 12px 40px rgba(83,74,183,0.3)" }}>
+                                            <Sparkles size={32} color="white" />
                                         </div>
-                                        <div className="msg-body">
-                                            <div className="msg-name">
-                                                {m.role === "user" ? "Vous" : "AgileFlow AI"}
+                                        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 700, color: "#fff", marginBottom: 10, letterSpacing: "-0.5px" }}>
+                                            Bonjour, que puis-je analyser ?
+                                        </h2>
+                                        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.35)", maxWidth: 400, lineHeight: 1.6 }}>
+                                            Je peux analyser votre code, suggérer des améliorations, détecter des bugs ou générer des tickets techniques.
+                                        </p>
+                                        <div className="suggestion-chips">
+                                            {["Explique l'architecture du projet", "Quels bugs potentiels vois-tu ?", "Génère des tickets techniques", "Revue du code en profondeur"].map(s => (
+                                                <button key={s} className="sugg-chip" onClick={() => { setInput(s); }}>
+                                                    {s}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    messages.map((m, i) => (
+                                        <div key={`${m.timestamp}-${i}`} className={`msg-row${m.role === "user" ? " user" : ""}`}>
+                                            <div className={`msg-avatar${m.role === "user" ? " user-av" : " ai"}`}>
+                                                {m.role === "user"
+                                                    ? <span style={{ fontSize: 16 }}>👤</span>
+                                                    : <Sparkles size={16} color="white" />}
                                             </div>
-                                            {m.role === "user" ? (
-                                                <div className="msg-user-bubble">{m.content}</div>
-                                            ) : (
-                                                <div className="msg-ai-content markdown-content">
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                            <div className="msg-body">
+                                                <div className="msg-name">
+                                                    {m.role === "user" ? "Vous" : "AgileFlow AI"}
                                                 </div>
-                                            )}
-                                            <div className="msg-meta">
-                                                <span>🕐</span>
-                                                {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {m.role === "user" ? (
+                                                    <div className="msg-user-bubble">{m.content}</div>
+                                                ) : (
+                                                    <div className="msg-ai-content markdown-content">
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                                    </div>
+                                                )}
+                                                <div className="msg-meta">
+                                                    <span>🕐</span>
+                                                    {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))
-                            )}
-                            {isTyping && (
-                                <div className="msg-row">
-                                    <div className="msg-avatar ai"><Sparkles size={16} color="white" /></div>
-                                    <div className="msg-body">
-                                        <div className="typing-dots">
-                                            <span /><span /><span />
+                                    ))
+                                )}
+
+                                {isConversationLoading && (
+                                    <div className="msg-row">
+                                        <div className="msg-avatar ai"><Loader2 size={16} color="white" className="animate-spin" /></div>
+                                        <div className="msg-body">
+                                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Chargement de la conversation...</div>
                                         </div>
-                                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>Analyse en cours...</div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+
+                                {isTyping && (
+                                    <div className="msg-row">
+                                        <div className="msg-avatar ai"><Sparkles size={16} color="white" /></div>
+                                        <div className="msg-body">
+                                            <div className="typing-dots">
+                                                <span /><span /><span />
+                                            </div>
+                                            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>Analyse en cours...</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className={`conversation-panel${isConversationPanelOpen ? " open" : ""}`}>
+                            <div className="conversation-panel-head">
+                                <h3 style={{ margin: 0, fontSize: 14, color: "#fff", fontFamily: "'Syne', sans-serif" }}>Historique</h3>
+                                <button
+                                    onClick={() => setIsConversationPanelOpen(false)}
+                                    style={{ background: "none", border: "none", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex" }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            <button className="conversation-new-btn" onClick={handleCreateConversation}>
+                                <Plus size={14} /> Nouvelle conversation
+                            </button>
+
+                            <div className="conversation-list">
+                                {conversations.length === 0 ? (
+                                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, padding: "10px 6px" }}>Aucune conversation.</p>
+                                ) : (
+                                    conversations.map((conv) => (
+                                        <button
+                                            key={conv.id}
+                                            className={`conversation-item${conversationId === conv.id ? " active" : ""}`}
+                                            onClick={() => handleSelectConversation(conv.id)}
+                                        >
+                                            <div className="conversation-item-main">
+                                                <div className="conversation-item-title">{conv.title || "Nouvelle conversation"}</div>
+                                                <div className="conversation-item-time">
+                                                    {new Date(conv.updatedAt).toLocaleString([], {
+                                                        day: "2-digit",
+                                                        month: "2-digit",
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <span
+                                                className="conversation-delete-btn"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    promptDeleteConversation(conv.id);
+                                                }}
+                                            >
+                                                <Trash2 size={13} />
+                                            </span>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
                         </div>
                     </div>
 
                     {/* ── Sticky Input Dock ── */}
-                    <div className="input-dock">
+                    <div className={`input-dock${isConversationPanelOpen ? " with-panel" : ""}`}>
                         <div className="input-dock-inner">
                             <div className="input-box">
                                 <textarea
@@ -756,6 +1199,16 @@ export default function AIPage() {
                         setDeletingRepoIndex(null);
                     }}
                     onClose={() => setDeletingRepoIndex(null)}
+                />
+            )}
+            {deletingConversation && (
+                <ConversationDeleteConfirmModal
+                    conversationTitle={deletingConversation.title || "Nouvelle conversation"}
+                    onConfirm={async () => {
+                        await handleDeleteConversation(deletingConversation.id);
+                        setDeletingConversation(null);
+                    }}
+                    onClose={() => setDeletingConversation(null)}
                 />
             )}
         </Layout>

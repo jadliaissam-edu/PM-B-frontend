@@ -1,4 +1,5 @@
-import { IA_BASE_URL } from "../config/baseURL";
+import { IA_REPO_BASE_URL } from "../config/baseURL";
+import { getAuthHeaders } from "./jwtService";
 
 export interface RepoInfo {
     owner: string;
@@ -21,9 +22,14 @@ export interface RepoAnalysisResponse {
  * Appelle l'IA pour analyser un dépôt spécifique
  */
 export async function analyzeRepo(payload: RepoAnalysisRequest): Promise<RepoAnalysisResponse> {
-    const res = await fetch(`${IA_BASE_URL}/api/ia/repo`, {
+    const authHeaders = await getAuthHeaders();
+
+    const res = await fetch(`${IA_REPO_BASE_URL}/repo`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+        },
         body: JSON.stringify(payload),
     });
 

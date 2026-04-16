@@ -1,4 +1,5 @@
-const API_BASE_URL = "/api";
+import { API_BASE_URL } from "../config/baseURL";
+import { getAuthHeaders } from "./jwtService";
 
 export interface WorkspaceRequestDto {
     name: string;
@@ -45,12 +46,6 @@ interface ListeResponseDto {
     sprintName?: string;
 }
 
-function getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem("accessToken");
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
-}
-
 function asArray<T>(value: unknown): T[] {
     if (Array.isArray(value)) return value as T[];
     if (value && typeof value === "object") {
@@ -62,11 +57,13 @@ function asArray<T>(value: unknown): T[] {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+    const authHeaders = await getAuthHeaders();
+
     const response = await fetch(`${API_BASE_URL}${path}`, {
         ...init,
         headers: {
             "Content-Type": "application/json",
-            ...getAuthHeaders(),
+            ...authHeaders,
             ...(init?.headers ?? {}),
         },
     });
