@@ -5,7 +5,7 @@ import {
     Plus,
     TrendingUp, Clock, Folders, Target, MoreHorizontal,
     Circle, Zap, Star, ArrowUpRight, Loader2, Trash2, X, Check,
-    CalendarDays,
+    CalendarDays, Sparkles
 } from "lucide-react";
 
 import Sidebar from "../components/Sidebar";
@@ -37,6 +37,7 @@ import type {
 
 const navItems = [
     { icon: LayoutDashboard, label: "Dashboard" },
+    { icon: Sparkles, label: "Ask AI" },
     { icon: CheckSquare, label: "My Tasks", badge: 5 },
     { icon: Inbox, label: "Inbox", badge: 3 },
     { icon: BarChart2, label: "Reporting" },
@@ -578,6 +579,14 @@ export default function WorkspacePage() {
                 ...item,
                 active: location.pathname === "/workspace/my-tasks",
                 onClick: () => navigate("/workspace/my-tasks"),
+            };
+        }
+
+        if (item.label === "Ask AI") {
+            return {
+                ...item,
+                active: location.pathname === "/ai",
+                onClick: () => navigate("/ai"),
             };
         }
 

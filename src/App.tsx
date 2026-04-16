@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import MyTasksTestPage from "./pages/MyTasksTestPage";
+import AIPage from "./pages/AIPage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("accessToken");
@@ -29,6 +30,14 @@ export default function App() {
                     element={(
                         <ProtectedRoute>
                             <MyTasksTestPage />
+                        </ProtectedRoute>
+                    )}
+                />
+                <Route
+                    path="/ai"
+                    element={(
+                        <ProtectedRoute>
+                            <AIPage />
                         </ProtectedRoute>
                     )}
                 />

@@ -10,7 +10,7 @@ export default function Layout({ sidebar, children }: LayoutProps) {
         <div
             style={{
                 display: "flex",
-                minHeight: "100vh",
+                height: "100vh",
                 background: "#0d0d0f",
                 fontFamily: "'DM Sans', sans-serif",
                 color: "#fff",
