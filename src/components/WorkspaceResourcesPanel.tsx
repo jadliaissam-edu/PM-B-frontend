@@ -33,7 +33,13 @@ import {
     updateSprint,
     type SprintResponseDto,
 } from "../api/sprintApi";
-import { getListesByFolder, type ListeResponseDto } from "../api/listeApi";
+import {
+    createListe,
+    deleteListe,
+    getListesByFolder,
+    updateListe,
+    type ListeResponseDto,
+} from "../api/listeApi";
 
 interface WorkspaceResourcesPanelProps {
     workspaceId?: string;
@@ -55,6 +61,8 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
     const [loadingFoldersFor, setLoadingFoldersFor] = useState<string | null>(null);
     const [loadingSprintsFor, setLoadingSprintsFor] = useState<string | null>(null);
     const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+    const [openSpaceCreateMenuFor, setOpenSpaceCreateMenuFor] = useState<string | null>(null);
+    const [openCreateMenuFor, setOpenCreateMenuFor] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const loadSpaces = useCallback(async () => {
@@ -84,6 +92,8 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
         setPhaseListsByFolder({});
         setExpandedSpaces({});
         setExpandedFolders({});
+        setOpenSpaceCreateMenuFor(null);
+        setOpenCreateMenuFor(null);
         void loadSpaces();
     }, [loadSpaces]);
 
@@ -300,6 +310,102 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
         }
     };
 
+    const handleCreatePhaseList = async (folderId?: string) => {
+        if (!folderId) {
+            setErrorMessage("Folder id is missing on backend response.");
+            return;
+        }
+
+        const name = window.prompt("List name");
+        if (!name || !name.trim()) return;
+
+        const nextOrder = (phaseListsByFolder[folderId]?.length || 0) + 1;
+
+        try {
+            await createListe({
+                name: name.trim(),
+                type: "PHASE",
+                order: nextOrder,
+                folderId,
+                sprintId: null,
+            });
+            await loadPhaseLists(folderId);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to create list.";
+            setErrorMessage(message);
+        }
+    };
+
+    const handleCreatePhaseListFromSpace = async (spaceId: string) => {
+        let availableFolders = foldersBySpace[spaceId] || [];
+
+        if (availableFolders.length === 0) {
+            try {
+                const loadedFolders = await getFoldersBySpace(spaceId);
+                setFoldersBySpace((prev) => ({ ...prev, [spaceId]: loadedFolders }));
+                availableFolders = loadedFolders;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Failed to load folders.";
+                setErrorMessage(message);
+                return;
+            }
+        }
+
+        const validFolders = availableFolders.filter((folder) => Boolean(folder.id));
+        if (validFolders.length === 0) {
+            setErrorMessage("Create a folder first before creating a list.");
+            return;
+        }
+
+        if (validFolders.length === 1) {
+            await handleCreatePhaseList(validFolders[0].id);
+            return;
+        }
+
+        const choices = validFolders.map((folder, index) => `${index + 1}. ${folder.name}`).join("\n");
+        const selected = window.prompt(`Select folder number for the new list:\n${choices}`, "1");
+        if (!selected) return;
+
+        const selectedIndex = Number.parseInt(selected, 10);
+        if (Number.isNaN(selectedIndex) || selectedIndex < 1 || selectedIndex > validFolders.length) {
+            setErrorMessage("Invalid folder selection.");
+            return;
+        }
+
+        await handleCreatePhaseList(validFolders[selectedIndex - 1].id);
+    };
+
+    const handleEditPhaseList = async (folderId: string, liste: ListeResponseDto) => {
+        const nextName = window.prompt("Edit list name", liste.name || "");
+        if (!nextName || !nextName.trim()) return;
+
+        try {
+            await updateListe(liste.id, {
+                name: nextName.trim(),
+                type: "PHASE",
+                order: typeof liste.order === "number" ? liste.order : 1,
+                folderId,
+                sprintId: null,
+            });
+            await loadPhaseLists(folderId);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to update list.";
+            setErrorMessage(message);
+        }
+    };
+
+    const handleDeletePhaseList = async (folderId: string, liste: ListeResponseDto) => {
+        if (!window.confirm(`Delete list \"${liste.name}\" ?`)) return;
+
+        try {
+            await deleteListe(liste.id);
+            await loadPhaseLists(folderId);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to delete list.";
+            setErrorMessage(message);
+        }
+    };
+
     const handleEditSprint = async (folderId: string, sprint: SprintResponseDto) => {
         const nextName = window.prompt("Edit sprint name", sprint.name || "");
         if (!nextName || !nextName.trim()) return;
@@ -411,13 +517,18 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                 const spaceFolders = foldersBySpace[space.id] || [];
                 const spaceRowKey = `space-${space.id}`;
                 const isSpaceHovered = hoveredRow === spaceRowKey;
+                const isSpaceCreateMenuOpen = openSpaceCreateMenuFor === spaceRowKey;
 
                 return (
                     <div key={space.id}>
                         <div
                             onMouseEnter={() => setHoveredRow(spaceRowKey)}
-                            onMouseLeave={() => setHoveredRow(null)}
+                            onMouseLeave={() => {
+                                setHoveredRow(null);
+                                setOpenSpaceCreateMenuFor(null);
+                            }}
                             style={{
+                                position: "relative",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 6,
@@ -468,20 +579,63 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
 
                             {hoveredRow === spaceRowKey && (
                                 <>
-                                    <button
-                                        title="Create folder"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            void handleCreateFolder(space.id);
-                                        }}
-                                        style={miniActionStyle("rgba(29,158,117,0.2)", "#76e7c2")}
-                                    >
-                                        <FolderPlus size={12} />
-                                    </button>
+                                    <div style={{ position: "relative", flexShrink: 0 }}>
+                                        <button
+                                            title="Create item"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setOpenSpaceCreateMenuFor((current) => (current === spaceRowKey ? null : spaceRowKey));
+                                            }}
+                                            style={miniActionStyle("rgba(29,158,117,0.2)", "#76e7c2")}
+                                        >
+                                            <Plus size={12} />
+                                        </button>
+
+                                        {isSpaceCreateMenuOpen && (
+                                            <div
+                                                onClick={(event) => event.stopPropagation()}
+                                                style={{
+                                                    position: "absolute",
+                                                    top: "calc(100% + 6px)",
+                                                    right: 0,
+                                                    minWidth: 130,
+                                                    padding: 6,
+                                                    borderRadius: 10,
+                                                    border: "1px solid rgba(255,255,255,0.14)",
+                                                    background: "rgba(13,15,20,0.96)",
+                                                    boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 4,
+                                                    zIndex: 20,
+                                                }}
+                                            >
+                                                <button
+                                                    onClick={() => {
+                                                        setOpenSpaceCreateMenuFor(null);
+                                                        void handleCreateFolder(space.id);
+                                                    }}
+                                                    style={createMenuItemStyle}
+                                                >
+                                                    Create Folder
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setOpenSpaceCreateMenuFor(null);
+                                                        void handleCreatePhaseListFromSpace(space.id);
+                                                    }}
+                                                    style={createMenuItemStyle}
+                                                >
+                                                    Create List
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <button
                                         title="Edit space"
                                         onClick={(event) => {
                                             event.stopPropagation();
+                                            setOpenSpaceCreateMenuFor(null);
                                             void handleEditSpace(space);
                                         }}
                                         style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff")}
@@ -492,6 +646,7 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                                         title="Delete space"
                                         onClick={(event) => {
                                             event.stopPropagation();
+                                            setOpenSpaceCreateMenuFor(null);
                                             void handleDeleteSpace(space);
                                         }}
                                         style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5")}
@@ -521,6 +676,7 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                                     const folderRowKey = `folder-${folderLocalKey}`;
                                     const isFolderOpen = folder.id ? Boolean(expandedFolders[folder.id]) : false;
                                     const isFolderHovered = hoveredRow === folderRowKey;
+                                    const isCreateMenuOpen = openCreateMenuFor === folderRowKey;
                                     const folderSprints = folder.id ? sprintsByFolder[folder.id] || [] : [];
                                     const folderPhaseLists = folder.id ? phaseListsByFolder[folder.id] || [] : [];
 
@@ -528,8 +684,12 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                                         <div key={folderLocalKey}>
                                             <div
                                                 onMouseEnter={() => setHoveredRow(folderRowKey)}
-                                                onMouseLeave={() => setHoveredRow(null)}
+                                                onMouseLeave={() => {
+                                                    setHoveredRow(null);
+                                                    setOpenCreateMenuFor(null);
+                                                }}
                                                 style={{
+                                                    position: "relative",
                                                     display: "flex",
                                                     alignItems: "center",
                                                     gap: 6,
@@ -584,21 +744,64 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
 
                                                 {hoveredRow === folderRowKey && (
                                                     <>
-                                                        <button
-                                                            title="Create sprint"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                void handleCreateSprint(folder.id);
-                                                            }}
-                                                            style={miniActionStyle("rgba(29,158,117,0.2)", "#76e7c2", !folder.id)}
-                                                            disabled={!folder.id}
-                                                        >
-                                                            <Rocket size={12} />
-                                                        </button>
+                                                        <div style={{ position: "relative", flexShrink: 0 }}>
+                                                            <button
+                                                                title="Create item"
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    setOpenCreateMenuFor((current) => (current === folderRowKey ? null : folderRowKey));
+                                                                }}
+                                                                style={miniActionStyle("rgba(29,158,117,0.2)", "#76e7c2", !folder.id)}
+                                                                disabled={!folder.id}
+                                                            >
+                                                                <Plus size={12} />
+                                                            </button>
+
+                                                            {isCreateMenuOpen && folder.id && (
+                                                                <div
+                                                                    onClick={(event) => event.stopPropagation()}
+                                                                    style={{
+                                                                        position: "absolute",
+                                                                        top: "calc(100% + 6px)",
+                                                                        right: 0,
+                                                                        minWidth: 130,
+                                                                        padding: 6,
+                                                                        borderRadius: 10,
+                                                                        border: "1px solid rgba(255,255,255,0.14)",
+                                                                        background: "rgba(13,15,20,0.96)",
+                                                                        boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+                                                                        display: "flex",
+                                                                        flexDirection: "column",
+                                                                        gap: 4,
+                                                                        zIndex: 20,
+                                                                    }}
+                                                                >
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setOpenCreateMenuFor(null);
+                                                                            void handleCreateSprint(folder.id);
+                                                                        }}
+                                                                        style={createMenuItemStyle}
+                                                                    >
+                                                                        Create Sprint
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setOpenCreateMenuFor(null);
+                                                                            void handleCreatePhaseList(folder.id);
+                                                                        }}
+                                                                        style={createMenuItemStyle}
+                                                                    >
+                                                                        Create List
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         <button
                                                             title="Edit folder"
                                                             onClick={(event) => {
                                                                 event.stopPropagation();
+                                                                setOpenCreateMenuFor(null);
                                                                 void handleEditFolder(space.id, folder);
                                                             }}
                                                             style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff", !folder.id)}
@@ -610,6 +813,7 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                                                             title="Delete folder"
                                                             onClick={(event) => {
                                                                 event.stopPropagation();
+                                                                setOpenCreateMenuFor(null);
                                                                 void handleDeleteFolder(space.id, folder);
                                                             }}
                                                             style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5", !folder.id)}
@@ -658,6 +862,31 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                                                                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                                     {liste.name}
                                                                 </span>
+
+                                                                {hoveredRow === listRowKey && (
+                                                                    <>
+                                                                        <button
+                                                                            title="Edit list"
+                                                                            onClick={(event) => {
+                                                                                event.stopPropagation();
+                                                                                void handleEditPhaseList(folder.id!, liste);
+                                                                            }}
+                                                                            style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff")}
+                                                                        >
+                                                                            <Pencil size={12} />
+                                                                        </button>
+                                                                        <button
+                                                                            title="Delete list"
+                                                                            onClick={(event) => {
+                                                                                event.stopPropagation();
+                                                                                void handleDeletePhaseList(folder.id!, liste);
+                                                                            }}
+                                                                            style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5")}
+                                                                        >
+                                                                            <Trash2 size={12} />
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}
@@ -809,3 +1038,14 @@ function miniActionStyle(background: string, color: string, disabled = false) {
         flexShrink: 0,
     } as const;
 }
+
+const createMenuItemStyle = {
+    border: "none",
+    borderRadius: 7,
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.88)",
+    textAlign: "left",
+    fontSize: 11,
+    padding: "7px 9px",
+    cursor: "pointer",
+} as const;
