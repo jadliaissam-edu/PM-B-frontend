@@ -1,16 +1,20 @@
 import { API_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
 
-export interface WorkspaceRequestDto {
+export interface SpaceRequestDto {
     name: string;
-    slug: string;
+    color: string;
+    isPrivate: boolean;
+    workspaceId: string;
 }
 
-export interface WorkspaceResponseDto {
+export interface SpaceResponseDto {
     id: string;
-    name: string;
-    slug: string;
-    ownerName?: string;
+    spaceName: string;
+    color?: string;
+    isPrivate: boolean;
+    workspaceid?: string;
+    workspaceName?: string;
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -46,27 +50,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return data as T;
 }
 
-export async function getWorkspacesByUser(): Promise<WorkspaceResponseDto[]> {
-    const data = await request<unknown>("/workspaces");
-    return asArray<WorkspaceResponseDto>(data);
+export async function getSpacesByWorkspace(workspaceId: string): Promise<SpaceResponseDto[]> {
+    const data = await request<unknown>(`/spaces/workspace/${workspaceId}`);
+    return asArray<SpaceResponseDto>(data);
 }
 
-export async function createWorkspace(payload: WorkspaceRequestDto): Promise<WorkspaceResponseDto> {
-    return request<WorkspaceResponseDto>("/workspaces", {
+export async function getAllSpaces(page = 0, size = 50): Promise<SpaceResponseDto[]> {
+    const data = await request<unknown>(`/spaces?page=${page}&size=${size}`);
+    return asArray<SpaceResponseDto>(data);
+}
+
+export async function getSpaceById(spaceId: string): Promise<SpaceResponseDto> {
+    return request<SpaceResponseDto>(`/spaces/${spaceId}`);
+}
+
+export async function createSpace(payload: SpaceRequestDto): Promise<SpaceResponseDto> {
+    return request<SpaceResponseDto>("/spaces", {
         method: "POST",
         body: JSON.stringify(payload),
     });
 }
 
-export async function updateWorkspace(workspaceId: string, payload: WorkspaceRequestDto): Promise<WorkspaceResponseDto> {
-    return request<WorkspaceResponseDto>(`/workspaces/${workspaceId}`, {
+export async function updateSpace(spaceId: string, payload: SpaceRequestDto): Promise<SpaceResponseDto> {
+    return request<SpaceResponseDto>(`/spaces/${spaceId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
     });
 }
 
-export async function deleteWorkspace(workspaceId: string): Promise<void> {
-    await request<unknown>(`/workspaces/${workspaceId}`, {
+export async function deleteSpace(spaceId: string): Promise<void> {
+    await request<unknown>(`/spaces/${spaceId}`, {
         method: "DELETE",
     });
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { 
-    LayoutDashboard, CheckSquare, Inbox, BarChart2, 
+    LayoutDashboard, FolderGit2,
     Sparkles, Send, Loader2, Plus, 
     X, Check, Trash2, Pencil
 } from "lucide-react";
@@ -30,6 +30,7 @@ import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
+import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
 
 // ============================================================================
 // MODALS (Identiques au Dashboard)
@@ -456,9 +457,6 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
 const navItems = [
     { icon: LayoutDashboard, label: "Dashboard" },
     { icon: Sparkles, label: "Ask AI" },
-    { icon: CheckSquare, label: "My Tasks", badge: 5 },
-    { icon: Inbox, label: "Inbox", badge: 3 },
-    { icon: BarChart2, label: "Reporting" },
 ];
 
 type ChatRole = "user" | "assistant" | "system";
@@ -640,13 +638,6 @@ export default function AIPage() {
                 ...item,
                 active: location.pathname === "/ai",
                 onClick: () => navigate("/ai"),
-            };
-        }
-        if (item.label === "My Tasks") {
-            return {
-                ...item,
-                active: location.pathname === "/workspace/my-tasks",
-                onClick: () => navigate("/workspace/my-tasks"),
             };
         }
         return item;
@@ -832,6 +823,7 @@ export default function AIPage() {
                             onDeleteClick={(ws) => setDeletingWorkspace(ws)}
                         />
                     }
+                    resourcesPanel={<WorkspaceResourcesPanel workspaceId={activeWorkspace?.id} />}
                     userName={user.name}
                     userAvatar={user.avatar}
                 />
@@ -953,7 +945,7 @@ export default function AIPage() {
                     {/* ── Top Repo Bar ── */}
                     <div className="ai-top-bar">
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.25)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px", marginRight: 4 }}>
-                            <Inbox size={11} /> Repos
+                            <FolderGit2 size={11} /> Repos
                         </div>
                         <div style={{ display: "flex", gap: 6, flex: 1, overflowX: "auto" }}>
                             {repoList.map((r, i) => (
@@ -1025,7 +1017,7 @@ export default function AIPage() {
                                             </div>
                                             <div className="msg-body">
                                                 <div className="msg-name">
-                                                    {m.role === "user" ? "Vous" : "AgileFlow AI"}
+                                                    {m.role === "user" ? "Vous" : "Orbyte AI"}
                                                 </div>
                                                 {m.role === "user" ? (
                                                     <div className="msg-user-bubble">{m.content}</div>

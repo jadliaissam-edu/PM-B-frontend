@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { ChevronLeft, ChevronRight, Loader2, LogOut, Settings } from "lucide-react";
 import { logout } from "../api/authApi";
+import logoImage from "../assets/images/Logo.png";
 
 export interface SidebarNavItem {
     icon: LucideIcon;
@@ -17,8 +18,19 @@ interface SidebarProps {
     onToggleCollapse: () => void;
     navItems: SidebarNavItem[];
     workspaceDropdown?: ReactNode;
+    resourcesPanel?: ReactNode;
     userName: string;
     userAvatar: string;
+}
+
+const SIDEBAR_STORAGE_KEY = "sidebar-expanded-width";
+const SIDEBAR_COLLAPSED_WIDTH = 64;
+const SIDEBAR_DEFAULT_WIDTH = 272;
+const SIDEBAR_MIN_WIDTH = 240;
+const SIDEBAR_MAX_WIDTH = 420;
+
+function clampSidebarWidth(width: number): number {
+    return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 }
 
 function SidebarAvatar({ initials, size = 28, color = "#534AB7" }: { initials: string; size?: number; color?: string }) {
@@ -151,13 +163,72 @@ export default function Sidebar({
     onToggleCollapse,
     navItems,
     workspaceDropdown,
+    resourcesPanel,
     userName,
     userAvatar,
 }: SidebarProps) {
-    const sidebarWidth = collapsed ? 64 : 240;
+    const [expandedWidth, setExpandedWidth] = useState(() => {
+        if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
+
+        const storedWidth = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+        const parsedWidth = storedWidth ? Number.parseInt(storedWidth, 10) : SIDEBAR_DEFAULT_WIDTH;
+
+        if (!Number.isFinite(parsedWidth)) return SIDEBAR_DEFAULT_WIDTH;
+        return clampSidebarWidth(parsedWidth);
+    });
+    const [isResizing, setIsResizing] = useState(false);
+    const resizeStartRef = useRef<{ clientX: number; width: number } | null>(null);
+    const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : expandedWidth;
     const navigate = useNavigate();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+    useEffect(() => {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(expandedWidth));
+    }, [expandedWidth]);
+
+    const handleResizeStart = useCallback(
+        (event: ReactMouseEvent<HTMLDivElement>) => {
+            if (collapsed) return;
+
+            event.preventDefault();
+            resizeStartRef.current = {
+                clientX: event.clientX,
+                width: expandedWidth,
+            };
+            setIsResizing(true);
+        },
+        [collapsed, expandedWidth],
+    );
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleMouseMove = (event: MouseEvent) => {
+            if (!resizeStartRef.current) return;
+
+            const deltaX = event.clientX - resizeStartRef.current.clientX;
+            const nextWidth = clampSidebarWidth(resizeStartRef.current.width + deltaX);
+            setExpandedWidth(nextWidth);
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+            resizeStartRef.current = null;
+        };
+
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
+
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+            document.body.style.userSelect = "";
+            document.body.style.cursor = "";
+        };
+    }, [isResizing]);
 
     const handleLogout = async () => {
         if (isLoggingOut) return;
@@ -184,7 +255,7 @@ export default function Sidebar({
             style={{
                 width: sidebarWidth,
                 minWidth: sidebarWidth,
-                transition: "width 0.25s cubic-bezier(.4,0,.2,1), min-width 0.25s cubic-bezier(.4,0,.2,1)",
+                transition: isResizing ? "none" : "width 0.25s cubic-bezier(.4,0,.2,1), min-width 0.25s cubic-bezier(.4,0,.2,1)",
                 flexShrink: 0,
             }}
         >
@@ -195,7 +266,7 @@ export default function Sidebar({
                 borderRight: "0.5px solid rgba(255,255,255,0.07)",
                 display: "flex",
                 flexDirection: "column",
-                transition: "width 0.25s cubic-bezier(.4,0,.2,1)",
+                transition: isResizing ? "none" : "width 0.25s cubic-bezier(.4,0,.2,1)",
                 overflow: "hidden",
                 position: "fixed",
                 left: 0,
@@ -212,22 +283,21 @@ export default function Sidebar({
                             height: 32,
                             borderRadius: 9,
                             flexShrink: 0,
-                            background: "linear-gradient(135deg, #534AB7, #1D9E75)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            overflow: "hidden",
                         }}
                     >
-                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                            <rect x="2" y="2" width="6" height="6" rx="2" fill="white" opacity="0.9" />
-                            <rect x="10" y="2" width="6" height="6" rx="2" fill="white" opacity="0.5" />
-                            <rect x="2" y="10" width="6" height="6" rx="2" fill="white" opacity="0.5" />
-                            <rect x="10" y="10" width="6" height="6" rx="2" fill="white" opacity="0.9" />
-                        </svg>
+                        <img
+                            src={logoImage}
+                            alt="Orbyte"
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
                     </div>
                     {!collapsed && (
                         <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff", whiteSpace: "nowrap" }}>
-                            AgileFlow
+                            Orbyte
                         </span>
                     )}
                 </div>
@@ -305,6 +375,8 @@ export default function Sidebar({
                         )}
                     </div>
                 ))}
+
+                {!collapsed && resourcesPanel}
             </div>
 
             <div style={{ padding: "12px 8px 20px", borderTop: "0.5px solid rgba(255,255,255,0.06)" }}>
@@ -354,6 +426,36 @@ export default function Sidebar({
                     </div>
                 )}
             </div>
+
+            {!collapsed && (
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize sidebar"
+                    onMouseDown={handleResizeStart}
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: 8,
+                        cursor: "col-resize",
+                        zIndex: 20,
+                        display: "flex",
+                        justifyContent: "center",
+                        background: isResizing ? "rgba(255,255,255,0.04)" : "transparent",
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 2,
+                            margin: "8px 0",
+                            borderRadius: 99,
+                            background: isResizing ? "rgba(168,158,245,0.6)" : "rgba(255,255,255,0.12)",
+                        }}
+                    />
+                </div>
+            )}
         </aside>
 
         {showLogoutConfirm && (

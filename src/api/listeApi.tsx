@@ -1,16 +1,25 @@
 import { API_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
 
-export interface WorkspaceRequestDto {
+export type ListeType = "SPRINT" | "PHASE";
+
+export interface ListeRequestDto {
     name: string;
-    slug: string;
+    type: ListeType;
+    order: number;
+    folderId?: string | null;
+    sprintId?: string | null;
 }
 
-export interface WorkspaceResponseDto {
+export interface ListeResponseDto {
     id: string;
     name: string;
-    slug: string;
-    ownerName?: string;
+    type: ListeType;
+    order: number;
+    folderId?: string;
+    folderName?: string;
+    sprintId?: string;
+    sprintName?: string;
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -46,27 +55,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return data as T;
 }
 
-export async function getWorkspacesByUser(): Promise<WorkspaceResponseDto[]> {
-    const data = await request<unknown>("/workspaces");
-    return asArray<WorkspaceResponseDto>(data);
+export async function getListesByFolder(folderId: string): Promise<ListeResponseDto[]> {
+    const data = await request<unknown>(`/listes/folder/${folderId}`);
+    return asArray<ListeResponseDto>(data);
 }
 
-export async function createWorkspace(payload: WorkspaceRequestDto): Promise<WorkspaceResponseDto> {
-    return request<WorkspaceResponseDto>("/workspaces", {
+export async function getListesBySprint(sprintId: string): Promise<ListeResponseDto[]> {
+    const data = await request<unknown>(`/listes/sprint/${sprintId}`);
+    return asArray<ListeResponseDto>(data);
+}
+
+export async function createListe(payload: ListeRequestDto): Promise<ListeResponseDto> {
+    return request<ListeResponseDto>("/listes", {
         method: "POST",
         body: JSON.stringify(payload),
     });
 }
 
-export async function updateWorkspace(workspaceId: string, payload: WorkspaceRequestDto): Promise<WorkspaceResponseDto> {
-    return request<WorkspaceResponseDto>(`/workspaces/${workspaceId}`, {
+export async function updateListe(listeId: string, payload: ListeRequestDto): Promise<ListeResponseDto> {
+    return request<ListeResponseDto>(`/listes/${listeId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
     });
 }
 
-export async function deleteWorkspace(workspaceId: string): Promise<void> {
-    await request<unknown>(`/workspaces/${workspaceId}`, {
+export async function deleteListe(listeId: string): Promise<void> {
+    await request<unknown>(`/listes/${listeId}`, {
         method: "DELETE",
     });
 }

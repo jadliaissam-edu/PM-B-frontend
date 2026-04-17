@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutDashboard, CheckSquare, Inbox, BarChart2, ChevronRight,
+    LayoutDashboard, ChevronRight,
     Plus,
     TrendingUp, Clock, Folders, Target, MoreHorizontal,
     Circle, Zap, Star, ArrowUpRight, Loader2, Trash2, X, Check,
@@ -14,22 +14,17 @@ import Content from "../components/layout/Content";
 import ViewNavBar from "../components/ViewNavBar";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
+import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
 import {
     getWorkspacesByUser,
-    getSpacesByWorkspace,
-    getFoldersBySpace,
-    getSprintsByFolder,
     createWorkspace,
     updateWorkspace,
     deleteWorkspace,
 } from "../api/workspaceApi.tsx";
-import type {
-    WorkspaceResponseDto,
-    SpaceResponseDto,
-    FolderResponseDto,
-    SprintResponseDto,
-    TaskResponseDto,
-} from "../api/workspaceApi.tsx";
+import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
+import { getSpacesByWorkspace, type SpaceResponseDto } from "../api/spaceApi.tsx";
+import { getFoldersBySpace, type FolderResponseDto } from "../api/folderApi.tsx";
+import { getSprintsByFolder, type SprintResponseDto } from "../api/sprintApi.tsx";
 
 // ============================================================================
 // STATIC CONFIG
@@ -38,10 +33,13 @@ import type {
 const navItems = [
     { icon: LayoutDashboard, label: "Dashboard" },
     { icon: Sparkles, label: "Ask AI" },
-    { icon: CheckSquare, label: "My Tasks", badge: 5 },
-    { icon: Inbox, label: "Inbox", badge: 3 },
-    { icon: BarChart2, label: "Reporting" },
 ];
+
+interface TaskResponseDto {
+    id: string;
+    title: string;
+    status?: string;
+}
 
 const priorityColors: Record<string, string> = {
     urgent: "#E24B4A",
@@ -574,14 +572,6 @@ export default function WorkspacePage() {
             };
         }
 
-        if (item.label === "My Tasks") {
-            return {
-                ...item,
-                active: location.pathname === "/workspace/my-tasks",
-                onClick: () => navigate("/workspace/my-tasks"),
-            };
-        }
-
         if (item.label === "Ask AI") {
             return {
                 ...item,
@@ -610,6 +600,7 @@ export default function WorkspacePage() {
                             onDeleteClick={(ws) => setDeletingWorkspace(ws)}
                         />
                     }
+                    resourcesPanel={<WorkspaceResourcesPanel workspaceId={activeWorkspace?.id} />}
                     userName={user.name}
                     userAvatar={user.avatar}
                 />

@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
-import MyTasksTestPage from "./pages/MyTasksTestPage";
 import AIPage from "./pages/AIPage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -22,14 +21,6 @@ export default function App() {
                     element={(
                         <ProtectedRoute>
                             <DashboardPage />
-                        </ProtectedRoute>
-                    )}
-                />
-                <Route
-                    path="/workspace/my-tasks"
-                    element={(
-                        <ProtectedRoute>
-                            <MyTasksTestPage />
                         </ProtectedRoute>
                     )}
                 />
