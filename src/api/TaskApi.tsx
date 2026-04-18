@@ -50,10 +50,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         },
     });
 
-    if (response.status === 204) {
-        return undefined as T;
-    }
-
     const contentType = response.headers.get("content-type") || "";
     const data = contentType.includes("application/json") ? await response.json() : null;
 

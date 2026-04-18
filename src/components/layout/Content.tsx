@@ -13,6 +13,7 @@ export default function Content({ children, style }: ContentProps) {
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
+                height: "100%",
                 ...style,
             }}
         >

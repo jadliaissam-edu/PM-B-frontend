@@ -1,7 +1,7 @@
 import { X, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
-import type { ListeRequestDto, ListeResponseDto, ListType } from "../api/ListeApi";
+import type { ListeRequestDto, ListeResponseDto, ListType } from "../api/listeApi";
 
 export type { ListeRequestDto, ListeResponseDto };
 
@@ -31,6 +31,115 @@ const LIST_TYPES: { value: ListType; label: string; description: string }[] = [
     { value: "PHASE", label: "Phase", description: "Project phase" },
 ];
 
+// ─── Shared Styles ────────────────────────────────────────────────────────────
+
+const inputStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    color: "rgba(255,255,255,0.95)",
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+    transition: "all 0.2s ease-in-out",
+};
+
+const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.45)",
+    textTransform: "uppercase",
+    letterSpacing: "0.8px",
+    marginBottom: 10,
+    display: "block",
+};
+
+const overlayStyle: React.CSSProperties = {
+    position: "fixed", inset: 0,
+    background: "rgba(0,0,0,0.85)",
+    backdropFilter: "blur(12px)",
+    zIndex: 1300,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+};
+
+const modalStyle: React.CSSProperties = {
+    background: "#111114",
+    border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: 24,
+    width: 520,
+    maxWidth: "calc(100vw - 32px)",
+    padding: "40px",
+    boxShadow: "0 32px 64px rgba(0,0,0,0.8)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 32,
+    fontFamily: "'DM Sans', sans-serif",
+    position: "relative",
+    maxHeight: "90vh",
+    overflowY: "auto",
+};
+
+// ─── Shared Sub-components ────────────────────────────────────────────────────
+
+function CloseButton({ onClose }: { onClose: () => void }) {
+    return (
+        <button
+            onClick={onClose}
+            style={{
+                background: "none", border: "none", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 32, height: 32, borderRadius: 8,
+                color: "rgba(255,255,255,0.35)", transition: "all 0.15s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.35)"; }}
+        >
+            <X size={18} />
+        </button>
+    );
+}
+
+function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel, submitColor }: {
+    onClose: () => void;
+    onSubmit: () => void;
+    loading: boolean;
+    submitLabel: string;
+    loadingLabel: string;
+    submitColor: string;
+}) {
+    return (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <button
+                onClick={onClose}
+                style={{
+                    background: "none", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12, padding: "12px 24px", color: "rgba(255,255,255,0.6)",
+                    fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+                }}
+            >
+                Cancel
+            </button>
+            <button
+                onClick={onSubmit}
+                disabled={loading}
+                style={{
+                    background: loading ? `${submitColor}99` : submitColor,
+                    border: "none", borderRadius: 12, padding: "12px 28px",
+                    color: "#fff", fontSize: 14, fontWeight: 700,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    boxShadow: `0 8px 24px ${submitColor}44`, transition: "all 0.2s",
+                }}
+            >
+                {loading ? loadingLabel : submitLabel}
+            </button>
+        </div>
+    );
+}
+
 function Select({ options, value, onChange, placeholder }: {
     options: SelectOption[];
     value: string;
@@ -54,43 +163,41 @@ function Select({ options, value, onChange, placeholder }: {
             <button
                 type="button"
                 onClick={() => setOpen(o => !o)}
-                style={{
-                    background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.09)",
-                    borderRadius: 8, fontSize: 13, color: "rgba(255,255,255,0.85)", width: "100%",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    cursor: "pointer", textAlign: "left", padding: "9px 10px 9px 12px",
-                }}
+                style={inputStyle}
             >
-                <span style={{ color: selected ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.25)", fontSize: 13 }}>
-                    {selected?.label ?? placeholder ?? "Select…"}
-                </span>
-                <ChevronDown size={13} style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ color: selected ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)", fontSize: 14 }}>
+                        {selected?.label ?? placeholder ?? "Select…"}
+                    </span>
+                    <ChevronDown size={18} style={{ color: "rgba(255,255,255,0.3)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.25s" }} />
+                </div>
             </button>
 
             {open && (
                 <div style={{
-                    position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 60,
-                    background: "#131316", border: "0.5px solid rgba(255,255,255,0.1)",
-                    borderRadius: 8, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                    maxHeight: 180, overflowY: "auto"
+                    position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 60,
+                    background: "#16161a", border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
                 }}>
-                    {options.map(o => (
-                        <button
-                            key={o.value}
-                            type="button"
-                            onClick={() => { onChange(o.value); setOpen(false); }}
-                            style={{
-                                width: "100%", background: o.value === value ? "rgba(255,255,255,0.06)" : "none",
-                                border: "none", padding: "9px 12px", textAlign: "left",
-                                fontSize: 13, color: "rgba(255,255,255,0.75)", cursor: "pointer",
-                                transition: "background 0.12s",
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-                            onMouseLeave={e => (e.currentTarget.style.background = o.value === value ? "rgba(255,255,255,0.06)" : "none")}
-                        >
-                            {o.label}
-                        </button>
-                    ))}
+                    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                        {options.map(o => (
+                            <button
+                                key={o.value}
+                                type="button"
+                                onClick={() => { onChange(o.value); setOpen(false); }}
+                                style={{
+                                    width: "100%", background: o.value === value ? "rgba(83,74,183,0.8)" : "none",
+                                    border: "none", padding: "12px 16px", textAlign: "left",
+                                    fontSize: 14, color: o.value === value ? "#fff" : "rgba(255,255,255,0.75)", cursor: "pointer",
+                                    transition: "all 0.15s",
+                                }}
+                                onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                                onMouseLeave={e => { if (o.value !== value) e.currentTarget.style.background = "none"; }}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
@@ -129,61 +236,19 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
     }
 
     return (
-        <>
-            {/* Overlay */}
-            <div
-                onClick={onClose}
-                style={{
-                    position: "fixed", inset: 0,
-                    background: "rgba(0,0,0,0.55)",
-                    backdropFilter: "blur(2px)",
-                    zIndex: 50,
-                }}
-            />
-
-            {/* Modal */}
-            <div style={{
-                position: "fixed",
-                top: "50%", left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 51,
-                width: 420,
-                background: "#0d0d0f",
-                border: "0.5px solid rgba(255,255,255,0.09)",
-                borderRadius: 14,
-                boxShadow: "0 24px 64px rgba(0,0,0,0.7)",
-                padding: "24px 24px 20px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 20,
-            }}>
-
-                {/* Header */}
+        <div style={overlayStyle} onClick={onClose}>
+            <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>
-                        New List
-                    </span>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            background: "none", border: "none", cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            width: 28, height: 28, borderRadius: 6,
-                            color: "rgba(255,255,255,0.35)",
-                            transition: "background 0.15s, color 0.15s",
-                        }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)"; }}
-                    >
-                        <X size={14} />
-                    </button>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>New List</span>
+                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>Organize tasks within a folder or sprint</span>
+                    </div>
+                    <CloseButton onClose={onClose} />
                 </div>
 
                 {/* Name */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                        Name
-                    </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <label style={labelStyle}>Name</label>
                     <input
                         autoFocus
                         value={name}
@@ -191,19 +256,9 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
                         onKeyDown={e => e.key === "Enter" && handleSubmit()}
                         placeholder="e.g. Sprint 1, Backlog…"
                         style={{
-                            background: "rgba(255,255,255,0.04)",
-                            border: `0.5px solid ${error && !name.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.09)"}`,
-                            borderRadius: 8,
-                            padding: "9px 12px",
-                            fontSize: 13,
-                            color: "rgba(255,255,255,0.85)",
-                            outline: "none",
-                            width: "100%",
-                            boxSizing: "border-box",
-                            transition: "border-color 0.15s",
+                            ...inputStyle,
+                            borderColor: error && !name.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.06)",
                         }}
-                        onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                        onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")}
                     />
                 </div>
 
@@ -245,17 +300,13 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
                 </div>
 
                 {/* Parent (Folder or Sprint) */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                        <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                            Folder
-                        </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <label style={labelStyle}>Folder</label>
                         <Select options={folders} value={folderId} onChange={setFolderId} placeholder="Select Folder…" />
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                        <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                            Sprint
-                        </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <label style={labelStyle}>Sprint</label>
                         <Select options={sprints} value={sprintId} onChange={setSprintId} placeholder="Select Sprint…" />
                     </div>
                 </div>
@@ -295,48 +346,16 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
                 {/* Divider */}
                 <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
 
-                {/* Actions */}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            background: "none",
-                            border: "0.5px solid rgba(255,255,255,0.09)",
-                            borderRadius: 7,
-                            padding: "7px 16px",
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: "rgba(255,255,255,0.45)",
-                            cursor: "pointer",
-                            transition: "all 0.15s",
-                        }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.18)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.09)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.45)"; }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        style={{
-                            background: loading ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.1)",
-                            border: "0.5px solid rgba(255,255,255,0.14)",
-                            borderRadius: 7,
-                            padding: "7px 18px",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: loading ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
-                            cursor: loading ? "not-allowed" : "pointer",
-                            transition: "all 0.15s",
-                        }}
-                        onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.14)"; }}
-                        onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)"; }}
-                    >
-                        {loading ? "Creating…" : "Create List"}
-                    </button>
-                </div>
+                <FormActions
+                    onClose={onClose}
+                    onSubmit={handleSubmit}
+                    loading={loading}
+                    submitLabel="Create List"
+                    loadingLabel="Creating…"
+                    submitColor="#534AB7"
+                />
             </div>
-        </>
+        </div>
     );
 }
 
@@ -371,20 +390,29 @@ export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, fold
     }
 
     return (
-        <>
-            <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)", zIndex: 50 }} />
-            <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 51, width: 420, background: "#0d0d0f", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.7)", padding: "24px 24px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={overlayStyle} onClick={onClose}>
+            <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>Edit List</span>
-                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, fontFamily: "monospace" }}>#{listeId.slice(-8)}</span>
+                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>Update list settings and associations</span>
                     </div>
-                    <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, color: "rgba(255,255,255,0.35)", transition: "background 0.15s, color 0.15s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)"; }}><X size={14} /></button>
+                    <CloseButton onClose={onClose} />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>Name</label>
-                    <input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} placeholder="e.g. Sprint 1, Backlog…" style={{ background: "rgba(255,255,255,0.04)", border: `0.5px solid ${error && !name.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.09)"}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "rgba(255,255,255,0.85)", outline: "none", width: "100%", boxSizing: "border-box", transition: "border-color 0.15s" }} onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")} onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <label style={labelStyle}>Name</label>
+                    <input
+                        autoFocus
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && handleSubmit()}
+                        placeholder="e.g. Sprint 1, Backlog…"
+                        style={{
+                            ...inputStyle,
+                            borderColor: error && !name.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.06)",
+                        }}
+                    />
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -402,13 +430,13 @@ export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, fold
                     </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                        <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>Folder</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <label style={labelStyle}>Folder</label>
                         <Select options={folders} value={folderId} onChange={setFolderId} placeholder="Select Folder…" />
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                        <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>Sprint</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <label style={labelStyle}>Sprint</label>
                         <Select options={sprints} value={sprintId} onChange={setSprintId} placeholder="Select Sprint…" />
                     </div>
                 </div>
@@ -418,15 +446,18 @@ export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, fold
                     <input type="number" min={0} value={order} onChange={e => setOrder(Math.max(0, parseInt(e.target.value) || 0))} style={{ background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "rgba(255,255,255,0.85)", outline: "none", width: "100%", boxSizing: "border-box", transition: "border-color 0.15s" }} onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")} onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")} />
                 </div>
 
-                {error && <span style={{ fontSize: 12, color: "#E24B4A", marginTop: -8 }}>{error}</span>}
                 <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
 
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <button onClick={onClose} style={{ background: "none", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 7, padding: "7px 16px", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.45)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.18)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.09)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.45)"; }}>Cancel</button>
-                    <button onClick={handleSubmit} disabled={loading} style={{ background: loading ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.1)", border: "0.5px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "7px 18px", fontSize: 12, fontWeight: 600, color: loading ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)", cursor: loading ? "not-allowed" : "pointer", transition: "all 0.15s" }} onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.14)"; }} onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)"; }}>{loading ? "Saving…" : "Save Changes"}</button>
-                </div>
+                <FormActions
+                    onClose={onClose}
+                    onSubmit={handleSubmit}
+                    loading={loading}
+                    submitLabel="Save Changes"
+                    loadingLabel="Saving…"
+                    submitColor="#534AB7"
+                />
             </div>
-        </>
+        </div>
     );
 }
 
@@ -445,38 +476,50 @@ export function ListeDelete({ liste, onDelete, onClose }: ListeDeleteProps) {
     }
 
     return (
-        <>
-            <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)", zIndex: 50 }} />
-            <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 51, width: 400, gap: 20, padding: "28px 24px 22px", background: "#0d0d0f", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 14, boxShadow: "0 24px 64px rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(226,75,74,0.12)", border: "0.5px solid rgba(226,75,74,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <Trash2 size={15} style={{ color: "#E24B4A" }} />
-                        </div>
-                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600 }}>Delete List</span>
+        <div style={overlayStyle} onClick={onClose}>
+            <div style={{ ...modalStyle, width: 420, padding: 32 }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#E24B4A" }}>
+                        <AlertTriangle size={20} />
+                        <span style={{ fontSize: 16, fontWeight: 600 }}>Delete List</span>
                     </div>
-                    <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, color: "rgba(255,255,255,0.35)", transition: "background 0.15s, color 0.15s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)"; }}><X size={14} /></button>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 }}>
+                        Are you sure you want to delete <span style={{ color: "#fff", fontWeight: 500 }}>"{liste.name}"</span>? This will also remove all tasks within this list.
+                    </p>
                 </div>
 
-                <div style={{ background: "rgba(226,75,74,0.07)", border: "0.5px solid rgba(226,75,74,0.2)", borderRadius: 9, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <AlertTriangle size={14} style={{ color: "#E24B4A", flexShrink: 0, marginTop: 1 }} />
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>This action cannot be undone</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
-                            You are about to permanently delete <span style={{ color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>"{liste.name}"</span>. All associated tasks will be removed.
-                        </span>
-                    </div>
-                </div>
-
-                {error && <span style={{ fontSize: 12, color: "#E24B4A", marginTop: -8 }}>{error}</span>}
-                <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
-
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <button onClick={onClose} style={{ background: "none", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 7, padding: "7px 16px", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.45)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.18)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.09)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.45)"; }}>Cancel</button>
-                    <button onClick={handleDelete} disabled={loading} style={{ background: loading ? "rgba(226,75,74,0.3)" : "rgba(226,75,74,0.85)", border: "0.5px solid rgba(226,75,74,0.5)", borderRadius: 7, padding: "7px 18px", fontSize: 12, fontWeight: 600, color: "#fff", cursor: loading ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6 }} onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "#E24B4A"; }} onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "rgba(226,75,74,0.85)"; }}><Trash2 size={12} />{loading ? "Deleting…" : "Delete List"}</button>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20 }}>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: "none",
+                            border: "0.5px solid rgba(255,255,255,0.09)",
+                            borderRadius: 10, padding: "8px 20px",
+                            fontSize: 13, fontWeight: 500,
+                            color: "rgba(255,255,255,0.45)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleDelete}
+                        disabled={loading}
+                        style={{
+                            background: "#E24B4A",
+                            border: "none",
+                            borderRadius: 10, padding: "8px 20px",
+                            fontSize: 13, fontWeight: 600,
+                            color: "#fff",
+                            cursor: loading ? "not-allowed" : "pointer",
+                            boxShadow: "0 8px 20px rgba(226,75,74,0.3)", transition: "all 0.2s",
+                        }}
+                    >
+                        {loading ? "Deleting…" : "Delete List"}
+                    </button>
                 </div>
             </div>
-        </>
+        </div>
     );
 }
 

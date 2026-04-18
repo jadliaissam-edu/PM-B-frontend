@@ -1,9 +1,9 @@
 import { X, Calendar, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-import type { TaskRequestDto, TaskResponseDto, TaskStatus, Priority } from "../api/TaskApi";
+import type { TaskRequestDto, TaskResponseDto, TaskStatus, Priority } from "../api/taskApi";
 
 export type { TaskRequestDto, TaskResponseDto };
 
@@ -48,49 +48,53 @@ const PRIORITIES: { value: Priority; label: string; color: string; dot: string }
 // ─── Shared style helpers ─────────────────────────────────────────────────────
 
 const inputStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.04)",
-    border: "0.5px solid rgba(255,255,255,0.09)",
-    borderRadius: 8,
-    padding: "9px 12px",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    color: "rgba(255,255,255,0.95)",
     outline: "none",
     width: "100%",
     boxSizing: "border-box",
-    transition: "border-color 0.15s",
+    transition: "all 0.2s ease-in-out",
 };
 
 const labelStyle: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 500,
-    color: "rgba(255,255,255,0.35)",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.45)",
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: "0.8px",
+    marginBottom: 10,
+    display: "block",
 };
 
 const overlayStyle: React.CSSProperties = {
     position: "fixed", inset: 0,
-    background: "rgba(0,0,0,0.55)",
-    backdropFilter: "blur(2px)",
-    zIndex: 50,
+    background: "rgba(0,0,0,0.85)",
+    backdropFilter: "blur(12px)",
+    zIndex: 1300,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
 };
 
 const modalStyle: React.CSSProperties = {
-    position: "fixed",
-    top: "50%", left: "50%",
-    transform: "translate(-50%, -50%)",
-    zIndex: 51,
-    width: 480,
-    maxHeight: "90vh",
-    overflowY: "auto",
-    background: "#0d0d0f",
-    border: "0.5px solid rgba(255,255,255,0.09)",
-    borderRadius: 14,
-    boxShadow: "0 24px 64px rgba(0,0,0,0.7)",
-    padding: "24px 24px 20px",
+    background: "#111114",
+    border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: 24,
+    width: 520,
+    maxWidth: "calc(100vw - 32px)",
+    padding: "40px",
+    boxShadow: "0 32px 64px rgba(0,0,0,0.8)",
     display: "flex",
     flexDirection: "column",
-    gap: 18,
+    gap: 32,
+    fontFamily: "'DM Sans', sans-serif",
+    position: "relative",
+    maxHeight: "90vh",
+    overflowY: "auto",
 };
 
 // ─── Shared Select ────────────────────────────────────────────────────────────
@@ -116,6 +120,7 @@ function Select({ options, value, onChange, placeholder }: {
     return (
         <div ref={ref} style={{ position: "relative" }}>
             <button
+                type="button"
                 onClick={() => setOpen(o => !o)}
                 style={{
                     ...inputStyle,
@@ -131,29 +136,31 @@ function Select({ options, value, onChange, placeholder }: {
 
             {open && (
                 <div style={{
-                    position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 60,
-                    background: "#131316",
-                    border: "0.5px solid rgba(255,255,255,0.1)",
-                    borderRadius: 8,
+                    position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 60,
+                    background: "#16161a",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: 16,
                     overflow: "hidden",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
                 }}>
-                    {options.map(o => (
-                        <button
-                            key={o.value}
-                            onClick={() => { onChange(o.value); setOpen(false); }}
-                            style={{
-                                width: "100%", background: o.value === value ? "rgba(255,255,255,0.06)" : "none",
-                                border: "none", padding: "9px 12px", textAlign: "left",
-                                fontSize: 13, color: "rgba(255,255,255,0.75)", cursor: "pointer",
-                                transition: "background 0.12s",
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-                            onMouseLeave={e => (e.currentTarget.style.background = o.value === value ? "rgba(255,255,255,0.06)" : "none")}
-                        >
-                            {o.label}
-                        </button>
-                    ))}
+                    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                        {options.map(o => (
+                            <button
+                                key={o.value}
+                                onClick={() => { onChange(o.value); setOpen(false); }}
+                                style={{
+                                    width: "100%", background: o.value === value ? "rgba(83,74,183,0.8)" : "none",
+                                    border: "none", padding: "12px 16px", textAlign: "left",
+                                    fontSize: 14, color: o.value === value ? "#fff" : "rgba(255,255,255,0.75)", cursor: "pointer",
+                                    transition: "all 0.15s",
+                                }}
+                                onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                                onMouseLeave={e => { if (o.value !== value) e.currentTarget.style.background = "none"; }}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
@@ -191,7 +198,7 @@ function TaskFormBody({
     return (
         <>
             {/* Title */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <label style={labelStyle}>Title</label>
                 <input
                     autoFocus
@@ -200,24 +207,24 @@ function TaskFormBody({
                     placeholder="Task title…"
                     style={{
                         ...inputStyle,
-                        borderColor: error && !title.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.09)",
+                        borderColor: error && !title.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.06)",
                     }}
                     onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
                 />
             </div>
 
             {/* Description */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <label style={labelStyle}>Description</label>
                 <textarea
                     value={description}
                     onChange={e => setDescription(e.target.value)}
                     placeholder="Add a description…"
                     rows={3}
-                    style={{ ...inputStyle, resize: "vertical", minHeight: 76, lineHeight: 1.5, fontFamily: "inherit" }}
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 90, lineHeight: 1.5, fontFamily: "inherit" }}
                     onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
                 />
             </div>
 
@@ -271,17 +278,17 @@ function TaskFormBody({
             </div>
 
             {/* Due Date */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <label style={labelStyle}>Due Date</label>
                 <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <Calendar size={13} style={{ position: "absolute", left: 12, color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                    <Calendar size={18} style={{ position: "absolute", left: 16, color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
                     <input
                         type="datetime-local"
                         value={dueDate}
                         onChange={e => setDueDate(e.target.value)}
-                        style={{ ...inputStyle, paddingLeft: 34, colorScheme: "dark" }}
+                        style={{ ...inputStyle, paddingLeft: 46, colorScheme: "dark" }}
                         onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                        onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")}
+                        onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
                     />
                 </div>
             </div>
@@ -316,8 +323,8 @@ function TaskFormBody({
 export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {} }: TaskFormProps) {
     const [title, setTitle] = useState(defaults.title ?? "");
     const [description, setDescription] = useState(defaults.description ?? "");
-    const [status, setStatus] = useState<TaskStatus>(defaults.status ?? "TO_DO");
-    const [priority, setPriority] = useState<Priority>(defaults.priority ?? "MEDIUM");
+    const [status, setStatus] = useState<TaskStatus>((defaults.status as TaskStatus) ?? "TO_DO");
+    const [priority, setPriority] = useState<Priority>((defaults.priority as Priority) ?? "MEDIUM");
     const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
     const [listeId, setListeId] = useState(defaults.listeId ?? "");
     const [sprintId, setSprintId] = useState(defaults.sprintId ?? "");
@@ -332,13 +339,13 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
         try {
             await onSubmit({
                 title: title.trim(),
-                description,
+                description: description.trim() || undefined,
                 status,
                 priority,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
                 listeId,
-                sprintId: sprintId || null,
-                assigneeId: assigneeId || null
+                sprintId: sprintId || undefined,
+                assigneeId: assigneeId || undefined
             });
             onClose();
         } catch (e: unknown) {
@@ -347,9 +354,8 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
     }
 
     return (
-        <>
-            <div onClick={onClose} style={overlayStyle} />
-            <div style={modalStyle}>
+        <div style={overlayStyle} onClick={onClose}>
+            <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>New Task</span>
                     <CloseButton onClose={onClose} />
@@ -360,7 +366,7 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
                 <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
                 <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Create Task" loadingLabel="Creating…" submitColor="#534AB7" />
             </div>
-        </>
+        </div>
     );
 }
 
@@ -369,8 +375,8 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
 export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {} }: TaskUpdateProps) {
     const [title, setTitle] = useState(defaults.title ?? "");
     const [description, setDescription] = useState(defaults.description ?? "");
-    const [status, setStatus] = useState<TaskStatus>(defaults.status ?? "TO_DO");
-    const [priority, setPriority] = useState<Priority>(defaults.priority ?? "MEDIUM");
+    const [status, setStatus] = useState<TaskStatus>((defaults.status as TaskStatus) ?? "TO_DO");
+    const [priority, setPriority] = useState<Priority>((defaults.priority as Priority) ?? "MEDIUM");
     const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
     const [listeId, setListeId] = useState(defaults.listeId ?? "");
     const [sprintId, setSprintId] = useState(defaults.sprintId ?? "");
@@ -385,13 +391,13 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
         try {
             await onSubmit({
                 title: title.trim(),
-                description,
+                description: description.trim() || undefined,
                 status,
                 priority,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
                 listeId,
-                sprintId: sprintId || null,
-                assigneeId: assigneeId || null
+                sprintId: sprintId || undefined,
+                assigneeId: assigneeId || undefined
             });
             onClose();
         } catch (e: unknown) {
@@ -400,9 +406,8 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
     }
 
     return (
-        <>
-            <div onClick={onClose} style={overlayStyle} />
-            <div style={modalStyle}>
+        <div style={overlayStyle} onClick={onClose}>
+            <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>Edit Task</span>
@@ -416,7 +421,7 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
                 <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
                 <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Save Changes" loadingLabel="Saving…" submitColor="#534AB7" />
             </div>
-        </>
+        </div>
     );
 }
 
@@ -437,14 +442,13 @@ export function TaskDelete({ task, onDelete, onClose }: TaskDeleteProps) {
     }
 
     return (
-        <>
-            <div onClick={onClose} style={overlayStyle} />
+        <div style={overlayStyle} onClick={onClose}>
             <div style={{
                 ...modalStyle,
                 width: 400,
                 gap: 20,
                 padding: "28px 24px 22px",
-            }}>
+            }} onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -525,7 +529,7 @@ export function TaskDelete({ task, onDelete, onClose }: TaskDeleteProps) {
                     </button>
                 </div>
             </div>
-        </>
+        </div>
     );
 }
 

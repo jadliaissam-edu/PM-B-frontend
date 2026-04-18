@@ -1,4 +1,4 @@
-import { AUTH_BASE_URL } from "../config/baseURL.jsx";
+import { AUTH_BASE_URL } from "../config/baseURL";
 
 interface LogoutPayload {
 	refreshToken?: string;

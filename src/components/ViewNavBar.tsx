@@ -1,6 +1,11 @@
 import { CalendarDays, Columns3, LayoutGrid, List, Plus, Search, SlidersHorizontal } from "lucide-react";
 
-export default function ViewNavBar() {
+interface ViewNavBarProps {
+    activeView: "overview" | "list";
+    onViewChange: (view: "overview" | "list") => void;
+}
+
+export default function ViewNavBar({ activeView, onViewChange }: ViewNavBarProps) {
     return (
         <div
             style={{
@@ -16,6 +21,7 @@ export default function ViewNavBar() {
         >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
+                    onClick={() => onViewChange("overview")}
                     style={{
                         height: 40,
                         display: "flex",
@@ -23,18 +29,22 @@ export default function ViewNavBar() {
                         gap: 8,
                         padding: "0 12px",
                         border: "none",
-                        borderBottom: "2px solid #7b6df7",
+                        borderBottom: activeView === "overview" ? "2px solid #7b6df7" : "2px solid transparent",
                         background: "transparent",
-                        color: "#f4f4ff",
+                        color: activeView === "overview" ? "#f4f4ff" : "rgba(255,255,255,0.4)",
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: "pointer",
+                        transition: "all 0.2s",
                     }}
                 >
                     <LayoutGrid size={14} /> Overview
                 </button>
 
-                <button className="view-nav-tab">
+                <button 
+                    className={`view-nav-tab ${activeView === "list" ? "active" : ""}`}
+                    onClick={() => onViewChange("list")}
+                >
                     <List size={14} /> List
                 </button>
 
@@ -96,26 +106,9 @@ export default function ViewNavBar() {
                     />
                 </div>
 
-                <button
-                    style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
-                        border: "0.5px solid rgba(83,74,183,0.65)",
-                        background: "rgba(83,74,183,0.35)",
-                        color: "#c7bfff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                    }}
-                >
-                    <Search size={15} />
-                </button>
-
-                <button className="icon-btn">
+                <div className="icon-btn" style={{ marginLeft: 8 }}>
                     <SlidersHorizontal size={15} style={{ color: "rgba(255,255,255,0.65)" }} />
-                </button>
+                </div>
             </div>
         </div>
     );

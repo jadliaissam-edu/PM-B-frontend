@@ -130,7 +130,7 @@ export default function LoginPage() {
                             <rect x="10" y="10" width="6" height="6" rx="2" fill="white" opacity="0.9" />
                         </svg>
                     </div>
-                    <span className="font-bold text-lg text-white tracking-tight">AgileFlow</span>
+                    <span className="font-bold text-lg text-white tracking-tight">Orbyte</span>
                 </div>
 
                 <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">

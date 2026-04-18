@@ -1,37 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutDashboard, CheckSquare, Inbox, BarChart2, ChevronRight,
+    LayoutDashboard, ChevronRight,
     Plus,
     TrendingUp, Clock, Folders, Target, MoreHorizontal,
     Circle, Zap, Star, ArrowUpRight, Loader2, Trash2, X, Check,
-    CalendarDays,
+    CalendarDays, Sparkles, Pencil, List
 } from "lucide-react";
 
-import TaskForm from "../components/TaskForms";
+import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";
+import { ListeAdd, ListeUpdate, ListeDelete } from "../components/listeForms";
 import Sidebar from "../components/Sidebar";
 import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
 import ViewNavBar from "../components/ViewNavBar";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
+import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
 import {
     getWorkspacesByUser,
-    getSpacesByWorkspace,
-    getFoldersBySpace,
-    getSprintsByFolder,
     createWorkspace,
     updateWorkspace,
     deleteWorkspace,
 } from "../api/workspaceApi.tsx";
-import type {
-    WorkspaceResponseDto,
-    SpaceResponseDto,
-    FolderResponseDto,
-    SprintResponseDto,
-    TaskResponseDto,
-} from "../api/workspaceApi.tsx";
-import { createTask } from "../api/TaskApi.tsx";
+
+import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
+import { getSpacesByWorkspace, type SpaceResponseDto } from "../api/spaceApi.tsx";
+import { getFoldersBySpace, type FolderResponseDto } from "../api/folderApi.tsx";
+import { getSprintsByFolder, type SprintResponseDto } from "../api/sprintApi.tsx";
+import { createTask, updateTask, deleteTask, type TaskResponseDto } from "../api/taskApi.tsx";
+import { createListe, updateListe, deleteListe, getListesByFolder, type ListeResponseDto } from "../api/listeApi.tsx";
 
 // ============================================================================
 // STATIC CONFIG
@@ -39,9 +37,7 @@ import { createTask } from "../api/TaskApi.tsx";
 
 const navItems = [
     { icon: LayoutDashboard, label: "Dashboard" },
-    { icon: CheckSquare, label: "My Tasks", badge: 5 },
-    { icon: Inbox, label: "Inbox", badge: 3 },
-    { icon: BarChart2, label: "Reporting" },
+    { icon: Sparkles, label: "Ask AI" },
 ];
 
 const priorityColors: Record<string, string> = {
@@ -352,6 +348,7 @@ export default function WorkspacePage() {
 
     // ── Core data ──
     const [isLoading, setIsLoading] = useState(true);
+    const [activeView, setActiveView] = useState<"overview" | "list">("overview");
     const [workspaces, setWorkspaces] = useState<WorkspaceResponseDto[]>([]);
     const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
@@ -365,11 +362,20 @@ export default function WorkspacePage() {
     // ── Deadlines — structure ready for TaskResponseDto (pending backend Tasks) ──
     const [deadlines] = useState<TaskResponseDto[]>([]);
 
-    // ── Modal state ──
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [workspaceCreateFeedback, setWorkspaceCreateFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+    // ── Task modal state ──
+    const [showTaskForm, setShowTaskForm] = useState(false);
+    const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
+    const [deletingTask, setDeletingTask] = useState<TaskResponseDto | null>(null);
+
+    // ── List modal state ──
+    const [showListForm, setShowListForm] = useState(false);
+    const [editingList, setEditingList] = useState<ListeResponseDto | null>(null);
+    const [deletingList, setDeletingList] = useState<ListeResponseDto | null>(null);
 
     // ── Computed stats ──
     // Active Projects = number of spaces in active workspace (live from API)
@@ -387,8 +393,9 @@ export default function WorkspacePage() {
     const sprintProgress = computeSprintProgress(activeSprint);
 
 
-    //Task
-    const [showTaskForm, setShowTaskForm] = useState(false);
+    const [allFolders, setAllFolders] = useState<FolderResponseDto[]>([]);
+    const [allSprints, setAllSprints] = useState<SprintResponseDto[]>([]);
+    const [allListes, setAllListes] = useState<ListeResponseDto[]>([]);
 
     // ── Initial load ──
     useEffect(() => {
@@ -437,64 +444,55 @@ export default function WorkspacePage() {
     }, [workspaceCreateFeedback]);
 
     // ── Load spaces when active workspace changes ──
-    useEffect(() => {
+    const reloadDashboardData = useCallback(async () => {
         if (!activeWorkspace) {
             setSpaces([]);
-            setFolders([]);
-            setSprints([]);
+            setAllFolders([]);
+            setAllSprints([]);
+            setAllListes([]);
             return;
         }
-        const loadSpaces = async () => {
-            try {
-                const spacesData = await getSpacesByWorkspace(activeWorkspace.id);
-                setSpaces(spacesData);
-            } catch (error) {
-                console.error("Failed to fetch spaces", error);
-                setSpaces([]);
+        try {
+            const spacesData = await getSpacesByWorkspace(activeWorkspace.id);
+            setSpaces(spacesData);
+
+            // Fetch all folders for all spaces in this workspace
+            const foldersPromises = spacesData.map(s => getFoldersBySpace(s.id));
+            const foldersResults = await Promise.all(foldersPromises);
+            const flatFolders = foldersResults.flat();
+            setAllFolders(flatFolders);
+            setFolders(flatFolders); // Keep folders for display logic
+
+            // Fetch all sprints and listes for these folders
+            if (flatFolders.length > 0) {
+                const sprintsPromises = flatFolders.map(f => getSprintsByFolder(f.id!));
+                const listesPromises = flatFolders.map(f => getListesByFolder(f.id!));
+                
+                const [sprintsResults, listesResults] = await Promise.all([
+                    Promise.all(sprintsPromises),
+                    Promise.all(listesPromises)
+                ]);
+
+                const flatSprints = sprintsResults.flat();
+                setAllSprints(flatSprints);
+                setSprints(flatSprints); // Keep sprints for display logic
+                setAllListes(listesResults.flat());
+            } else {
+                setAllSprints([]);
+                setSprints([]);
+                setAllListes([]);
             }
-        };
-        loadSpaces();
+
+        } catch (error) {
+            console.error("Failed to fetch dashboard data", error);
+        }
     }, [activeWorkspace]);
 
-    // ── Load folders for first space, then sprints for first folder ──
     useEffect(() => {
-        if (spaces.length === 0) {
-            setFolders([]);
-            setSprints([]);
-            return;
-        }
+        reloadDashboardData();
+    }, [reloadDashboardData]);
 
-        const loadSprintChain = async () => {
-            setSprintLoading(true);
-            try {
-                // Step 1: get folders of first space
-                const foldersData = await getFoldersBySpace(spaces[0].id);
-                setFolders(foldersData);
 
-                if (foldersData.length === 0) {
-                    setSprints([]);
-                    return;
-                }
-
-                if (!foldersData[0].id) {
-                    setSprints([]);
-                    return;
-                }
-
-                // Step 2: get sprints of first folder
-                const sprintsData = await getSprintsByFolder(foldersData[0].id);
-                setSprints(sprintsData);
-            } catch (error) {
-                console.error("Failed to load sprint chain", error);
-                setFolders([]);
-                setSprints([]);
-            } finally {
-                setSprintLoading(false);
-            }
-        };
-
-        loadSprintChain();
-    }, [spaces]);
 
     // ── Workspace CRUD handlers ──
     const handleCreateWorkspace = async (name: string, slug: string) => {
@@ -528,6 +526,51 @@ export default function WorkspacePage() {
         if (activeWorkspace?.id === deletingWorkspace.id) {
             setActiveWorkspace(remaining.length > 0 ? remaining[0] : null);
         }
+    };
+
+    // ── Task / Liste handlers ──
+    const handleTaskSubmit = async (data: any) => {
+        try {
+            if (editingTask) {
+                await updateTask(editingTask.id, data);
+                setEditingTask(null);
+            } else {
+                await createTask(data);
+                setShowTaskForm(false);
+            }
+            reloadDashboardData();
+        } catch (err) {
+            console.error("Form error:", err);
+            throw err;
+        }
+    };
+
+    const handleListeSubmit = async (data: any) => {
+        try {
+            if (editingList) {
+                await updateListe(editingList.id, data);
+                setEditingList(null);
+            } else {
+                await createListe(data);
+                setShowListForm(false);
+            }
+            reloadDashboardData();
+        } catch (err) {
+            console.error("Form error:", err);
+            throw err;
+        }
+    };
+
+    const handleTaskDelete = async (id: string) => {
+        await deleteTask(id);
+        setDeletingTask(null);
+        reloadDashboardData();
+    };
+
+    const handleListeDelete = async (id: string) => {
+        await deleteListe(id);
+        setDeletingList(null);
+        reloadDashboardData();
     };
 
     const hour = new Date().getHours();
@@ -579,11 +622,11 @@ export default function WorkspacePage() {
             };
         }
 
-        if (item.label === "My Tasks") {
+        if (item.label === "Ask AI") {
             return {
                 ...item,
-                active: location.pathname === "/workspace/my-tasks",
-                onClick: () => navigate("/workspace/my-tasks"),
+                active: location.pathname === "/ai",
+                onClick: () => navigate("/ai"),
             };
         }
 
@@ -605,6 +648,12 @@ export default function WorkspacePage() {
                             onCreateClick={() => setShowCreateModal(true)}
                             onEditClick={(ws) => setEditingWorkspace(ws)}
                             onDeleteClick={(ws) => setDeletingWorkspace(ws)}
+                        />
+                    }
+                    resourcesPanel={
+                        <WorkspaceResourcesPanel 
+                            workspaceId={activeWorkspace?.id} 
+                            onResourcesChange={reloadDashboardData} 
                         />
                     }
                     userName={user.name}
@@ -633,8 +682,9 @@ export default function WorkspacePage() {
         .search-input::placeholder { color: rgba(255,255,255,0.25); }
         .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.18s, border-color 0.18s; }
         .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
-        .view-nav-tab { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: none; background: transparent; color: rgba(255,255,255,0.5); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; transition: color 0.15s, background 0.15s; }
+        .view-nav-tab { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: none; background: transparent; color: rgba(255,255,255,0.45); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; transition: color 0.15s, background 0.15s; }
         .view-nav-tab:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.04); }
+        .view-nav-tab.active { color: #f4f4ff; background: rgba(255,255,255,0.08); }
         .ws-selector { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); cursor: pointer; transition: background 0.18s; font-size: 13px; color: rgba(255,255,255,0.7); }
         .ws-selector:hover { background: rgba(255,255,255,0.06); }
         @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -643,7 +693,7 @@ export default function WorkspacePage() {
 
             <Content>
                 <WorkspaceTopBar userName={user.name} userAvatar={user.avatar} />
-            <ViewNavBar />
+                <ViewNavBar activeView={activeView} onViewChange={setActiveView} />
 
                 {workspaceCreateFeedback && (
                     <div
@@ -689,189 +739,283 @@ export default function WorkspacePage() {
                         </div>
                     ) : (
                         <>
-                            {/* Welcome */}
-                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
-                                <div>
-                                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>
-                                        {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                                    </p>
-                                    <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.2 }}>
-                                        {greeting}, {user.name}
-                                    </h1>
-                                    <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-                                        {activeWorkspace
-                                            ? <>Workspace: <span style={{ color: "#a89ef5", fontWeight: 500 }}>{activeWorkspace.name}</span></>
-                                            : "No workspace selected."
-                                        }
-                                    </p>
-                                </div>
-                               <button
-                                    onClick={() => setShowTaskForm(true)}
-                                    style={{
-                                        display: "flex", alignItems: "center", gap: 8,
-                                        background: "linear-gradient(135deg, #534AB7, #3C3489)",
-                                        border: "none", borderRadius: 10, padding: "10px 18px",
-                                        color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                        fontFamily: "'DM Sans', sans-serif",
-                                     }}
->
-    <Plus size={15} /> New Task
-</button>
-                            </div>
-
-                            {/* Stats */}
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-                                {stats.map((s) => (
-                                    <div key={s.label} className="stat-card">
-                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                                            <div style={{ width: 36, height: 36, borderRadius: 10, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                <s.icon size={17} style={{ color: s.color }} />
-                                            </div>
-                                            <ArrowUpRight size={14} style={{ color: "rgba(255,255,255,0.2)" }} />
-                                        </div>
-                                        <p style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{s.value}</p>
-                                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{s.label}</p>
-                                        <p style={{ fontSize: 11, color: s.color, marginTop: 8, fontWeight: 500 }}>{s.delta}</p>
+                        {activeView === "overview" ? (
+                            <>
+                                {/* Welcome */}
+                                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
+                                    <div>
+                                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>
+                                            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                                        </p>
+                                        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.2 }}>
+                                            {greeting}, {user.name}
+                                        </h1>
+                                        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+                                            {activeWorkspace
+                                                ? <>Workspace: <span style={{ color: "#a89ef5", fontWeight: 500 }}>{activeWorkspace.name}</span></>
+                                                : "No workspace selected."
+                                            }
+                                        </p>
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Bottom grid */}
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
-
-                                {/* Recent Projects (Spaces) */}
-                                <div>
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                                        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700 }}>Recent Projects</h2>
-                                        <button style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                                            View all <ChevronRight size={12} />
+                                    <div style={{ display: "flex", gap: 10 }}>
+                                        <button
+                                            onClick={async () => {
+                                                if (allFolders.length === 0) await reloadDashboardData();
+                                                setShowListForm(true);
+                                            }}
+                                            style={{
+                                                display: "flex", alignItems: "center", gap: 8,
+                                                background: "rgba(255,255,255,0.03)",
+                                                border: "0.5px solid rgba(255,255,255,0.08)",
+                                                borderRadius: 10, padding: "10px 18px",
+                                                color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                                                fontFamily: "'DM Sans', sans-serif",
+                                                transition: "background 0.2s"
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                                        >
+                                            <Plus size={15} /> New List
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (allFolders.length === 0) await reloadDashboardData();
+                                                setShowTaskForm(true);
+                                            }}
+                                            style={{
+                                                display: "flex", alignItems: "center", gap: 8,
+                                                background: "linear-gradient(135deg, #534AB7, #3C3489)",
+                                                border: "none", borderRadius: 10, padding: "10px 18px",
+                                                color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                                                fontFamily: "'DM Sans', sans-serif",
+                                            }}
+                                        >
+                                            <Plus size={15} /> New Task
                                         </button>
                                     </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                        {spaces.map((space) => {
-                                            const c = space.color?.startsWith("#") ? space.color : "#534AB7";
-                                            return (
-                                                <div key={space.id} className="project-card">
-                                                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-                                                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                                            <div style={{ width: 40, height: 40, borderRadius: 10, background: c + "22", border: `1px solid ${c}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                                <Folders size={17} style={{ color: c }} />
-                                                            </div>
-                                                            <div>
-                                                                <p style={{ fontWeight: 600, fontSize: 14, color: "#fff" }}>{space.spaceName}</p>
-                                                                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{space.isPrivate ? "Private Space" : "Public Space"}</p>
-                                                            </div>
-                                                        </div>
-                                                        <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", display: "flex" }}>
-                                                            <MoreHorizontal size={15} />
-                                                        </button>
-                                                    </div>
-                                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
-                                                        <Avatar initials={space.spaceName.charAt(0).toUpperCase()} size={24} color={c} />
-                                                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Pending Tasks API</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {spaces.length === 0 && (
-                                            <div style={{ padding: 20, textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 13, border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 16 }}>
-                                                No spaces found in this workspace.
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
 
-                                {/* Right column */}
-                                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                                {/* Stats */}
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
+                                    {stats.map((s) => (
+                                        <div key={s.label} className="stat-card">
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: 10, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                    <s.icon size={17} style={{ color: s.color }} />
+                                                </div>
+                                                <ArrowUpRight size={14} style={{ color: "rgba(255,255,255,0.2)" }} />
+                                            </div>
+                                            <p style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{s.value}</p>
+                                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{s.label}</p>
+                                            <p style={{ fontSize: 11, color: s.color, marginTop: 8, fontWeight: 500 }}>{s.delta}</p>
+                                        </div>
+                                    ))}
+                                </div>
 
-                                    {/* Upcoming Deadlines — structure ready for TaskResponseDto */}
+                                {/* Bottom grid */}
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
+
+                                    {/* Recent Projects (Spaces) */}
                                     <div>
                                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                                            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700 }}>Upcoming Deadlines</h2>
-                                            <span style={{ fontSize: 11, background: "rgba(226,75,74,0.15)", color: "#E24B4A", borderRadius: 99, padding: "2px 8px", fontWeight: 600 }}>
-                                                {deadlines.length} pending
-                                            </span>
+                                            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700 }}>Recent Projects</h2>
+                                            <button style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                                                View all <ChevronRight size={12} />
+                                            </button>
                                         </div>
-                                        <div style={{ background: "#16161a", border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "8px 16px" }}>
-                                            {deadlines.length > 0
-                                                ? deadlines.map((task) => (
-                                                    // Structure ready: will use task.id, task.title, task.status, task.description
-                                                    <div key={task.id} className="deadline-row">
-                                                        <Circle size={15} style={{ color: "rgba(255,255,255,0.2)", flexShrink: 0 }} />
-                                                        <div style={{ flex: 1, overflow: "hidden" }}>
-                                                            <p style={{ fontSize: 13, fontWeight: 500, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                                {task.title}
-                                                            </p>
-                                                            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>
-                                                                {task.status ?? "—"}
-                                                            </p>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                            {spaces.map((space) => {
+                                                const c = space.color?.startsWith("#") ? space.color : "#534AB7";
+                                                return (
+                                                    <div key={space.id} className="project-card">
+                                                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                                                <div style={{ width: 40, height: 40, borderRadius: 10, background: c + "22", border: `1px solid ${c}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                                    <Folders size={17} style={{ color: c }} />
+                                                                </div>
+                                                                <div>
+                                                                    <p style={{ fontWeight: 600, fontSize: 14, color: "#fff" }}>{space.spaceName}</p>
+                                                                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{space.isPrivate ? "Private Space" : "Public Space"}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", display: "flex" }}>
+                                                                <MoreHorizontal size={15} />
+                                                            </button>
                                                         </div>
-                                                        <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, background: priorityColors["medium"] + "22", color: priorityColors["medium"], flexShrink: 0 }}>
-                                                            {task.status}
-                                                        </span>
+                                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
+                                                            <Avatar initials={space.spaceName.charAt(0).toUpperCase()} size={24} color={c} />
+                                                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Pending Tasks API</span>
+                                                        </div>
                                                     </div>
-                                                ))
-                                                : (
-                                                    <div style={{ padding: "16px 0", textAlign: "center" }}>
-                                                        <Clock size={20} style={{ color: "rgba(255,255,255,0.15)", margin: "0 auto 8px" }} />
-                                                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>No deadlines yet.</p>
-                                                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 4 }}>Will populate from Tasks API.</p>
-                                                    </div>
-                                                )
-                                            }
+                                                );
+                                            })}
+                                            {spaces.length === 0 && (
+                                                <div style={{ padding: 20, textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 13, border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 16 }}>
+                                                    No spaces found in this workspace.
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Sprint Progress — live from SprintController via folder chain */}
-                                    <div style={{ background: "linear-gradient(135deg, rgba(83,74,183,0.15), rgba(29,158,117,0.1))", border: "0.5px solid rgba(83,74,183,0.25)", borderRadius: 16, padding: "16px" }}>
-                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                <Star size={14} style={{ color: "#EF9F27" }} />
-                                                <p style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>Sprint Progress</p>
-                                            </div>
-                                            {sprintLoading && <Loader2 size={13} className="animate-spin" style={{ color: "rgba(255,255,255,0.3)" }} />}
-                                        </div>
+                                    {/* Right column */}
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-                                        {activeSprint ? (
-                                            <>
-                                                <ProgressBar value={sprintProgress} color="#534AB7" />
-                                                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, alignItems: "flex-start" }}>
-                                                    <div>
-                                                        <p style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>{activeSprint.name}</p>
-                                                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                                                            <CalendarDays size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
-                                                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                                                                {formatDate(activeSprint.startDate)} → {formatDate(activeSprint.endDate)}
+                                        {/* Upcoming Deadlines — structure ready for TaskResponseDto */}
+                                        <div>
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                                                <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700 }}>Upcoming Deadlines</h2>
+                                                <span style={{ fontSize: 11, background: "rgba(226,75,74,0.15)", color: "#E24B4A", borderRadius: 99, padding: "2px 8px", fontWeight: 600 }}>
+                                                    {deadlines.length} pending
+                                                </span>
+                                            </div>
+                                            <div style={{ background: "#16161a", border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "8px 16px" }}>
+                                                {deadlines.length > 0
+                                                    ? deadlines.map((task) => (
+                                                        // Structure ready: will use task.id, task.title, task.status, task.description
+                                                        <div key={task.id} className="deadline-row">
+                                                            <Circle size={15} style={{ color: "rgba(255,255,255,0.2)", flexShrink: 0 }} />
+                                                            <div style={{ flex: 1, overflow: "hidden" }}>
+                                                                <p style={{ fontSize: 13, fontWeight: 500, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                    {task.title}
+                                                                </p>
+                                                                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>
+                                                                    {task.status ?? "—"}
+                                                                </p>
+                                                            </div>
+                                                            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, background: priorityColors["medium"] + "22", color: priorityColors["medium"], flexShrink: 0 }}>
+                                                                {task.status}
                                                             </span>
                                                         </div>
-                                                    </div>
-                                                    <span style={{ fontSize: 13, color: "#a89ef5", fontWeight: 700 }}>{sprintProgress}%</span>
-                                                </div>
-                                                {sprints.length > 1 && (
-                                                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 8 }}>
-                                                        +{sprints.length - 1} other sprint{sprints.length - 1 > 1 ? "s" : ""} in this folder
-                                                    </p>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <div style={{ textAlign: "center", padding: "8px 0" }}>
-                                                {sprintLoading
-                                                    ? <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Loading sprints…</p>
+                                                    ))
                                                     : (
-                                                        <>
-                                                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>No sprint found.</p>
-                                                            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 4 }}>
-                                                                Create a folder + sprint to see progress.
-                                                            </p>
-                                                        </>
+                                                        <div style={{ padding: "16px 0", textAlign: "center" }}>
+                                                            <Clock size={20} style={{ color: "rgba(255,255,255,0.15)", margin: "0 auto 8px" }} />
+                                                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>No deadlines yet.</p>
+                                                            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 4 }}>Will populate from Tasks API.</p>
+                                                        </div>
                                                     )
                                                 }
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
 
+                                        {/* Sprint Progress — live from SprintController via folder chain */}
+                                        <div style={{ background: "linear-gradient(135deg, rgba(83,74,183,0.15), rgba(29,158,117,0.1))", border: "0.5px solid rgba(83,74,183,0.25)", borderRadius: 16, padding: "16px" }}>
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                    <Star size={14} style={{ color: "#EF9F27" }} />
+                                                    <p style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>Sprint Progress</p>
+                                                </div>
+                                                {sprintLoading && <Loader2 size={13} className="animate-spin" style={{ color: "rgba(255,255,255,0.3)" }} />}
+                                            </div>
+
+                                            {activeSprint ? (
+                                                <>
+                                                    <ProgressBar value={sprintProgress} color="#534AB7" />
+                                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, alignItems: "flex-start" }}>
+                                                        <div>
+                                                            <p style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>{activeSprint.name}</p>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                                                                <CalendarDays size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
+                                                                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                                                                    {formatDate(activeSprint.startDate)} → {formatDate(activeSprint.endDate)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span style={{ fontSize: 13, color: "#a89ef5", fontWeight: 700 }}>{sprintProgress}%</span>
+                                                    </div>
+                                                    {sprints.length > 1 && (
+                                                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 8 }}>
+                                                            +{sprints.length - 1} other sprint{sprints.length - 1 > 1 ? "s" : ""} in this folder
+                                                        </p>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div style={{ textAlign: "center", padding: "8px 0" }}>
+                                                    {sprintLoading
+                                                        ? <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Loading sprints…</p>
+                                                        : (
+                                                            <>
+                                                                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>No sprint found.</p>
+                                                                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 4 }}>
+                                                                    Create a folder + sprint to see progress.
+                                                                </p>
+                                                            </>
+                                                        )
+                                                    }
+                                                </div>
+                                            )}
+                                        </div>
+
+                                    </div>
                                 </div>
+                            </>
+                        ) : (
+                            /* ListView */
+                            <div style={{ background: "#16161a", border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 20, overflow: "hidden" }}>
+                                <div style={{ padding: "24px 32px", borderBottom: "0.5px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <div>
+                                        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, margin: 0 }}>Workspace Lists</h2>
+                                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>All phase and sprint lists across folders</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowListForm(true)}
+                                        style={{
+                                            padding: "10px 16px", background: "rgba(83,74,183,0.15)", border: "1px solid rgba(83,74,183,0.4)",
+                                            borderRadius: 12, color: "#a89ef5", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8
+                                        }}
+                                    >
+                                        <Plus size={15} /> New List
+                                    </button>
+                                </div>
+
+                                {allListes.length === 0 ? (
+                                    <div style={{ padding: 60, textAlign: "center", color: "rgba(255,255,255,0.25)" }}>
+                                        <List size={32} style={{ margin: "0 auto 16px", opacity: 0.3 }} />
+                                        <p style={{ fontSize: 15, fontWeight: 500 }}>No lists found yet.</p>
+                                        <p style={{ fontSize: 13, marginTop: 4 }}>Create a space and folder to start adding lists.</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ overflowX: "auto" }}>
+                                        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                                            <thead>
+                                                <tr style={{ background: "rgba(255,255,255,0.02)" }}>
+                                                    <th style={{ padding: "16px 32px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Name</th>
+                                                    <th style={{ padding: "16px 32px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Type</th>
+                                                    <th style={{ padding: "16px 32px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Context</th>
+                                                    <th style={{ padding: "16px 32px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px", textAlign: "right" }}>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {allListes.map(l => (
+                                                    <tr key={l.id} style={{ borderBottom: "0.5px solid rgba(255,255,255,0.04)" }}>
+                                                        <td style={{ padding: "20px 32px" }}>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: l.type === "SPRINT" ? "#EF9F27" : "#534AB7" }} />
+                                                                <span style={{ fontWeight: 600, color: "#fff", fontSize: 14 }}>{l.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ padding: "20px 32px" }}>
+                                                            <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>
+                                                                {l.type || "List"}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: "20px 32px", fontSize: 13, color: "rgba(255,255,255,0.35)" }}>
+                                                            {l.folderId ? `Folder: ${l.folderId}` : l.sprintId ? `Sprint: ${l.sprintId}` : "Root Level"}
+                                                        </td>
+                                                        <td style={{ padding: "20px 32px", textAlign: "right" }}>
+                                                            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                                                                <button onClick={() => setEditingList(l)} className="icon-btn" style={{ width: 30, height: 30 }}><Pencil size={14} /></button>
+                                                                <button onClick={() => setDeletingList(l)} className="icon-btn" style={{ width: 30, height: 30, color: "#E24B4A" }}><Trash2 size={14} /></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
+                        )}
                         </>
                     )}
                 </main>
@@ -905,19 +1049,59 @@ export default function WorkspacePage() {
                     onClose={() => setDeletingWorkspace(null)}
                 />
             )}
-            {/* TASK FORM MODAL */}
+            {/* TASK FORMS */}
             {showTaskForm && (
-                <TaskForm
-                    listes={[]}
-                    sprints={sprints.map(s => ({ value: s.id, label: s.name }))}
-                    assignees={[]}
-                    onSubmit={async (data) => {
-                        console.log("Task created:", data);
-                        await createTask(data);
-                        // Optional: you can refresh tasks here after creation
-
-                    }}
+                <TaskAdd
+                    listes={allListes.map(l => ({ value: l.id!, label: l.name }))}
+                    sprints={allSprints.map(s => ({ value: s.id!, label: s.name }))}
+                    assignees={[]} // Future: fetch workspace members
+                    onSubmit={handleTaskSubmit}
                     onClose={() => setShowTaskForm(false)}
+                />
+            )}
+            {editingTask && (
+                <TaskUpdate
+                    taskId={editingTask.id}
+                    defaults={editingTask}
+                    listes={allListes.map(l => ({ value: l.id!, label: l.name }))}
+                    sprints={allSprints.map(s => ({ value: s.id!, label: s.name }))}
+                    assignees={[]}
+                    onSubmit={handleTaskSubmit}
+                    onClose={() => setEditingTask(null)}
+                />
+            )}
+            {deletingTask && (
+                <TaskDelete
+                    task={deletingTask}
+                    onDelete={handleTaskDelete}
+                    onClose={() => setDeletingTask(null)}
+                />
+            )}
+
+            {/* LISTE FORMS */}
+            {showListForm && (
+                <ListeAdd
+                    folders={allFolders.map(f => ({ value: f.id!, label: f.name }))}
+                    sprints={allSprints.map(s => ({ value: s.id!, label: s.name }))}
+                    onSubmit={handleListeSubmit}
+                    onClose={() => setShowListForm(false)}
+                />
+            )}
+            {editingList && (
+                <ListeUpdate
+                    listeId={editingList.id}
+                    defaults={editingList}
+                    folders={allFolders.map(f => ({ value: f.id!, label: f.name }))}
+                    sprints={allSprints.map(s => ({ value: s.id!, label: s.name }))}
+                    onSubmit={handleListeSubmit}
+                    onClose={() => setEditingList(null)}
+                />
+            )}
+            {deletingList && (
+                <ListeDelete
+                    liste={deletingList}
+                    onDelete={handleListeDelete}
+                    onClose={() => setDeletingList(null)}
                 />
             )}
         </Layout>

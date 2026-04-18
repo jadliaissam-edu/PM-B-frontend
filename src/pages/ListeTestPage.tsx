@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Plus, Edit2, Trash2, List as ListIcon } from "lucide-react";
-import { type ListeResponseDto, getAllListes, createListe, updateListe, deleteListe } from "../api/ListeApi";
+import { type ListeResponseDto, createListe, updateListe, deleteListe } from "../api/listeApi";
 import { ListeAdd, ListeUpdate, ListeDelete, type ListeRequestDto } from "../components/listeForms";
 import { TaskAdd, TaskUpdate, TaskDelete, type TaskRequestDto } from "../components/TaskForms";
 import { SpaceAdd, SpaceUpdate, SpaceDelete, type SpaceRequestDto } from "../components/SpaceForms";
-import { createTask, updateTask, deleteTask } from "../api/TaskApi";
-import { addSpace, updateSpace, deleteSpace } from "../api/spaceApi";
+import { createTask, updateTask, deleteTask } from "../api/taskApi";
+import { createSpace, updateSpace, deleteSpace } from "../api/spaceApi";
 
 export default function ListeTestPage() {
     const [listes, setListes] = useState<ListeResponseDto[]>([]);
@@ -38,8 +38,11 @@ export default function ListeTestPage() {
     async function loadListes() {
         setLoading(true);
         try {
-            const page = await getAllListes(0, 50); // Get first 50
-            setListes(page.content); // Use content from pagination array
+            // Since getAllListes doesn't exist, we'll try to fetch from a generic endpoint or just use an empty array
+            // for now, until we have a proper global list fetcher.
+            // For now, let's assume we fetch by a known folder or just skip global listing in this test page.
+            const page = { content: [] }; 
+            setListes(page.content); 
 
             // Also load real folders and sprints from backend
             const token = localStorage.getItem("accessToken");
@@ -116,7 +119,7 @@ export default function ListeTestPage() {
 
     async function handleSpaceAdd(dto: SpaceRequestDto) {
         console.log("Space Create DTO:", dto);
-        try { await addSpace(dto); alert("Space created!"); setIsSpaceAddOpen(false); } catch(e: any) { alert("Error: " + e.message); }
+        try { await createSpace(dto); alert("Space created!"); setIsSpaceAddOpen(false); } catch(e: any) { alert("Error: " + e.message); }
     }
     async function handleSpaceUpdate(id: string, dto: SpaceRequestDto) {
         console.log("Space Update DTO:", dto);
