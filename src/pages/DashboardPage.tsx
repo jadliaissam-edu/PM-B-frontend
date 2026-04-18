@@ -8,6 +8,7 @@ import {
     CalendarDays,
 } from "lucide-react";
 
+import TaskForm from "../components/TaskForms";
 import Sidebar from "../components/Sidebar";
 import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
@@ -30,6 +31,7 @@ import type {
     SprintResponseDto,
     TaskResponseDto,
 } from "../api/workspaceApi.tsx";
+import { createTask } from "../api/TaskApi.tsx";
 
 // ============================================================================
 // STATIC CONFIG
@@ -384,6 +386,10 @@ export default function WorkspacePage() {
 
     const sprintProgress = computeSprintProgress(activeSprint);
 
+
+    //Task
+    const [showTaskForm, setShowTaskForm] = useState(false);
+
     // ── Initial load ──
     useEffect(() => {
         try {
@@ -699,15 +705,18 @@ export default function WorkspacePage() {
                                         }
                                     </p>
                                 </div>
-                                <button style={{
-                                    display: "flex", alignItems: "center", gap: 8,
-                                    background: "linear-gradient(135deg, #534AB7, #3C3489)",
-                                    border: "none", borderRadius: 10, padding: "10px 18px",
-                                    color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                    fontFamily: "'DM Sans', sans-serif",
-                                }}>
-                                    <Plus size={15} /> New Task
-                                </button>
+                               <button
+                                    onClick={() => setShowTaskForm(true)}
+                                    style={{
+                                        display: "flex", alignItems: "center", gap: 8,
+                                        background: "linear-gradient(135deg, #534AB7, #3C3489)",
+                                        border: "none", borderRadius: 10, padding: "10px 18px",
+                                        color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                                        fontFamily: "'DM Sans', sans-serif",
+                                     }}
+>
+    <Plus size={15} /> New Task
+</button>
                             </div>
 
                             {/* Stats */}
@@ -894,6 +903,21 @@ export default function WorkspacePage() {
                     workspaceName={deletingWorkspace.name}
                     onConfirm={handleDeleteWorkspace}
                     onClose={() => setDeletingWorkspace(null)}
+                />
+            )}
+            {/* TASK FORM MODAL */}
+            {showTaskForm && (
+                <TaskForm
+                    listes={[]}
+                    sprints={sprints.map(s => ({ value: s.id, label: s.name }))}
+                    assignees={[]}
+                    onSubmit={async (data) => {
+                        console.log("Task created:", data);
+                        await createTask(data);
+                        // Optional: you can refresh tasks here after creation
+
+                    }}
+                    onClose={() => setShowTaskForm(false)}
                 />
             )}
         </Layout>

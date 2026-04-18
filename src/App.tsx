@@ -4,6 +4,8 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import MyTasksTestPage from "./pages/MyTasksTestPage";
+import ListeTestPage from './pages/ListeTestPage';
+
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("accessToken");
@@ -32,6 +34,7 @@ export default function App() {
                         </ProtectedRoute>
                     )}
                 />
+                <Route path="/test-listes" element={<ListeTestPage />} />
                 <Route path="/" element={<Navigate to="/workspace" replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
