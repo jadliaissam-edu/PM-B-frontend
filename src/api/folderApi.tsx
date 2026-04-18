@@ -3,6 +3,7 @@ import { getAuthHeaders } from "./jwtService";
 
 export interface FolderRequestDto {
     name: string;
+    description?: string;
     isHidden: boolean;
     spaceId: string;
 }
@@ -11,6 +12,7 @@ export interface FolderResponseDto {
     id?: string;
     spaceId?: string;
     name: string;
+    description?: string;
     isHidden?: boolean;
 }
 
@@ -20,6 +22,7 @@ interface RawFolder {
     spaceId?: string;
     name?: string;
     folderName?: string;
+    description?: string;
     isHidden?: boolean;
     hidden?: boolean;
     space?: { id?: string };
@@ -63,6 +66,7 @@ function normalizeFolder(raw: RawFolder): FolderResponseDto {
         id: raw.id ?? raw.folderId,
         spaceId: raw.spaceId ?? raw.space?.id,
         name: raw.name ?? raw.folderName ?? "Folder",
+        description: raw.description,
         isHidden: raw.isHidden ?? raw.hidden ?? false,
     };
 }

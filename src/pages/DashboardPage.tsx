@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     LayoutDashboard, ChevronRight,
@@ -430,24 +430,25 @@ export default function WorkspacePage() {
     }, [workspaceCreateFeedback]);
 
     // ── Load spaces when active workspace changes ──
-    useEffect(() => {
+    const reloadDashboardData = useCallback(async () => {
         if (!activeWorkspace) {
             setSpaces([]);
             setFolders([]);
             setSprints([]);
             return;
         }
-        const loadSpaces = async () => {
-            try {
-                const spacesData = await getSpacesByWorkspace(activeWorkspace.id);
-                setSpaces(spacesData);
-            } catch (error) {
-                console.error("Failed to fetch spaces", error);
-                setSpaces([]);
-            }
-        };
-        loadSpaces();
+        try {
+            const spacesData = await getSpacesByWorkspace(activeWorkspace.id);
+            setSpaces(spacesData);
+        } catch (error) {
+            console.error("Failed to fetch spaces", error);
+            setSpaces([]);
+        }
     }, [activeWorkspace]);
+
+    useEffect(() => {
+        reloadDashboardData();
+    }, [reloadDashboardData]);
 
     // ── Load folders for first space, then sprints for first folder ──
     useEffect(() => {
@@ -600,7 +601,12 @@ export default function WorkspacePage() {
                             onDeleteClick={(ws) => setDeletingWorkspace(ws)}
                         />
                     }
-                    resourcesPanel={<WorkspaceResourcesPanel workspaceId={activeWorkspace?.id} />}
+                    resourcesPanel={
+                        <WorkspaceResourcesPanel 
+                            workspaceId={activeWorkspace?.id} 
+                            onResourcesChange={reloadDashboardData} 
+                        />
+                    }
                     userName={user.name}
                     userAvatar={user.avatar}
                 />

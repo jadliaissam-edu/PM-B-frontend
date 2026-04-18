@@ -3,6 +3,7 @@ import { getAuthHeaders } from "./jwtService";
 
 export interface SpaceRequestDto {
     name: string;
+    description?: string;
     color: string;
     isPrivate: boolean;
     workspaceId: string;
@@ -11,6 +12,7 @@ export interface SpaceRequestDto {
 export interface SpaceResponseDto {
     id: string;
     spaceName: string;
+    description?: string;
     color?: string;
     isPrivate: boolean;
     workspaceid?: string;

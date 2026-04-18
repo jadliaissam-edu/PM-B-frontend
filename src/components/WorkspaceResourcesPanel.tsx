@@ -40,9 +40,27 @@ import {
     updateListe,
     type ListeResponseDto,
 } from "../api/listeApi";
+import { getWorkspacesByUser, type WorkspaceResponseDto } from "../api/workspaceApi";
+import { SpaceAdd, SpaceUpdate, SpaceDelete } from "../forms/SpaceForms";
+import { FolderAdd, FolderUpdate, FolderDelete } from "../forms/FolderForms";
+import { SprintAdd, SprintUpdate, SprintDelete } from "../forms/SprintForms";
+
+type ActiveModal =
+    | { type: "SPACE_ADD" }
+    | { type: "SPACE_UPDATE"; space: SpaceResponseDto }
+    | { type: "SPACE_DELETE"; space: SpaceResponseDto }
+    | { type: "FOLDER_ADD"; spaceId: string }
+    | { type: "FOLDER_UPDATE"; spaceId: string; folder: FolderResponseDto }
+    | { type: "FOLDER_DELETE"; spaceId: string; folder: FolderResponseDto }
+    | { type: "SPRINT_ADD"; folderId: string }
+    | { type: "SPRINT_UPDATE"; folderId: string; sprint: SprintResponseDto }
+    | { type: "SPRINT_DELETE"; folderId: string; sprint: SprintResponseDto }
+    | null;
+
 
 interface WorkspaceResourcesPanelProps {
     workspaceId?: string;
+    onResourcesChange?: () => void;
 }
 
 function toLocalDateTimeString(date: Date): string {
@@ -50,7 +68,7 @@ function toLocalDateTimeString(date: Date): string {
     return local.toISOString().slice(0, 19);
 }
 
-export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResourcesPanelProps) {
+export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange }: WorkspaceResourcesPanelProps) {
     const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
     const [foldersBySpace, setFoldersBySpace] = useState<Record<string, FolderResponseDto[]>>({});
     const [sprintsByFolder, setSprintsByFolder] = useState<Record<string, SprintResponseDto[]>>({});
@@ -64,6 +82,9 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
     const [openSpaceCreateMenuFor, setOpenSpaceCreateMenuFor] = useState<string | null>(null);
     const [openCreateMenuFor, setOpenCreateMenuFor] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+    const [allWorkspaces, setAllWorkspaces] = useState<WorkspaceResponseDto[]>([]);
+
 
     const loadSpaces = useCallback(async () => {
         if (!workspaceId) {
@@ -87,6 +108,18 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
     }, [workspaceId]);
 
     useEffect(() => {
+        const fetchAllWorkspaces = async () => {
+            try {
+                const workspaces = await getWorkspacesByUser();
+                setAllWorkspaces(workspaces);
+            } catch (err) {
+                console.error("Failed to fetch workspaces for form options", err);
+            }
+        };
+        void fetchAllWorkspaces();
+    }, []);
+
+    useEffect(() => {
         setFoldersBySpace({});
         setSprintsByFolder({});
         setPhaseListsByFolder({});
@@ -96,6 +129,7 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
         setOpenCreateMenuFor(null);
         void loadSpaces();
     }, [loadSpaces]);
+
 
     const loadFolders = async (spaceId: string) => {
         setLoadingFoldersFor(spaceId);
@@ -171,144 +205,58 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
         }
     };
 
-    const handleCreateSpace = async () => {
+    const handleCreateSpace = () => {
         if (!workspaceId) return;
-
-        const name = window.prompt("Space name");
-        if (!name || !name.trim()) return;
-
-        try {
-            await createSpace({
-                name: name.trim(),
-                color: "#534AB7",
-                isPrivate: false,
-                workspaceId,
-            });
-            await loadSpaces();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to create space.";
-            setErrorMessage(message);
-        }
+        setActiveModal({ type: "SPACE_ADD" });
     };
 
-    const handleEditSpace = async (space: SpaceResponseDto) => {
-        if (!workspaceId) return;
+    const handleOnSpaceChange = useCallback(() => {
+        onResourcesChange?.();
+    }, [onResourcesChange]);
 
-        const nextName = window.prompt("Edit space name", space.spaceName || "");
-        if (!nextName || !nextName.trim()) return;
 
-        try {
-            await updateSpace(space.id, {
-                name: nextName.trim(),
-                color: space.color || "#534AB7",
-                isPrivate: space.isPrivate,
-                workspaceId,
-            });
-            await loadSpaces();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to update space.";
-            setErrorMessage(message);
-        }
+
+    const handleEditSpace = (space: SpaceResponseDto) => {
+        setActiveModal({ type: "SPACE_UPDATE", space });
     };
 
-    const handleDeleteSpace = async (space: SpaceResponseDto) => {
-        if (!window.confirm(`Delete space \"${space.spaceName}\" ?`)) return;
 
-        try {
-            await deleteSpace(space.id);
-            await loadSpaces();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to delete space.";
-            setErrorMessage(message);
-        }
+    const handleDeleteSpace = (space: SpaceResponseDto) => {
+        setActiveModal({ type: "SPACE_DELETE", space });
     };
 
-    const handleCreateFolder = async (spaceId: string) => {
-        const name = window.prompt("Folder name");
-        if (!name || !name.trim()) return;
 
-        try {
-            await createFolder({
-                name: name.trim(),
-                isHidden: false,
-                spaceId,
-            });
-            await loadFolders(spaceId);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to create folder.";
-            setErrorMessage(message);
-        }
+    const handleCreateFolder = (spaceId: string) => {
+        setActiveModal({ type: "FOLDER_ADD", spaceId });
     };
 
-    const handleEditFolder = async (spaceId: string, folder: FolderResponseDto) => {
+
+    const handleEditFolder = (spaceId: string, folder: FolderResponseDto) => {
         if (!folder.id) {
             setErrorMessage("Folder id is missing on backend response.");
             return;
         }
-
-        const nextName = window.prompt("Edit folder name", folder.name || "");
-        if (!nextName || !nextName.trim()) return;
-
-        try {
-            await updateFolder(folder.id, {
-                name: nextName.trim(),
-                isHidden: Boolean(folder.isHidden),
-                spaceId,
-            });
-            await loadFolders(spaceId);
-            if (expandedFolders[folder.id]) {
-                await Promise.all([loadSprints(folder.id), loadPhaseLists(folder.id)]);
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to update folder.";
-            setErrorMessage(message);
-        }
+        setActiveModal({ type: "FOLDER_UPDATE", spaceId, folder });
     };
 
-    const handleDeleteFolder = async (spaceId: string, folder: FolderResponseDto) => {
+
+    const handleDeleteFolder = (spaceId: string, folder: FolderResponseDto) => {
         if (!folder.id) {
             setErrorMessage("Folder id is missing on backend response.");
             return;
         }
-
-        if (!window.confirm(`Delete folder \"${folder.name}\" ?`)) return;
-
-        try {
-            await deleteFolder(folder.id);
-            await loadFolders(spaceId);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to delete folder.";
-            setErrorMessage(message);
-        }
+        setActiveModal({ type: "FOLDER_DELETE", spaceId, folder });
     };
 
-    const handleCreateSprint = async (folderId?: string) => {
+
+    const handleCreateSprint = (folderId?: string) => {
         if (!folderId) {
             setErrorMessage("Folder id is missing on backend response.");
             return;
         }
-
-        const name = window.prompt("Sprint name");
-        if (!name || !name.trim()) return;
-
-        const goal = window.prompt("Sprint goal", "Deliver planned features") || "";
-        const startDate = toLocalDateTimeString(new Date());
-        const endDate = toLocalDateTimeString(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000));
-
-        try {
-            await createSprintInFolder(folderId, {
-                name: name.trim(),
-                goal,
-                isActive: true,
-                startDate,
-                endDate,
-            });
-            await loadSprints(folderId);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to create sprint.";
-            setErrorMessage(message);
-        }
+        setActiveModal({ type: "SPRINT_ADD", folderId });
     };
+
 
     const handleCreatePhaseList = async (folderId?: string) => {
         if (!folderId) {
@@ -406,39 +354,14 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
         }
     };
 
-    const handleEditSprint = async (folderId: string, sprint: SprintResponseDto) => {
-        const nextName = window.prompt("Edit sprint name", sprint.name || "");
-        if (!nextName || !nextName.trim()) return;
-
-        const existingStart = sprint.startDate?.slice(0, 19) || toLocalDateTimeString(new Date());
-        const existingEnd = sprint.endDate?.slice(0, 19) || toLocalDateTimeString(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000));
-
-        try {
-            await updateSprint(sprint.id, {
-                name: nextName.trim(),
-                goal: sprint.goal || "",
-                isActive: Boolean(sprint.isActive),
-                startDate: existingStart,
-                endDate: existingEnd,
-            });
-            await loadSprints(folderId);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to update sprint.";
-            setErrorMessage(message);
-        }
+    const handleDeleteSprint = (folderId: string, sprint: SprintResponseDto) => {
+        setActiveModal({ type: "SPRINT_DELETE", folderId, sprint });
     };
 
-    const handleDeleteSprint = async (folderId: string, sprint: SprintResponseDto) => {
-        if (!window.confirm(`Delete sprint \"${sprint.name}\" ?`)) return;
-
-        try {
-            await deleteSprint(sprint.id);
-            await loadSprints(folderId);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to delete sprint.";
-            setErrorMessage(message);
-        }
+    const handleEditSprint = (folderId: string, sprint: SprintResponseDto) => {
+        setActiveModal({ type: "SPRINT_UPDATE", folderId, sprint });
     };
+
 
     return (
         <div style={{ padding: "10px 8px 2px" }}>
@@ -952,9 +875,135 @@ export default function WorkspaceResourcesPanel({ workspaceId }: WorkspaceResour
                     </div>
                 );
             })}
+            {activeModal?.type === "SPACE_ADD" && (
+                <SpaceAdd
+                    onClose={() => setActiveModal(null)}
+                    workspaces={allWorkspaces.map((w) => ({ value: w.id, label: w.name }))}
+                    defaults={{ workspaceId }}
+                    onSubmit={async (data) => {
+                        await createSpace(data);
+                        await loadSpaces();
+                        handleOnSpaceChange();
+                    }}
+                />
+            )}
+            {activeModal?.type === "SPACE_UPDATE" && (
+                <SpaceUpdate
+                    onClose={() => setActiveModal(null)}
+                    spaceId={activeModal.space.id}
+                    workspaces={allWorkspaces.map((w) => ({ value: w.id, label: w.name }))}
+                    defaults={{
+                        name: activeModal.space.spaceName,
+                        description: activeModal.space.description,
+                        color: activeModal.space.color,
+                        isPrivate: activeModal.space.isPrivate,
+                        workspaceId,
+                    }}
+                    onSubmit={async (data) => {
+                        await updateSpace(activeModal.space.id, data);
+                        await loadSpaces();
+                        handleOnSpaceChange();
+                    }}
+                />
+            )}
+            {activeModal?.type === "SPACE_DELETE" && (
+                <SpaceDelete
+                    onClose={() => setActiveModal(null)}
+                    space={{ id: activeModal.space.id, name: activeModal.space.spaceName }}
+                    onDelete={async (id) => {
+                        await deleteSpace(id);
+                        await loadSpaces();
+                        handleOnSpaceChange();
+                    }}
+                />
+            )}
+
+            {activeModal?.type === "FOLDER_ADD" && (
+                <FolderAdd
+                    onClose={() => setActiveModal(null)}
+                    spaces={spaces.map((s) => ({ value: s.id, label: s.spaceName }))}
+                    defaults={{ spaceId: activeModal.spaceId }}
+                    onSubmit={async (data) => {
+                        await createFolder(data);
+                        await loadFolders(activeModal.spaceId);
+                        onResourcesChange?.();
+                    }}
+                />
+            )}
+            {activeModal?.type === "FOLDER_UPDATE" && (
+                <FolderUpdate
+                    onClose={() => setActiveModal(null)}
+                    folderId={activeModal.folder.id!}
+                    spaces={spaces.map((s) => ({ value: s.id, label: s.spaceName }))}
+                    defaults={{
+                        name: activeModal.folder.name,
+                        description: activeModal.folder.description,
+                        isHidden: activeModal.folder.isHidden,
+                        spaceId: activeModal.spaceId,
+                    }}
+                    onSubmit={async (data) => {
+                        await updateFolder(activeModal.folder.id!, data);
+                        await loadFolders(activeModal.spaceId);
+                        if (expandedFolders[activeModal.folder.id!]) {
+                            await Promise.all([loadSprints(activeModal.folder.id!), loadPhaseLists(activeModal.folder.id!)]);
+                        }
+                        onResourcesChange?.();
+                    }}
+                />
+            )}
+            {activeModal?.type === "FOLDER_DELETE" && (
+                <FolderDelete
+                    onClose={() => setActiveModal(null)}
+                    folder={{ id: activeModal.folder.id!, name: activeModal.folder.name }}
+                    onDelete={async (id) => {
+                        await deleteFolder(id);
+                        await loadFolders(activeModal.spaceId);
+                        onResourcesChange?.();
+                    }}
+                />
+            )}
+
+            {activeModal?.type === "SPRINT_ADD" && (
+                <SprintAdd
+                    onClose={() => setActiveModal(null)}
+                    folders={spaces.flatMap(s => foldersBySpace[s.id] || []).map(f => ({ value: f.id!, label: f.name }))}
+                    defaults={{ folderId: activeModal.folderId }}
+                    onSubmit={async (data) => {
+                        await createSprintInFolder(activeModal.folderId, data);
+                        await loadSprints(activeModal.folderId);
+                        onResourcesChange?.();
+                    }}
+                />
+            )}
+            {activeModal?.type === "SPRINT_UPDATE" && (
+                <SprintUpdate
+                    onClose={() => setActiveModal(null)}
+                    sprintId={activeModal.sprint.id}
+                    folders={spaces.flatMap(s => foldersBySpace[s.id] || []).map(f => ({ value: f.id!, label: f.name }))}
+                    defaults={activeModal.sprint}
+                    onSubmit={async (data) => {
+                        await updateSprint(activeModal.sprint.id, data);
+                        await loadSprints(activeModal.folderId);
+                        onResourcesChange?.();
+                    }}
+                />
+            )}
+            {activeModal?.type === "SPRINT_DELETE" && (
+                <SprintDelete
+                    onClose={() => setActiveModal(null)}
+                    sprint={{ id: activeModal.sprint.id, name: activeModal.sprint.name }}
+                    onDelete={async (id) => {
+                        await deleteSprint(id);
+                        await loadSprints(activeModal.folderId);
+                        onResourcesChange?.();
+                    }}
+                />
+            )}
+
         </div>
     );
 }
+
 
 interface CollapsibleLeadIconProps {
     isOpen: boolean;
