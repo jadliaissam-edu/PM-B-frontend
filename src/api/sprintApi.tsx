@@ -8,6 +8,7 @@ export interface SprintRequestDto {
     endDate: string;
     goal: string;
     isActive: boolean;
+    folderId?: string;
 }
 
 export interface SprintResponseDto {

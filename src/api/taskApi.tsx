@@ -1,11 +1,14 @@
 import { API_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
 
+export type TaskStatus = "TO_DO" | "IN_DEV" | "IN_TEST" | "IN_REVIEW" | "DONE";
+export type Priority = "URGENT" | "HIGH" | "MEDIUM" | "LOW";
+
 export interface TaskRequestDto {
     title: string;
     description?: string;
-    status?: string;
-    priority?: string;
+    status?: TaskStatus;
+    priority?: Priority;
     dueDate?: string;
     listeId?: string;
     sprintId?: string;
@@ -16,12 +19,17 @@ export interface TaskResponseDto {
     id: string;
     title: string;
     description?: string;
-    status?: string;
-    priority?: string;
+    status?: TaskStatus;
+    priority?: Priority;
     dueDate?: string;
+    createdAt?: string;
+    updatedAt?: string;
     listeId?: string;
+    listeName?: string;
     sprintId?: string;
+    sprintName?: string;
     assigneeId?: string;
+    assigneeName?: string;
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -44,6 +52,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
             ...authHeaders,
             ...(init?.headers ?? {}),
         },
+
     });
 
     const contentType = response.headers.get("content-type") || "";
@@ -76,6 +85,11 @@ export async function getTasksBySprint(sprintId: string): Promise<TaskResponseDt
     return asArray<TaskResponseDto>(data);
 }
 
+export async function getTasksByAssignee(assigneeId: string): Promise<TaskResponseDto[]> {
+    const data = await request<unknown>(`/tasks/assignee/${assigneeId}`);
+    return asArray<TaskResponseDto>(data);
+}
+
 export async function createTask(payload: TaskRequestDto): Promise<TaskResponseDto> {
     return request<TaskResponseDto>("/tasks", {
         method: "POST",
@@ -93,5 +107,17 @@ export async function updateTask(taskId: string, payload: TaskRequestDto): Promi
 export async function deleteTask(taskId: string): Promise<void> {
     await request<unknown>(`/tasks/${taskId}`, {
         method: "DELETE",
+    });
+}
+
+export async function assignTask(taskId: string, assigneeId: string): Promise<TaskResponseDto> {
+    return request<TaskResponseDto>(`/tasks/${taskId}/assign/${assigneeId}`, {
+        method: "PATCH",
+    });
+}
+
+export async function moveToSprint(taskId: string, sprintId: string): Promise<TaskResponseDto> {
+    return request<TaskResponseDto>(`/tasks/${taskId}/sprint/${sprintId}`, {
+        method: "PATCH",
     });
 }

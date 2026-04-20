@@ -1,11 +1,11 @@
 import { API_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
 
-export type ListeType = "SPRINT" | "PHASE";
+export type ListType = "SPRINT" | "PHASE";
 
 export interface ListeRequestDto {
     name: string;
-    type: ListeType;
+    type: ListType;
     order: number;
     folderId?: string | null;
     sprintId?: string | null;
@@ -14,8 +14,9 @@ export interface ListeRequestDto {
 export interface ListeResponseDto {
     id: string;
     name: string;
-    type: ListeType;
+    type: ListType;
     order: number;
+    createdAt?: string;
     folderId?: string;
     folderName?: string;
     sprintId?: string;
@@ -53,6 +54,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     return data as T;
+}
+
+export async function getAllListes(page = 0, size = 10, sortBy = "name"): Promise<any> {
+    return request<unknown>(`/listes?page=${page}&size=${size}&sortBy=${sortBy}`);
+}
+
+export async function getListeById(id: string): Promise<ListeResponseDto> {
+    return request<ListeResponseDto>(`/listes/${id}`);
 }
 
 export async function getListesByFolder(folderId: string): Promise<ListeResponseDto[]> {
