@@ -132,20 +132,23 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
     const [name, setName] = useState(defaults?.name || "");
     const [goal, setGoal] = useState(defaults?.goal || "");
     const [folderId, setFolderId] = useState(defaults?.folderId || "");
-    const [startDate, setStartDate] = useState(defaults?.startDate || "");
-    const [endDate, setEndDate] = useState(defaults?.endDate || "");
+    const today = new Date().toISOString().split('T')[0];
+    const [startDate, setStartDate] = useState(defaults?.startDate?.split('T')[0] || today);
+    const [endDate, setEndDate] = useState(defaults?.endDate?.split('T')[0] || today);
     const [loading, setLoading] = useState(false);
+
+    const isValid = name.trim().length > 0 && folderId && startDate && endDate && new Date(startDate) <= new Date(endDate);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim() || !folderId) return;
+        if (!isValid) return;
         setLoading(true);
         try {
             await onSubmit({ 
                 name: name.trim(), 
                 goal: goal.trim(), 
-                startDate, 
-                endDate, 
+                startDate: `${startDate}T00:00:00`, 
+                endDate: `${endDate}T23:59:59`, 
                 folderId, 
                 isActive: true 
             });
@@ -218,12 +221,12 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
                     <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
                         <button 
                             type="submit"
-                            disabled={loading || !name.trim() || !folderId}
+                            disabled={loading || !isValid}
                             style={{
                                 flex: 1, padding: "18px", borderRadius: 16, border: "none",
                                 background: theme.primary, color: "#fff", fontWeight: 800, fontSize: 16,
-                                cursor: (loading || !name.trim() || !folderId) ? "not-allowed" : "pointer",
-                                opacity: (loading || !name.trim() || !folderId) ? 0.6 : 1,
+                                cursor: (loading || !isValid) ? "not-allowed" : "pointer",
+                                opacity: (loading || !isValid) ? 0.6 : 1,
                                 boxShadow: `0 12px 32px ${theme.primary}44`
                             }}
                         >
@@ -237,23 +240,26 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
 }
 
 export function SprintUpdate({ sprintId, onSubmit, onClose, folders, defaults }: SprintFormProps & { sprintId: string }) {
+    const today = new Date().toISOString().split('T')[0];
     const [name, setName] = useState(defaults?.name || "");
     const [goal, setGoal] = useState(defaults?.goal || "");
     const [folderId, setFolderId] = useState(defaults?.folderId || "");
-    const [startDate, setStartDate] = useState(defaults?.startDate || "");
-    const [endDate, setEndDate] = useState(defaults?.endDate || "");
+    const [startDate, setStartDate] = useState(defaults?.startDate?.split('T')[0] || today);
+    const [endDate, setEndDate] = useState(defaults?.endDate?.split('T')[0] || today);
     const [loading, setLoading] = useState(false);
+
+    const isValid = name.trim().length > 0 && folderId && startDate && endDate && new Date(startDate) <= new Date(endDate);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim() || !folderId) return;
+        if (!isValid) return;
         setLoading(true);
         try {
             await onSubmit({ 
                 name: name.trim(), 
                 goal: goal.trim(), 
-                startDate, 
-                endDate, 
+                startDate: startDate.includes('T') ? startDate : `${startDate}T00:00:00`, 
+                endDate: endDate.includes('T') ? endDate : `${endDate}T23:59:59`, 
                 folderId, 
                 isActive: defaults?.isActive ?? true 
             });
@@ -322,11 +328,13 @@ export function SprintUpdate({ sprintId, onSubmit, onClose, folders, defaults }:
                     <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
                         <button 
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || !isValid}
                             style={{
                                 flex: 1, padding: "18px", borderRadius: 16, border: "none",
                                 background: theme.primary, color: "#fff", fontWeight: 800, fontSize: 16,
-                                cursor: loading ? "not-allowed" : "pointer"
+                                cursor: (loading || !isValid) ? "not-allowed" : "pointer",
+                                opacity: (loading || !isValid) ? 0.6 : 1,
+                                boxShadow: `0 12px 32px ${theme.primary}44`
                             }}
                         >
                             {loading ? "Saving..." : "Save Changes"}
