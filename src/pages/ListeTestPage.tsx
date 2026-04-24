@@ -41,8 +41,8 @@ export default function ListeTestPage() {
             // Since getAllListes doesn't exist, we'll try to fetch from a generic endpoint or just use an empty array
             // for now, until we have a proper global list fetcher.
             // For now, let's assume we fetch by a known folder or just skip global listing in this test page.
-            const page = { content: [] }; 
-            setListes(page.content); 
+            const page = { content: [] };
+            setListes(page.content);
 
             // Also load real folders and sprints from backend
             const token = localStorage.getItem("accessToken");
@@ -107,26 +107,26 @@ export default function ListeTestPage() {
 
     async function handleTaskAdd(dto: TaskRequestDto) {
         console.log("Task Create DTO:", dto);
-        try { await createTask(dto); alert("Task created!"); setIsTaskAddOpen(false); } catch(e: any) { alert("Error: " + e.message); }
+        try { await createTask(dto); alert("Task created!"); setIsTaskAddOpen(false); } catch (e: any) { alert("Error: " + e.message); }
     }
     async function handleTaskUpdate(id: string, dto: TaskRequestDto) {
         console.log("Task Update DTO:", dto);
-        try { await updateTask(id, dto); alert("Task updated!"); setEditingTask(null); } catch(e: any) { alert("Error: " + e.message); }
+        try { await updateTask(id, dto); alert("Task updated!"); setEditingTask(null); } catch (e: any) { alert("Error: " + e.message); }
     }
     async function handleTaskDelete(id: string) {
-        try { await deleteTask(id); alert("Task deleted!"); setDeletingTask(null); } catch(e: any) { alert("Error: " + e.message); }
+        try { await deleteTask(id); alert("Task deleted!"); setDeletingTask(null); } catch (e: any) { alert("Error: " + e.message); }
     }
 
     async function handleSpaceAdd(dto: SpaceRequestDto) {
         console.log("Space Create DTO:", dto);
-        try { await createSpace(dto); alert("Space created!"); setIsSpaceAddOpen(false); } catch(e: any) { alert("Error: " + e.message); }
+        try { await createSpace(dto); alert("Space created!"); setIsSpaceAddOpen(false); } catch (e: any) { alert("Error: " + e.message); }
     }
     async function handleSpaceUpdate(id: string, dto: SpaceRequestDto) {
         console.log("Space Update DTO:", dto);
-        try { await updateSpace(id, dto); alert("Space updated!"); setEditingSpace(null); } catch(e: any) { alert("Error: " + e.message); }
+        try { await updateSpace(id, dto); alert("Space updated!"); setEditingSpace(null); } catch (e: any) { alert("Error: " + e.message); }
     }
     async function handleSpaceDelete(id: string) {
-        try { await deleteSpace(id); alert("Space deleted!"); setDeletingSpace(null); } catch(e: any) { alert("Error: " + e.message); }
+        try { await deleteSpace(id); alert("Space deleted!"); setDeletingSpace(null); } catch (e: any) { alert("Error: " + e.message); }
     }
 
     return (
@@ -154,13 +154,13 @@ export default function ListeTestPage() {
 
             {/* Test Buttons container */}
             <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
-                <button onClick={() => setIsTaskAddOpen(true)} style={testBtnStyle("blue")}><Plus size={14}/> Test Add Task</button>
-                <button onClick={() => setEditingTask({id: "999", title: "Dummy Task to Edit"})} style={testBtnStyle("blue")}><Edit2 size={14}/> Test Update Task</button>
-                <button onClick={() => setDeletingTask({id: "999", title: "Dummy Task to Delete"})} style={testBtnStyle("red")}><Trash2 size={14}/> Test Delete Task</button>
-                
-                <button onClick={() => setIsSpaceAddOpen(true)} style={testBtnStyle("green")}><Plus size={14}/> Test Add Space</button>
-                <button onClick={() => setEditingSpace({id: "888", name: "Dummy Space to Edit"})} style={testBtnStyle("green")}><Edit2 size={14}/> Test Update Space</button>
-                <button onClick={() => setDeletingSpace({id: "888", name: "Dummy Space to Delete"})} style={testBtnStyle("red")}><Trash2 size={14}/> Test Delete Space</button>
+                <button onClick={() => setIsTaskAddOpen(true)} style={testBtnStyle("blue")}><Plus size={14} /> Test Add Task</button>
+                <button onClick={() => setEditingTask({ id: "999", title: "Dummy Task to Edit" })} style={testBtnStyle("blue")}><Edit2 size={14} /> Test Update Task</button>
+                <button onClick={() => setDeletingTask({ id: "999", title: "Dummy Task to Delete" })} style={testBtnStyle("red")}><Trash2 size={14} /> Test Delete Task</button>
+
+                <button onClick={() => setIsSpaceAddOpen(true)} style={testBtnStyle("green")}><Plus size={14} /> Test Add Space</button>
+                <button onClick={() => setEditingSpace({ id: "888", name: "Dummy Space to Edit" })} style={testBtnStyle("green")}><Edit2 size={14} /> Test Update Space</button>
+                <button onClick={() => setDeletingSpace({ id: "888", name: "Dummy Space to Delete" })} style={testBtnStyle("red")}><Trash2 size={14} /> Test Delete Space</button>
             </div>
 
             {/* Content */}
@@ -246,8 +246,8 @@ export default function ListeTestPage() {
             )}
 
             {isTaskAddOpen && (
-                <TaskAdd 
-                    onSubmit={handleTaskAdd} 
+                <TaskAdd
+                    onSubmit={handleTaskAdd}
                     onClose={() => setIsTaskAddOpen(false)}
                     listes={listes.map(l => ({ value: l.id, label: l.name }))}
                     sprints={apiSprints}
@@ -255,7 +255,7 @@ export default function ListeTestPage() {
             )}
 
             {editingTask && (
-                <TaskUpdate 
+                <TaskUpdate
                     taskId={editingTask.id}
                     defaults={{ title: editingTask.title, description: "Hello description", listeId: listes[0]?.id || "" }}
                     onSubmit={(dto) => handleTaskUpdate(editingTask.id, dto)}
@@ -266,7 +266,7 @@ export default function ListeTestPage() {
             )}
 
             {deletingTask && (
-                <TaskDelete 
+                <TaskDelete
                     task={deletingTask}
                     onDelete={handleTaskDelete}
                     onClose={() => setDeletingTask(null)}
@@ -274,15 +274,15 @@ export default function ListeTestPage() {
             )}
 
             {isSpaceAddOpen && (
-                <SpaceAdd 
-                    onSubmit={handleSpaceAdd} 
+                <SpaceAdd
+                    onSubmit={handleSpaceAdd}
                     onClose={() => setIsSpaceAddOpen(false)}
                     workspaces={[{ value: "wk-123", label: "My Workspace" }]}
                 />
             )}
 
             {editingSpace && (
-                <SpaceUpdate 
+                <SpaceUpdate
                     spaceId={editingSpace.id}
                     defaults={{ name: editingSpace.name, isPrivate: false, workspaceId: "wk-123" }}
                     onSubmit={(dto) => handleSpaceUpdate(editingSpace.id, dto)}
@@ -292,7 +292,7 @@ export default function ListeTestPage() {
             )}
 
             {deletingSpace && (
-                <SpaceDelete 
+                <SpaceDelete
                     space={deletingSpace}
                     onDelete={handleSpaceDelete}
                     onClose={() => setDeletingSpace(null)}

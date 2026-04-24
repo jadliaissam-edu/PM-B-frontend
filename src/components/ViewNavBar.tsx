@@ -1,8 +1,8 @@
-import { CalendarDays, Columns3, LayoutGrid, List, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, Columns3, LayoutGrid, List, Plus, Search, SlidersHorizontal, Users } from "lucide-react";
 
 interface ViewNavBarProps {
-    activeView: "overview" | "list";
-    onViewChange: (view: "overview" | "list") => void;
+    activeView: "overview" | "list" | "members" | "board";
+    onViewChange: (view: "overview" | "list" | "members" | "board") => void;
 }
 
 export default function ViewNavBar({ activeView, onViewChange }: ViewNavBarProps) {
@@ -44,11 +44,24 @@ export default function ViewNavBar({ activeView, onViewChange }: ViewNavBarProps
                 <button 
                     className={`view-nav-tab ${activeView === "list" ? "active" : ""}`}
                     onClick={() => onViewChange("list")}
+                    style={activeView === "list" ? { borderBottom: "2px solid #7b6df7", borderRadius: 0 } : {}}
                 >
                     <List size={14} /> List
                 </button>
 
-                <button className="view-nav-tab">
+                <button 
+                    className={`view-nav-tab ${activeView === "members" ? "active" : ""}`}
+                    onClick={() => onViewChange("members")}
+                    style={activeView === "members" ? { borderBottom: "2px solid #7b6df7", borderRadius: 0 } : {}}
+                >
+                    <Users size={14} /> Members
+                </button>
+
+                <button 
+                    className={`view-nav-tab ${activeView === "board" ? "active" : ""}`}
+                    onClick={() => onViewChange("board")}
+                    style={activeView === "board" ? { borderBottom: "2px solid #7b6df7", borderRadius: 0 } : {}}
+                >
                     <Columns3 size={14} /> Board
                 </button>
 
