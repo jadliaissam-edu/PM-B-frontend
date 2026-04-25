@@ -45,6 +45,7 @@ import { SpaceAdd, SpaceUpdate, SpaceDelete } from "../forms/SpaceForms";
 import { FolderAdd, FolderUpdate, FolderDelete } from "../forms/FolderForms";
 import { SprintAdd, SprintUpdate, SprintDelete } from "../forms/SprintForms";
 import { ListeAdd, ListeUpdate, ListeDelete } from "../components/listeForms";
+import type { SelectedHierarchy } from "../pages/DashboardPage";
 
 type ActiveModal =
     | { type: "SPACE_ADD" }
@@ -65,6 +66,8 @@ type ActiveModal =
 interface WorkspaceResourcesPanelProps {
     workspaceId?: string;
     onResourcesChange?: () => void;
+    selectedHierarchy?: SelectedHierarchy | null;
+    onSelectHierarchy?: (hierarchy: SelectedHierarchy | null) => void;
 }
 
 function toLocalDateTimeString(date: Date): string {
@@ -72,7 +75,12 @@ function toLocalDateTimeString(date: Date): string {
     return local.toISOString().slice(0, 19);
 }
 
-export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange }: WorkspaceResourcesPanelProps) {
+export default function WorkspaceResourcesPanel({
+    workspaceId,
+    onResourcesChange,
+    selectedHierarchy,
+    onSelectHierarchy
+}: WorkspaceResourcesPanelProps) {
     const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
     const [foldersBySpace, setFoldersBySpace] = useState<Record<string, FolderResponseDto[]>>({});
     const [sprintsByFolder, setSprintsByFolder] = useState<Record<string, SprintResponseDto[]>>({});
@@ -385,13 +393,17 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                                 padding: "7px 8px",
                                 borderRadius: 9,
                                 cursor: "pointer",
-                                background: hoveredRow === spaceRowKey ? "rgba(255,255,255,0.05)" : "transparent",
-                                color: "rgba(255,255,255,0.82)",
+                                background: selectedHierarchy?.id === space.id ? "rgba(83,74,183,0.18)" : (hoveredRow === spaceRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
+                                color: selectedHierarchy?.id === space.id ? "#a89ef5" : "rgba(255,255,255,0.82)",
                                 fontSize: 13,
+                            }}
+                            onClick={() => {
+                                onSelectHierarchy?.({ type: 'space', id: space.id, name: space.spaceName });
                             }}
                         >
                             <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     void handleToggleSpace(space.id);
                                 }}
                                 style={{
@@ -419,9 +431,6 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                             </button>
 
                             <span
-                                onClick={() => {
-                                    void handleToggleSpace(space.id);
-                                }}
                                 style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                             >
                                 {space.spaceName}
@@ -546,12 +555,19 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                                                     padding: "6px 10px",
                                                     borderRadius: 8,
                                                     cursor: folder.id ? "pointer" : "default",
-                                                    color: "rgba(255,255,255,0.68)",
+                                                    background: selectedHierarchy?.id === folder.id ? "rgba(83,74,183,0.18)" : (hoveredRow === folderRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
+                                                    color: selectedHierarchy?.id === folder.id ? "#a89ef5" : "rgba(255,255,255,0.68)",
                                                     fontSize: 12,
+                                                }}
+                                                onClick={() => {
+                                                    if (folder.id) {
+                                                        onSelectHierarchy?.({ type: 'folder', id: folder.id, name: folder.name });
+                                                    }
                                                 }}
                                             >
                                                 <button
-                                                    onClick={() => {
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
                                                         if (folder.id) {
                                                             void handleToggleFolder(folder.id);
                                                         }
@@ -581,12 +597,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                                                     />
                                                 </button>
 
-                                                <span
-                                                    onClick={() => {
-                                                        if (folder.id) {
-                                                            void handleToggleFolder(folder.id);
-                                                        }
-                                                    }}
+                                                 <span
                                                     style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                                                 >
                                                     {folder.name}
@@ -703,12 +714,17 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                                                                     gap: 6,
                                                                     padding: "6px 10px",
                                                                     borderRadius: 8,
-                                                                    color: "rgba(255,255,255,0.62)",
+                                                                    background: selectedHierarchy?.id === liste.id ? "rgba(83,74,183,0.18)" : (hoveredRow === listRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
+                                                                    color: selectedHierarchy?.id === liste.id ? "#a89ef5" : "rgba(255,255,255,0.62)",
                                                                     fontSize: 12,
+                                                                    cursor: "pointer",
+                                                                }}
+                                                                onClick={() => {
+                                                                    onSelectHierarchy?.({ type: 'list', id: liste.id, name: liste.name });
                                                                 }}
                                                                 title="List"
                                                             >
-                                                                <List size={12} style={{ color: "#93c5fd", flexShrink: 0 }} />
+                                                                <List size={12} style={{ color: selectedHierarchy?.id === liste.id ? "#a89ef5" : "#93c5fd", flexShrink: 0 }} />
                                                                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                                     {liste.name}
                                                                 </span>
@@ -755,12 +771,17 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                                                                     gap: 6,
                                                                     padding: "6px 10px",
                                                                     borderRadius: 8,
-                                                                    color: "rgba(255,255,255,0.62)",
+                                                                    background: selectedHierarchy?.id === sprint.id ? "rgba(83,74,183,0.18)" : (hoveredRow === sprintRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
+                                                                    color: selectedHierarchy?.id === sprint.id ? "#a89ef5" : "rgba(255,255,255,0.62)",
                                                                     fontSize: 12,
+                                                                    cursor: "pointer",
+                                                                }}
+                                                                onClick={() => {
+                                                                    onSelectHierarchy?.({ type: 'sprint', id: sprint.id, name: sprint.name });
                                                                 }}
                                                                 title="Sprint"
                                                             >
-                                                                <Rocket size={12} style={{ color: "#f8c285", flexShrink: 0 }} />
+                                                                <Rocket size={12} style={{ color: selectedHierarchy?.id === sprint.id ? "#a89ef5" : "#f8c285", flexShrink: 0 }} />
                                                                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                                     {sprint.name}
                                                                 </span>
@@ -841,6 +862,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                         await deleteSpace(id);
                         await loadSpaces();
                         handleOnSpaceChange();
+                        onSelectHierarchy?.(null);
                     }}
                 />
             )}
@@ -886,6 +908,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                         await deleteFolder(id);
                         await loadFolders(activeModal.spaceId);
                         onResourcesChange?.();
+                        onSelectHierarchy?.(null);
                     }}
                 />
             )}
@@ -923,6 +946,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                         await deleteSprint(id);
                         await loadSprints(activeModal.folderId);
                         onResourcesChange?.();
+                        onSelectHierarchy?.(null);
                     }}
                 />
             )}
@@ -938,6 +962,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                         if (data.folderId) {
                             await loadPhaseLists(data.folderId);
                         }
+                        onResourcesChange?.();
                     }}
                 />
             )}
@@ -951,6 +976,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                     onSubmit={async (data) => {
                         await updateListe(activeModal.liste.id, data);
                         await loadPhaseLists(activeModal.folderId);
+                        onResourcesChange?.();
                     }}
                 />
             )}
@@ -961,6 +987,8 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                     onDelete={async (id) => {
                         await deleteListe(id);
                         await loadPhaseLists(activeModal.folderId);
+                        onSelectHierarchy?.(null);
+                        onResourcesChange?.();
                     }}
                 />
             )}
