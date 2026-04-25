@@ -907,7 +907,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                     onClose={() => setActiveModal(null)}
                     sprintId={activeModal.sprint.id}
                     folders={spaces.flatMap(s => foldersBySpace[s.id] || []).map(f => ({ value: f.id!, label: f.name }))}
-                    defaults={activeModal.sprint}
+                    defaults={{ ...activeModal.sprint, folderId: activeModal.folderId }}
                     onSubmit={async (data) => {
                         await updateSprint(activeModal.sprint.id, data);
                         await loadSprints(activeModal.folderId);
