@@ -1,58 +1,53 @@
-import { API_BASE_URL } from "../config/baseURL";
-import { getAuthHeaders } from "./jwtService";
+const API_BASE_URL = "/api";
 
 export type TaskStatus = "TO_DO" | "IN_DEV" | "IN_TEST" | "IN_REVIEW" | "DONE";
 export type Priority = "URGENT" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface TaskRequestDto {
     title: string;
-    description?: string;
-    status?: TaskStatus;
-    priority?: Priority;
-    dueDate?: string;
-    listeId?: string;
-    sprintId?: string;
-    assigneeId?: string;
+    description: string;
+    status: TaskStatus;
+    priority: Priority;
+    dueDate: string | null;
+    listeId: string;
+    sprintId?: string | null;
+    assigneeId?: string | null;
 }
 
 export interface TaskResponseDto {
     id: string;
     title: string;
-    description?: string;
-    status?: TaskStatus;
-    priority?: Priority;
-    dueDate?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    listeId?: string;
-    listeName?: string;
-    sprintId?: string;
-    sprintName?: string;
-    assigneeId?: string;
-    assigneeName?: string;
+    description: string;
+    status: TaskStatus;
+    priority: Priority;
+    dueDate: string | null;
+    createdAt: string;
+    updatedAt: string;
+
+    listeId: string;
+    listeName: string;
+
+    sprintId?: string | null;
+    sprintName?: string | null;
+
+    assigneeId?: string | null;
+    assigneeName?: string | null;
 }
 
-function asArray<T>(value: unknown): T[] {
-    if (Array.isArray(value)) return value as T[];
-    if (value && typeof value === "object") {
-        const record = value as Record<string, unknown>;
-        const nested = record.content ?? record.items ?? record.data;
-        if (Array.isArray(nested)) return nested as T[];
-    }
-    return [];
+function getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const authHeaders = await getAuthHeaders();
-
     const response = await fetch(`${API_BASE_URL}${path}`, {
         ...init,
         headers: {
             "Content-Type": "application/json",
-            ...authHeaders,
+            ...getAuthHeaders(),
             ...(init?.headers ?? {}),
         },
-
     });
 
     const contentType = response.headers.get("content-type") || "";
@@ -66,30 +61,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return data as T;
 }
 
-export async function getAllTasks(): Promise<TaskResponseDto[]> {
-    const data = await request<unknown>("/tasks");
-    return asArray<TaskResponseDto>(data);
-}
-
-export async function getTaskById(taskId: string): Promise<TaskResponseDto> {
-    return request<TaskResponseDto>(`/tasks/${taskId}`);
-}
-
-export async function getTasksByListe(listeId: string): Promise<TaskResponseDto[]> {
-    const data = await request<unknown>(`/tasks/liste/${listeId}`);
-    return asArray<TaskResponseDto>(data);
-}
-
-export async function getTasksBySprint(sprintId: string): Promise<TaskResponseDto[]> {
-    const data = await request<unknown>(`/tasks/sprint/${sprintId}`);
-    return asArray<TaskResponseDto>(data);
-}
-
-export async function getTasksByAssignee(assigneeId: string): Promise<TaskResponseDto[]> {
-    const data = await request<unknown>(`/tasks/assignee/${assigneeId}`);
-    return asArray<TaskResponseDto>(data);
-}
-
 export async function createTask(payload: TaskRequestDto): Promise<TaskResponseDto> {
     return request<TaskResponseDto>("/tasks", {
         method: "POST",
@@ -97,15 +68,35 @@ export async function createTask(payload: TaskRequestDto): Promise<TaskResponseD
     });
 }
 
-export async function updateTask(taskId: string, payload: TaskRequestDto): Promise<TaskResponseDto> {
-    return request<TaskResponseDto>(`/tasks/${taskId}`, {
+export async function getTaskById(id: string): Promise<TaskResponseDto> {
+    return request<TaskResponseDto>(`/tasks/${id}`);
+}
+
+export async function getAllTasks(): Promise<TaskResponseDto[]> {
+    return request<TaskResponseDto[]>("/tasks");
+}
+
+export async function getTasksByListe(listeId: string): Promise<TaskResponseDto[]> {
+    return request<TaskResponseDto[]>(`/tasks/liste/${listeId}`);
+}
+
+export async function getTasksBySprint(sprintId: string): Promise<TaskResponseDto[]> {
+    return request<TaskResponseDto[]>(`/tasks/sprint/${sprintId}`);
+}
+
+export async function getTasksByAssignee(assigneeId: string): Promise<TaskResponseDto[]> {
+    return request<TaskResponseDto[]>(`/tasks/assignee/${assigneeId}`);
+}
+
+export async function updateTask(id: string, payload: TaskRequestDto): Promise<TaskResponseDto> {
+    return request<TaskResponseDto>(`/tasks/${id}`, {
         method: "PUT",
         body: JSON.stringify(payload),
     });
 }
 
-export async function deleteTask(taskId: string): Promise<void> {
-    await request<unknown>(`/tasks/${taskId}`, {
+export async function deleteTask(id: string): Promise<void> {
+    await request<void>(`/tasks/${id}`, {
         method: "DELETE",
     });
 }
