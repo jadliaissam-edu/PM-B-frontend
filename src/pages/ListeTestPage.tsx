@@ -3,7 +3,7 @@ import { Plus, Edit2, Trash2, List as ListIcon } from "lucide-react";
 import { type ListeResponseDto, createListe, updateListe, deleteListe } from "../api/listeApi";
 import { ListeAdd, ListeUpdate, ListeDelete, type ListeRequestDto } from "../components/listeForms";
 import { TaskAdd, TaskUpdate, TaskDelete, type TaskRequestDto } from "../components/TaskForms";
-import { SpaceAdd, SpaceUpdate, SpaceDelete, type SpaceRequestDto } from "../components/SpaceForms";
+import { SpaceAdd, SpaceUpdate, SpaceDelete, type SpaceRequestDto } from "../forms/SpaceForms";
 import { createTask, updateTask, deleteTask } from "../api/taskApi";
 import { createSpace, updateSpace, deleteSpace } from "../api/spaceApi";
 
@@ -285,7 +285,7 @@ export default function ListeTestPage() {
                 <SpaceUpdate
                     spaceId={editingSpace.id}
                     defaults={{ name: editingSpace.name, isPrivate: false, workspaceId: "wk-123" }}
-                    onSubmit={(dto) => handleSpaceUpdate(editingSpace.id, dto)}
+                    onSubmit={(dto: any) => handleSpaceUpdate(editingSpace.id, dto)}
                     onClose={() => setEditingSpace(null)}
                     workspaces={[{ value: "wk-123", label: "My Workspace" }]}
                 />

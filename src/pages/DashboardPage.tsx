@@ -31,7 +31,7 @@ import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
 import { getSpacesByWorkspace, type SpaceResponseDto } from "../api/spaceApi.tsx";
 import { getFoldersBySpace, type FolderResponseDto } from "../api/folderApi.tsx";
 import { getSprintsByFolder, type SprintResponseDto } from "../api/sprintApi.tsx";
-import { createTask, updateTask, deleteTask, getTasksByListe, type TaskResponseDto, type TaskStatus, type TaskRequestDto } from "../api/taskApi.tsx";
+import { createTask, updateTask, deleteTask, getTasksByListe, type TaskResponseDto, type TaskStatus, type TaskRequestDto, type Priority } from "../api/taskApi.tsx";
 import { createListe, updateListe, deleteListe, getListesByFolder, type ListeResponseDto, type ListeRequestDto } from "../api/listeApi.tsx";
 import { getWorkspaceMembers, type WorkspaceMemberResponseDto } from "../api/workspaceMemberApi";
 
@@ -676,6 +676,17 @@ export default function WorkspacePage() {
         }
     };
 
+    const handleTaskPriorityChange = async (task: TaskResponseDto, priority?: Priority) => {
+        if (task.priority === priority) return;
+        setTasks((prev) => prev.map((item) => item.id === task.id ? { ...item, priority } : item));
+        try {
+            await updateTask(task.id, { ...task, priority });
+        } catch (error) {
+            console.error("Failed to update task priority", error);
+            reloadDashboardData();
+        }
+    };
+
     const handleListeDelete = async (id: string) => {
         await deleteListe(id);
         setDeletingList(null);
@@ -1102,6 +1113,8 @@ export default function WorkspacePage() {
                                     onEditTask={setEditingTask}
                                     onDeleteTask={setDeletingTask}
                                     onStatusChange={handleTaskStatusChange}
+                                    onPriorityChange={handleTaskPriorityChange}
+                                    onAddTask={() => setShowTaskForm(true)}
                                 />
                             ) : (
                                 <MembersView

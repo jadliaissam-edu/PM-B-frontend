@@ -43,7 +43,7 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
 
     return (
         <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: 500, width: "100%", padding: 0, overflow: "hidden" }}>
+            <div className="modal-content" style={{ maxWidth: 500, width: "100%", padding: 0, maxHeight: "90vh", overflowY: "auto", overflowX: "hidden" }}>
                 {/* Header */}
                 <div style={{
                     padding: "24px 32px",

@@ -4,7 +4,6 @@ import {
     ChevronDown,
     ChevronRight,
     Folder,
-    FolderPlus,
     FolderTree,
     List,
     Pencil,
@@ -67,10 +66,6 @@ interface WorkspaceResourcesPanelProps {
     onResourcesChange?: () => void;
 }
 
-function toLocalDateTimeString(date: Date): string {
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 19);
-}
 
 export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange }: WorkspaceResourcesPanelProps) {
     const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
@@ -938,6 +933,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                         if (data.folderId) {
                             await loadPhaseLists(data.folderId);
                         }
+                        onResourcesChange?.();
                     }}
                 />
             )}
@@ -951,6 +947,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                     onSubmit={async (data) => {
                         await updateListe(activeModal.liste.id, data);
                         await loadPhaseLists(activeModal.folderId);
+                        onResourcesChange?.();
                     }}
                 />
             )}
@@ -961,6 +958,7 @@ export default function WorkspaceResourcesPanel({ workspaceId, onResourcesChange
                     onDelete={async (id) => {
                         await deleteListe(id);
                         await loadPhaseLists(activeModal.folderId);
+                        onResourcesChange?.();
                     }}
                 />
             )}

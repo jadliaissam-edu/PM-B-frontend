@@ -1,4 +1,5 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
     DndContext,
     type DragEndEvent,
@@ -12,34 +13,68 @@ import {
     useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Trash2, Pencil, GripVertical, User } from "lucide-react";
-import type { TaskResponseDto, TaskStatus } from "../api/taskApi";
+import { Trash2, Pencil, GripVertical, User, Flag, Circle, Plus, AlignLeft } from "lucide-react";
+import type { TaskResponseDto, TaskStatus, Priority } from "../api/taskApi";
 
 interface BoardViewProps {
     tasks: TaskResponseDto[];
     onEditTask: (task: TaskResponseDto) => void;
     onDeleteTask: (task: TaskResponseDto) => void;
     onStatusChange: (task: TaskResponseDto, newStatus: TaskStatus) => void;
+    onPriorityChange?: (task: TaskResponseDto, priority?: Priority) => void;
+    onAddTask?: (status: TaskStatus) => void;
 }
 
 const columns = [
-    { key: "TO_DO" as const, label: "To Do", accent: "#6B7280" },
-    { key: "IN_DEV" as const, label: "In Development", accent: "#3B82F6" },
-    { key: "IN_TEST" as const, label: "In Testing", accent: "#F59E0B" },
-    { key: "IN_REVIEW" as const, label: "In Review", accent: "#A855F7" },
-    { key: "DONE" as const, label: "Done", accent: "#22C55E" },
+    { key: "TO_DO" as const, label: "TO DO", accent: "#6B7280" },
+    { key: "IN_DEV" as const, label: "IN PROGRESS", accent: "#7C3AED" },
+    { key: "IN_TEST" as const, label: "IN TESTING", accent: "#F59E0B" },
+    { key: "IN_REVIEW" as const, label: "IN REVIEW", accent: "#3B82F6" },
+    { key: "DONE" as const, label: "DONE", accent: "#22C55E" },
 ];
 
 const priorityColors: Record<string, string> = {
     urgent: "#E24B4A",
-    high: "#EF9F27",
+    high: "#F97316",
     medium: "#534AB7",
     low: "#1D9E75",
 };
 
 type BoardColumnKey = (typeof columns)[number]["key"];
 
-function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; onEditTask: (task: TaskResponseDto) => void; onDeleteTask: (task: TaskResponseDto) => void; }) {
+const priorities = ["URGENT", "HIGH", "MEDIUM", "LOW", "NONE"];
+
+function TaskCard({ task, onEditTask, onDeleteTask, onPriorityChange }: { task: TaskResponseDto; onEditTask: (task: TaskResponseDto) => void; onDeleteTask: (task: TaskResponseDto) => void; onPriorityChange?: (task: TaskResponseDto, priority?: Priority) => void; }) {
+    const [isHovered, setIsHovered] = useState(false);
+    const [showDesc, setShowDesc] = useState(false);
+    const [descCoords, setDescCoords] = useState<{ x: number; y: number } | null>(null);
+    const [showPriorityMenu, setShowPriorityMenu] = useState(false);
+    const hideTimeout = useRef<number | null>(null);
+    const priorityRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!showPriorityMenu) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (priorityRef.current && !priorityRef.current.contains(e.target as Node)) {
+                setShowPriorityMenu(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [showPriorityMenu]);
+
+    const handleDescEnter = (e: React.MouseEvent) => {
+        if (hideTimeout.current) clearTimeout(hideTimeout.current);
+        const rect = e.currentTarget.getBoundingClientRect();
+        setDescCoords({ x: rect.left, y: Math.min(rect.bottom + 8, window.innerHeight - 300) });
+        setShowDesc(true);
+    };
+
+    const handleDescLeave = () => {
+        hideTimeout.current = setTimeout(() => {
+            setShowDesc(false);
+        }, 200);
+    };
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: task.id,
         data: { task },
@@ -47,81 +82,141 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
 
     const style = {
         transform: transform ? CSS.Translate.toString(transform) : undefined,
-        opacity: isDragging ? 0.45 : 1,
+        opacity: isDragging ? 0.5 : 1,
         touchAction: "manipulation" as const,
+        zIndex: isDragging ? 10 : (showPriorityMenu || isHovered ? 5 : 1),
     };
+
+    const assigneeInitials = task.assigneeName ? task.assigneeName.substring(0, 2).toUpperCase() : null;
 
     return (
         <div
             ref={setNodeRef}
             {...attributes}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             style={{
                 ...style,
-                padding: 16,
-                borderRadius: 18,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.04)",
-                cursor: "default",
-                transition: "transform 0.15s, background 0.15s",
-                boxShadow: isDragging ? "0 18px 45px rgba(0,0,0,0.18)" : "none",
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.06)",
+                background: "#16161a",
+                cursor: "pointer",
+                transition: "border 0.2s",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                position: "relative",
             }}
+            onClick={() => onEditTask(task)}
         >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-                <div style={{ flex: 1 }}>
-                    <strong style={{ fontSize: 14, color: "#fff" }}>{task.title}</strong>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {task.priority && (
-                        <span style={{
-                            fontSize: 10,
-                            padding: "2px 6px",
-                            borderRadius: 4,
-                            background: "rgba(255,255,255,0.1)",
-                            color: priorityColors[task.priority.toLowerCase()] || "#fff",
-                            textTransform: "uppercase",
-                            fontWeight: 600,
-                        }}>
-                            {task.priority}
-                        </span>
-                    )}
-                    <div {...listeners} style={{ cursor: "grab", color: "rgba(255,255,255,0.4)" }}>
-                        <GripVertical size={14} />
+            {/* Removed absolute hover actions, they will be placed in the bottom row */}
+            
+            <div {...listeners} onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 12, right: 12, color: isHovered ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)", cursor: "grab", zIndex: 2, transition: "color 0.2s" }}>
+                <GripVertical size={14} />
+            </div>
+
+            <div style={{ paddingRight: 24, marginBottom: 16 }}>
+                <strong style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontWeight: 500 }}>
+                    {task.title}
+                </strong>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {assigneeInitials ? (
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#1D9E75", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }} title={task.assigneeName}>
+                        {assigneeInitials}
                     </div>
-                </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: 0, minHeight: 36 }}>{task.description || "No description"}</p>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); onEditTask(task); }}
-                        style={{ border: "none", background: "transparent", color: "rgba(255,255,255,0.55)", cursor: "pointer" }}
-                        title="Edit task"
+                ) : (
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: "1px dashed rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.02)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.3)" }}>
+                        <User size={10} />
+                    </div>
+                )}
+                
+                {task.description && (
+                    <div style={{ position: "relative" }} onMouseLeave={handleDescLeave}>
+                        <div 
+                            onMouseEnter={handleDescEnter}
+                            style={{ color: "rgba(255,255,255,0.3)", cursor: "default", display: "flex", alignItems: "center", transition: "color 0.2s" }}
+                        >
+                            <AlignLeft size={14} />
+                        </div>
+                        {showDesc && descCoords && createPortal(
+                            <div 
+                                onMouseEnter={() => { if (hideTimeout.current) clearTimeout(hideTimeout.current); }}
+                                onMouseLeave={handleDescLeave}
+                                style={{ position: "fixed", top: descCoords.y, left: descCoords.x, background: "#1e1e24", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "16px 20px", zIndex: 9999, boxShadow: "0 12px 40px rgba(0,0,0,0.8)", width: "max-content", maxWidth: 450, maxHeight: "50vh", overflowY: "auto", color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}
+                            >
+                                {task.description}
+                            </div>,
+                            document.body
+                        )}
+                    </div>
+                )}
+                
+                <div style={{ position: "relative" }} ref={priorityRef}>
+                    <div 
+                        onClick={(e) => { e.stopPropagation(); setShowPriorityMenu(!showPriorityMenu); }}
+                        style={{ width: 24, height: 24, borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: showPriorityMenu ? "rgba(255,255,255,0.05)" : "transparent", transition: "background 0.2s" }}
+                        title="Set Priority"
                     >
-                        <Pencil size={14} />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); onDeleteTask(task); }}
-                        style={{ border: "none", background: "transparent", color: "rgba(255,255,255,0.55)", cursor: "pointer" }}
-                        title="Delete task"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{task.listeName ?? task.sprintName ?? "No parent"}</span>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {task.assigneeName && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-                            <User size={12} />
-                            <span>{task.assigneeName}</span>
+                        <Flag size={12} color={task.priority ? priorityColors[task.priority.toLowerCase()] : "rgba(255,255,255,0.2)"} />
+                    </div>
+                    {showPriorityMenu && (
+                        <div style={{ position: "absolute", top: 28, left: 0, background: "#1e1e24", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 4, zIndex: 20, boxShadow: "0 8px 16px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", minWidth: 100 }}>
+                            {priorities.map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (onPriorityChange) {
+                                            const pVal = p === "NONE" ? undefined : (p as Priority);
+                                            onPriorityChange(task, pVal); 
+                                        }
+                                        setShowPriorityMenu(false); 
+                                    }}
+                                    style={{ 
+                                        padding: "6px 10px", 
+                                        background: "transparent", 
+                                        border: "none", 
+                                        color: p === "NONE" ? "rgba(255,255,255,0.5)" : priorityColors[p.toLowerCase()], 
+                                        textAlign: "left", 
+                                        fontSize: 12, 
+                                        fontWeight: 600, 
+                                        cursor: "pointer", 
+                                        borderRadius: 4,
+                                        transition: "background 0.2s" 
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                                >
+                                    {p}
+                                </button>
+                            ))}
                         </div>
                     )}
-                    {task.dueDate && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>{new Date(task.dueDate).toLocaleDateString()}</span>}
+                </div>
+                
+                {/* Action Buttons (Always Visible) pushed to the right */}
+                <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: "auto" }}>
+                    <button 
+                        type="button" 
+                        onClick={(e) => { e.stopPropagation(); onEditTask(task); }} 
+                        style={{ width: 24, height: 24, border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, transition: "color 0.2s, background 0.2s" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+                        title="Edit"
+                    >
+                        <Pencil size={12} />
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={(e) => { e.stopPropagation(); onDeleteTask(task); }} 
+                        style={{ width: 24, height: 24, border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, transition: "color 0.2s, background 0.2s" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(226,75,74,0.1)"; e.currentTarget.style.color = "#E24B4A"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+                        title="Delete"
+                    >
+                        <Trash2 size={12} />
+                    </button>
                 </div>
             </div>
         </div>
@@ -132,10 +227,12 @@ function ColumnZone({
     column,
     children,
     count,
+    onAddTask,
 }: {
     column: typeof columns[number];
     children: ReactNode;
     count: number;
+    onAddTask?: (status: TaskStatus) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: column.key });
 
@@ -143,30 +240,64 @@ function ColumnZone({
         <div
             ref={setNodeRef}
             style={{
-                background: isOver ? "rgba(124, 58, 237, 0.15)" : "#16161a",
-                border: `1px solid ${isOver ? "rgba(124, 58, 237, 0.35)" : "rgba(255,255,255,0.08)"}`,
-                borderRadius: 20,
-                padding: 18,
+                background: isOver ? "rgba(255,255,255,0.02)" : "transparent",
                 minHeight: 360,
                 display: "flex",
                 flexDirection: "column",
+                position: "relative",
+                borderRadius: 16,
+                transition: "background 0.2s"
             }}
         >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: column.accent, display: "inline-block" }} />
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{column.label}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                <div style={{ 
+                    display: "flex", alignItems: "center", gap: 6, 
+                    background: `${column.accent}15`, 
+                    border: `1px solid ${column.accent}40`,
+                    borderRadius: 12, padding: "4px 10px", 
+                }}>
+                    <Circle size={10} style={{ color: column.accent, fill: column.accent }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5 }}>{column.label}</span>
                 </div>
-                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{count}</span>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{count}</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1, minHeight: 120 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 120 }}>
                 {children}
+                {count === 0 && (
+                    <div style={{ padding: "20px 10px", textAlign: "center", border: `1px dashed ${column.accent}40`, borderRadius: 12, background: "rgba(255,255,255,0.01)", color: "rgba(255,255,255,0.25)", fontSize: 12, transition: "background 0.2s" }}>
+                        Drop tasks here
+                    </div>
+                )}
             </div>
+            
+            <button 
+                onClick={() => onAddTask?.(column.key)}
+                style={{ 
+                    marginTop: 12, 
+                    background: "transparent", 
+                    border: "none", 
+                    color: column.accent, 
+                    fontSize: 13, 
+                    fontWeight: 500, 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: 6,
+                    cursor: "pointer",
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    alignSelf: "flex-start",
+                    transition: "background 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            >
+                <Plus size={14} /> Add Task
+            </button>
         </div>
     );
 }
 
-export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusChange }: BoardViewProps) {
+export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusChange, onPriorityChange, onAddTask }: BoardViewProps) {
     const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
     const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
@@ -195,32 +326,35 @@ export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusCha
 
     return (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
-                {columns.map((column) => (
-                    <ColumnZone key={column.key} column={column} count={tasksByStatus[column.key].length}>
-                        {tasksByStatus[column.key].length === 0 ? (
-                            <div style={{ padding: 18, borderRadius: 16, background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.45)", fontSize: 13, minHeight: 120 }}>
-                                No tasks yet.
-                            </div>
-                        ) : (
-                            tasksByStatus[column.key].map((task) => (
+            <div style={{ width: "100%", overflowX: "auto", paddingBottom: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(240px, 1fr))", gap: 16, alignItems: "start", minWidth: "max-content" }}>
+                    {columns.map((column) => (
+                        <ColumnZone key={column.key} column={column} count={tasksByStatus[column.key].length} onAddTask={onAddTask}>
+                            {tasksByStatus[column.key].map((task) => (
                                 <TaskCard
                                     key={task.id}
                                     task={task}
                                     onEditTask={onEditTask}
                                     onDeleteTask={onDeleteTask}
+                                    onPriorityChange={onPriorityChange}
                                 />
-                            ))
-                        )}
-                    </ColumnZone>
-                ))}
+                            ))}
+                        </ColumnZone>
+                    ))}
+                </div>
             </div>
 
-            <DragOverlay>
+            <DragOverlay dropAnimation={null}>
                 {activeTask ? (
-                    <div style={{ padding: 18, borderRadius: 18, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.12)", width: 260 }}>
-                        <strong style={{ color: "#fff", display: "block", marginBottom: 8 }}>{activeTask.title}</strong>
-                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", margin: 0 }}>{activeTask.description || "No description"}</p>
+                    <div style={{ padding: "12px 14px", borderRadius: 12, background: "#16161a", border: "1px solid rgba(255,255,255,0.15)", width: 240, boxShadow: "0 12px 32px rgba(0,0,0,0.6)", opacity: 0.9, cursor: "grabbing" }}>
+                        <strong style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontWeight: 500 }}>{activeTask.title}</strong>
+                        
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: activeTask.description ? 6 : 10 }}>
+                            <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#1D9E75", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>
+                                {activeTask.assigneeName ? activeTask.assigneeName.substring(0, 2).toUpperCase() : <User size={10} />}
+                            </div>
+                            <Flag size={12} color={activeTask.priority ? priorityColors[activeTask.priority.toLowerCase()] : "rgba(255,255,255,0.2)"} />
+                        </div>
                     </div>
                 ) : null}
             </DragOverlay>
