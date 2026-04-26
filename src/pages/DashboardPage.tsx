@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutDashboard, ChevronRight,
-    Plus,
-    TrendingUp, Clock, Folders, Target, MoreHorizontal,
-    Circle, Zap, Star, ArrowUpRight, Loader2, Trash2, X, Check,
-    CalendarDays, Sparkles, Users, UserPlus
+    LayoutGrid, ChevronRight, ChevronDown, Plus, TrendingUp, Clock,
+    Folder, Target, Circle, Zap, Star, Loader2, Trash2, X, Check,
+    CalendarDays, Sparkles, Users, UserPlus, List, Kanban, Home,
+    Hash, MoreVertical, Settings, Bell, Search, LogOut,
+    FolderOpen, Layers, Activity, CheckCircle2, AlertCircle,
+    ArrowRight, Filter, SortAsc, Eye, EyeOff,
 } from "lucide-react";
 
 import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";
@@ -14,735 +15,846 @@ import InviteMemberForm from "../forms/InviteMemberForm";
 import Sidebar from "../components/Sidebar";
 import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
-import ViewNavBar from "../components/ViewNavBar";
-import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
 import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
+import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import ListView from "../components/ListView";
 import BoardView from "../components/BoardView";
 import {
-    getWorkspacesByUser,
-    createWorkspace,
-    updateWorkspace,
-    deleteWorkspace,
+    getWorkspacesByUser, createWorkspace, updateWorkspace, deleteWorkspace,
 } from "../api/workspaceApi.tsx";
+
+export type HierarchyType = 'workspace' | 'space' | 'folder' | 'list' | 'sprint';
+export interface SelectedHierarchy { type: HierarchyType; id: string; name: string; }
 
 import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
 import { getSpacesByWorkspace, type SpaceResponseDto } from "../api/spaceApi.tsx";
 import { getFoldersBySpace, type FolderResponseDto } from "../api/folderApi.tsx";
 import { getSprintsByFolder, type SprintResponseDto } from "../api/sprintApi.tsx";
-import { createTask, updateTask, deleteTask, getTasksByListe, type TaskResponseDto, type TaskStatus, type TaskRequestDto } from "../api/taskApi.tsx";
-import { createListe, updateListe, deleteListe, getListesByFolder, type ListeResponseDto, type ListeRequestDto } from "../api/listeApi.tsx";
+import {
+    createTask, updateTask, deleteTask, getTasksByListe,
+    type TaskResponseDto, type TaskStatus, type TaskRequestDto,
+} from "../api/taskApi.tsx";
+import {
+    createListe, updateListe, deleteListe, getListesByFolder,
+    type ListeResponseDto, type ListeRequestDto,
+} from "../api/listeApi.tsx";
 import { getWorkspaceMembers, type WorkspaceMemberResponseDto } from "../api/workspaceMemberApi";
 
-// ============================================================================
-// STATIC CONFIG
-// ============================================================================
-
-const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard" },
-    { icon: Sparkles, label: "Ask AI" },
-    { icon: Users, label: "Members" },
-];
-
-const priorityColors: Record<string, string> = {
-    urgent: "#E24B4A",
-    high: "#EF9F27",
-    medium: "#534AB7",
-    low: "#1D9E75",
+// ─── Palette & tokens ────────────────────────────────────────────────────────
+const C = {
+    bg:        "#0a0a0f",
+    surface:   "#111118",
+    surfaceEl: "#18181f",
+    border:    "rgba(255,255,255,0.06)",
+    borderHov: "rgba(255,255,255,0.12)",
+    text:      "#f0f0f8",
+    textMuted: "rgba(240,240,248,0.45)",
+    textFaint: "rgba(240,240,248,0.22)",
+    accent:    "#6c63ff",
+    accentSoft:"rgba(108,99,255,0.14)",
+    accentGlow:"rgba(108,99,255,0.35)",
+    green:     "#22d3a0",
+    orange:    "#f59e0b",
+    red:       "#f43f5e",
+    pink:      "#ec4899",
+    blue:      "#3b82f6",
 };
 
-function MembersView({ members, onInvite, activeWorkspaceName }: {
-    members: WorkspaceMemberResponseDto[];
-    onInvite: () => void;
-    activeWorkspaceName: string;
-}) {
-    return (
-        <div style={{ padding: "0 4px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
-                <div>
-                    <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}>Team Members</h2>
-                    <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Manage collaborators in {activeWorkspaceName}</p>
-                </div>
-                <button
-                    onClick={onInvite}
-                    style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        background: "#7c3aed", color: "#fff", border: "none",
-                        borderRadius: 12, padding: "12px 20px", fontWeight: 600, cursor: "pointer",
-                        boxShadow: "0 8px 24px rgba(124, 58, 237, 0.3)"
-                    }}
-                >
-                    <UserPlus size={18} /> Invite Member
-                </button>
-            </div>
+const PRIORITY_COLOR: Record<string, string> = {
+    urgent: C.red, high: C.orange, medium: C.accent, low: C.green,
+};
 
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                    <thead>
-                        <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                            <th style={{ padding: "16px 24px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600 }}>Member</th>
-                            <th style={{ padding: "16px 24px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600 }}>Role</th>
-                            <th style={{ padding: "16px 24px", fontSize: 12, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontWeight: 600 }}>Join Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {members.map((m) => (
-                            <tr key={m.userId} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                                <td style={{ padding: "20px 24px" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                        <Avatar initials={m.userName.charAt(0)} size={36} color="#7c3aed" />
-                                        <div>
-                                            <p style={{ fontWeight: 600, color: "#fff", fontSize: 14 }}>{m.userName}</p>
-                                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{m.userEmail}</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td style={{ padding: "20px 24px" }}>
-                                    <span style={{
-                                        padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                                        background: m.role === 'ADMIN' ? "rgba(239, 68, 68, 0.1)" : "rgba(124, 58, 237, 0.1)",
-                                        color: m.role === 'ADMIN' ? "#ef4444" : "#a78bfa",
-                                        border: m.role === 'ADMIN' ? "1px solid rgba(239, 68, 68, 0.2)" : "1px solid rgba(124, 58, 237, 0.2)"
-                                    }}>
-                                        {m.role}
-                                    </span>
-                                </td>
-                                <td style={{ padding: "20px 24px", fontSize: 13, color: "rgba(255,255,255,0.35)" }}>
-                                    {new Date().toLocaleDateString()}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+    TO_DO:      { label: "To Do",      color: "#818cf8",     bg: "rgba(129,140,248,0.15)" },
+    IN_DEV:    { label: "In Dev",     color: C.blue,       bg: "rgba(59,130,246,0.12)"  },
+    IN_TEST:   { label: "In Test",    color: C.orange,     bg: "rgba(245,158,11,0.12)"  },
+    IN_REVIEW: { label: "In Review",  color: C.pink,       bg: "rgba(236,72,153,0.12)"  },
+    DONE:      { label: "Done",       color: C.green,      bg: "rgba(34,211,160,0.12)"  },
+};
+
+// ─── Small utilities ─────────────────────────────────────────────────────────
+function fmtDate(d?: string) {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function sprintPct(s: SprintResponseDto | null) {
+    if (!s?.startDate || !s?.endDate) return 0;
+    const st = new Date(s.startDate).getTime(), en = new Date(s.endDate).getTime(), now = Date.now();
+    if (now <= st) return 0; if (now >= en) return 100;
+    return Math.round(((now - st) / (en - st)) * 100);
 }
 
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/** Returns sprint elapsed percentage based on start/end dates */
-function computeSprintProgress(sprint: SprintResponseDto | null): number {
-    if (!sprint || !sprint.startDate || !sprint.endDate) return 0;
-    const start = new Date(sprint.startDate).getTime();
-    const end = new Date(sprint.endDate).getTime();
-    const now = Date.now();
-    if (now <= start) return 0;
-    if (now >= end) return 100;
-    return Math.round(((now - start) / (end - start)) * 100);
-}
-
-/** Format a date string to short locale format */
-function formatDate(dateStr?: string): string {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// ============================================================================
-// SUB-COMPONENTS
-// ============================================================================
-
-function Avatar({ initials, size = 28, color = "#534AB7" }: { initials: string; size?: number; color?: string }) {
+// ─── Micro components ────────────────────────────────────────────────────────
+function Avatar({ name, size = 26, color = C.accent }: { name: string; size?: number; color?: string }) {
+    const init = name?.slice(0, 2).toUpperCase() || "??";
     return (
         <div style={{
             width: size, height: size, borderRadius: "50%",
-            background: color + "33", border: `1.5px solid ${color}55`,
+            background: color + "22", border: `1.5px solid ${color}44`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: size * 0.35, fontWeight: 600, color,
-            flexShrink: 0,
-        }}>{initials}</div>
+            fontSize: size * 0.36, fontWeight: 700, color, flexShrink: 0,
+            fontFamily: "'Syne', sans-serif",
+        }}>{init}</div>
     );
 }
 
-function ProgressBar({ value, color }: { value: number; color: string }) {
+function Pill({ label, color, bg }: { label: string; color: string; bg: string }) {
     return (
-        <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+        <span style={{
+            padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 600,
+            color, background: bg, letterSpacing: "0.2px",
+        }}>{label}</span>
+    );
+}
+
+function Bar({ pct, color = C.accent, height = 3 }: { pct: number; color?: string; height?: number }) {
+    return (
+        <div style={{ height, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
             <div style={{
-                height: "100%", width: `${value}%`, borderRadius: 99,
-                background: `linear-gradient(90deg, ${color}, ${color}99)`,
-                transition: "width 0.6s cubic-bezier(.4,0,.2,1)",
+                height: "100%", width: `${pct}%`, borderRadius: 99,
+                background: `linear-gradient(90deg, ${color}, ${color}88)`,
+                transition: "width .6s ease",
             }} />
         </div>
     );
 }
 
-// ============================================================================
-// WORKSPACE FORM MODAL
-// ============================================================================
-
-interface WorkspaceFormModalProps {
-    mode: "create" | "edit";
-    initialName?: string;
-    initialSlug?: string;
-    onSubmit: (name: string, slug: string) => Promise<void>;
-    onClose: () => void;
-}
-
-function WorkspaceFormModal({ mode, initialName = "", initialSlug = "", onSubmit, onClose }: WorkspaceFormModalProps) {
-    const [name, setName] = useState(initialName);
-    const [slug, setSlug] = useState(initialSlug);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const handleNameChange = (val: string) => {
-        setName(val);
-        if (mode === "create") {
-            setSlug(val.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name.trim() || !slug.trim()) {
-            setError("Name and slug are required.");
-            return;
-        }
-        setError(null);
-        setIsSubmitting(true);
-        try {
-            await onSubmit(name.trim(), slug.trim());
-            onClose();
-        } catch (err: any) {
-            setError(err.message || "An error occurred.");
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
+function StatChip({ value, label, color, icon: Icon }: { value: string | number; label: string; color: string; icon: any }) {
     return (
         <div style={{
-            position: "fixed", inset: 0, zIndex: 1000,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)",
+            flex: 1, background: C.surfaceEl, border: `1px solid ${C.border}`,
+            borderRadius: 8, padding: "10px 12px",
+            display: "flex", flexDirection: "column", gap: 5,
+        }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ width: 22, height: 22, borderRadius: 5, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={11} style={{ color }} />
+                </div>
+                <span style={{ fontSize: 13, fontFamily: "'Syne', sans-serif", fontWeight: 700, color: C.text }}>{value}</span>
+            </div>
+            <p style={{ fontSize: 10, color: C.textMuted, fontWeight: 500 }}>{label}</p>
+        </div>
+    );
+}
+
+// ─── VIEW TABS ───────────────────────────────────────────────────────────────
+type ViewMode = "overview" | "list" | "board" | "members";
+function ViewTabs({ active, onChange }: { active: ViewMode; onChange: (v: ViewMode) => void }) {
+    const tabs: { id: ViewMode; icon: any; label: string }[] = [
+        { id: "overview", icon: LayoutGrid, label: "Overview" },
+        { id: "list",     icon: List,        label: "List"     },
+        { id: "board",    icon: Kanban,       label: "Board"   },
+        { id: "members",  icon: Users,        label: "Members" },
+    ];
+    return (
+        <div style={{ display: "flex", gap: 4, padding: "0 20px", marginBottom: 16, borderBottom: `1px solid ${"rgba(255,255,255,0.05)"}`, paddingBottom: 0 }}>
+            {tabs.map(t => (
+                <button
+                    key={t.id}
+                    onClick={() => onChange(t.id)}
+                    style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "7px 14px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
+                        background: "transparent",
+                        color: active === t.id ? "#fff" : "rgba(255,255,255,0.42)",
+                        fontSize: 12, fontWeight: active === t.id ? 600 : 400,
+                        borderBottom: active === t.id ? "2px solid #6c63ff" : "2px solid transparent",
+                        transition: "all .15s",
+                        fontFamily: "'DM Sans', sans-serif",
+                        marginBottom: -1,
+                    }}
+                    onMouseEnter={e => { if (active !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+                    onMouseLeave={e => { if (active !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.42)"; }}
+                >
+                    <t.icon size={13} />
+                    {t.label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+// ─── MEMBERS VIEW ───────────────────────────────────────────────────────────────
+const ROLE_COLORS: Record<string, { c: string; bg: string }> = {
+    ADMIN:  { c: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
+    MEMBER: { c: "#22d3a0", bg: "rgba(34,211,160,0.1)"  },
+    VIEWER: { c: "#f59e0b", bg: "rgba(245,158,11,0.1)"  },
+};
+function MembersView({ members, onInvite }: { members: WorkspaceMemberResponseDto[]; onInvite: () => void }) {
+    if (members.length === 0) return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 12 }}>
+            <Users size={32} style={{ color: C.textFaint }} />
+            <p style={{ fontSize: 12, color: C.textMuted }}>No members yet.</p>
+            <button onClick={onInvite} style={{ display: "flex", alignItems: "center", gap: 6, background: C.accent, border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                <UserPlus size={12} /> Invite Member
+            </button>
+        </div>
+    );
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <SectionHeader title="Members" count={members.length} />
+                <button onClick={onInvite} style={{ display: "flex", alignItems: "center", gap: 5, background: C.accent, border: "none", borderRadius: 7, padding: "5px 12px", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    <UserPlus size={11} /> Invite
+                </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+                {members.map((m) => {
+                    const rc = ROLE_COLORS[m.role] ?? ROLE_COLORS.MEMBER;
+                    const initials = ((m.userName?.split(" ")[0]?.[0] ?? "") + (m.userName?.split(" ")[1]?.[0] ?? "")).toUpperCase() || "??";
+                    return (
+                        <div key={m.userId} style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                            <Avatar name={initials} size={32} color={C.accent} />
+                            <div style={{ flex: 1, overflow: "hidden" }}>
+                                <p style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.userName}</p>
+                                <p style={{ fontSize: 10, color: C.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.userEmail}</p>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: rc.c, background: rc.bg, borderRadius: 6, padding: "2px 7px", flexShrink: 0 }}>{m.role}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─── OVERVIEW panels ─────────────────────────────────────────────────────────
+function WorkspaceOverview({ tasks, spaces, members, sprints, listes, folders, onSelect }: any) {
+    const done    = tasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const active  = tasks.filter((t: TaskResponseDto) => ["IN_DEV","IN_TEST","IN_REVIEW"].includes(t.status)).length;
+    const compPct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+    const deadlines = tasks.filter((t: TaskResponseDto) => t.dueDate && t.status !== "DONE")
+        .sort((a: TaskResponseDto, b: TaskResponseDto) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+        .slice(0, 6);
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: 12 }}>
+                <StatChip value={spaces.length}  label="Spaces"       color={C.accent} icon={Folder} />
+                <StatChip value={active}          label="In Progress"  color={C.blue}   icon={Activity} />
+                <StatChip value={`${compPct}%`}   label="Completion"   color={C.green}  icon={Target} />
+                <StatChip value={members.length}  label="Members"      color={C.pink}   icon={Users} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
+                {/* Spaces grid */}
+                <div>
+                    <SectionHeader title="Spaces" count={spaces.length} />
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 12 }}>
+                        {spaces.map((sp: SpaceResponseDto) => {
+                            const col = sp.color || C.accent;
+                            const spTasks = tasks.filter((t: TaskResponseDto) => {
+                                const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
+                                const f = folders.find((fo: FolderResponseDto) => fo.id === l?.folderId);
+                                return f?.spaceId === sp.id;
+                            });
+                            const spDone = spTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+                            const pct = spTasks.length > 0 ? Math.round((spDone / spTasks.length) * 100) : 0;
+                            return (
+                                <HierarchyCard
+                                    key={sp.id}
+                                    icon={Folder}
+                                    color={col}
+                                    title={sp.spaceName}
+                                    subtitle={`${spTasks.length} tasks · ${pct}% done`}
+                                    progress={pct}
+                                    onClick={() => onSelect({ type: "space", id: sp.id, name: sp.spaceName })}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Right panel */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <DeadlinesPanel tasks={deadlines} />
+                    <ActivityPanel tasks={tasks} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SpaceOverview({ space, folders, listes, tasks, sprints, onSelect }: any) {
+    const spFolders = folders.filter((f: FolderResponseDto) => f.spaceId === space.id);
+    const spTasks   = tasks.filter((t: TaskResponseDto) => {
+        const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
+        const f = folders.find((fo: FolderResponseDto) => fo.id === l?.folderId);
+        return f?.spaceId === space.id;
+    });
+    const done    = spTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const active  = spTasks.filter((t: TaskResponseDto) => ["IN_DEV","IN_TEST","IN_REVIEW"].includes(t.status)).length;
+    const compPct = spTasks.length > 0 ? Math.round((done / spTasks.length) * 100) : 0;
+    const deadlines = spTasks.filter((t: TaskResponseDto) => t.dueDate && t.status !== "DONE")
+        .sort((a: TaskResponseDto, b: TaskResponseDto) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 5);
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", gap: 12 }}>
+                <StatChip value={spFolders.length} label="Folders"     color={C.accent} icon={FolderOpen} />
+                <StatChip value={active}            label="In Progress" color={C.blue}   icon={Activity} />
+                <StatChip value={`${compPct}%`}     label="Completion"  color={C.green}  icon={Target} />
+                <StatChip value={done}              label="Done"        color={C.green}  icon={CheckCircle2} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
+                <div>
+                    <SectionHeader title="Folders" count={spFolders.length} />
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 12 }}>
+                        {spFolders.map((f: FolderResponseDto) => {
+                            const fTasks = tasks.filter((t: TaskResponseDto) => {
+                                const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
+                                return l?.folderId === f.id;
+                            });
+                            const fd = fTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+                            return (
+                                <HierarchyCard
+                                    key={f.id}
+                                    icon={FolderOpen}
+                                    color={C.orange}
+                                    title={f.name}
+                                    subtitle={`${fTasks.length} tasks`}
+                                    progress={fTasks.length > 0 ? Math.round((fd / fTasks.length) * 100) : 0}
+                                    onClick={() => onSelect({ type: "folder", id: f.id!, name: f.name })}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
+                <DeadlinesPanel tasks={deadlines} />
+            </div>
+        </div>
+    );
+}
+
+function FolderOverview({ folder, listes, tasks, sprints, onSelect }: any) {
+    const fLists   = listes.filter((l: ListeResponseDto) => l.folderId === folder.id);
+    const fSprints = sprints.filter((s: SprintResponseDto) => s.folderId === folder.id);
+    const fTasks   = tasks.filter((t: TaskResponseDto) => {
+        const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
+        return l?.folderId === folder.id;
+    });
+    const done    = fTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const compPct = fTasks.length > 0 ? Math.round((done / fTasks.length) * 100) : 0;
+    const activeSprint = fSprints.find((s: SprintResponseDto) => s.isActive) ?? fSprints[fSprints.length - 1] ?? null;
+    const sprintPct2   = sprintPct(activeSprint);
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", gap: 12 }}>
+                <StatChip value={fLists.length}   label="Lists"      color={C.blue}   icon={List} />
+                <StatChip value={fSprints.length} label="Sprints"    color={C.orange} icon={Zap} />
+                <StatChip value={`${compPct}%`}   label="Completion" color={C.green}  icon={Target} />
+                <StatChip value={fTasks.length}   label="Total Tasks" color={C.accent} icon={CheckCircle2} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {/* Lists */}
+                    <div>
+                        <SectionHeader title="Lists" count={fLists.length} />
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 10 }}>
+                            {fLists.map((l: ListeResponseDto) => {
+                                const lt = tasks.filter((t: TaskResponseDto) => t.listeId === l.id);
+                                const ld = lt.filter((t: TaskResponseDto) => t.status === "DONE").length;
+                                return (
+                                    <HierarchyCard
+                                        key={l.id}
+                                        icon={List}
+                                        color={C.blue}
+                                        title={l.name}
+                                        subtitle={`${lt.length} tasks`}
+                                        progress={lt.length > 0 ? Math.round((ld / lt.length) * 100) : 0}
+                                        onClick={() => onSelect({ type: "list", id: l.id!, name: l.name })}
+                                        compact
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+                    {/* Sprints */}
+                    {fSprints.length > 0 && (
+                        <div>
+                            <SectionHeader title="Sprints" count={fSprints.length} />
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 10 }}>
+                                {fSprints.map((s: SprintResponseDto) => (
+                                    <HierarchyCard
+                                        key={s.id}
+                                        icon={Zap}
+                                        color={s.isActive ? C.green : C.orange}
+                                        title={s.name}
+                                        subtitle={`${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`}
+                                        progress={sprintPct(s)}
+                                        badge={s.isActive ? "Active" : undefined}
+                                        onClick={() => onSelect({ type: "sprint", id: s.id!, name: s.name })}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                {/* Sprint progress panel */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {activeSprint && (
+                        <div style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                            <p style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 10 }}>Active Sprint</p>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>{activeSprint.name}</p>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 10 }}>
+                                <CalendarDays size={11} style={{ color: C.textFaint }} />
+                                <span style={{ fontSize: 11, color: C.textMuted }}>{fmtDate(activeSprint.startDate)} → {fmtDate(activeSprint.endDate)}</span>
+                            </div>
+                            <Bar pct={sprintPct2} color={C.accent} height={4} />
+                            <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: C.text, marginTop: 8 }}>{sprintPct2}%</p>
+                            <p style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>time elapsed</p>
+                        </div>
+                    )}
+                    <DeadlinesPanel tasks={fTasks.filter((t: TaskResponseDto) => t.dueDate && t.status !== "DONE").slice(0, 5)} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ListOverview({ liste, tasks }: any) {
+    const lt    = tasks.filter((t: TaskResponseDto) => t.listeId === liste.id);
+    const done  = lt.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const compPct = lt.length > 0 ? Math.round((done / lt.length) * 100) : 0;
+    const byStatus: Record<string, TaskResponseDto[]> = {};
+    lt.forEach((t: TaskResponseDto) => { byStatus[t.status] = [...(byStatus[t.status] || []), t]; });
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", gap: 12 }}>
+                <StatChip value={lt.length}     label="Total"       color={C.accent} icon={List} />
+                <StatChip value={`${compPct}%`} label="Completion"  color={C.green}  icon={Target} />
+                <StatChip value={done}          label="Done"        color={C.green}  icon={CheckCircle2} />
+                <StatChip value={lt.length - done} label="Remaining" color={C.orange} icon={Clock} />
+            </div>
+            {/* Status breakdown */}
+            <div style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 12 }}>By Status</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {Object.entries(STATUS_META).map(([key, meta]) => {
+                        const count = byStatus[key]?.length || 0;
+                        const pct   = lt.length > 0 ? Math.round((count / lt.length) * 100) : 0;
+                        return (
+                            <div key={key}>
+                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                                    <span style={{ fontSize: 11, color: meta.color, fontWeight: 500 }}>{meta.label}</span>
+                                    <span style={{ fontSize: 11, color: C.textMuted }}>{count} ({pct}%)</span>
+                                </div>
+                                <Bar pct={pct} color={meta.color} height={4} />
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SprintOverview({ sprint, tasks }: any) {
+    const st    = tasks.filter((t: TaskResponseDto) => t.sprintId === sprint.id);
+    const done  = st.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const pct   = sprintPct(sprint);
+    const compPct = st.length > 0 ? Math.round((done / st.length) * 100) : 0;
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", gap: 12 }}>
+                <StatChip value={st.length}    label="Total Tasks"  color={C.accent} icon={List} />
+                <StatChip value={`${compPct}%`} label="Tasks Done"  color={C.green}  icon={Target} />
+                <StatChip value={`${pct}%`}    label="Time Elapsed" color={C.orange} icon={Clock} />
+                <StatChip value={done}         label="Completed"    color={C.green}  icon={CheckCircle2} />
+            </div>
+            <div style={{ background: `linear-gradient(135deg, ${C.accent}10, ${C.green}08)`, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{sprint.name}</p>
+                    {sprint.isActive && <Pill label="Active" color={C.green} bg="rgba(34,211,160,0.12)" />}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 14 }}>
+                    <CalendarDays size={11} style={{ color: C.textFaint }} />
+                    <span style={{ fontSize: 11, color: C.textMuted }}>{fmtDate(sprint.startDate)} → {fmtDate(sprint.endDate)}</span>
+                </div>
+                <Bar pct={pct} color={C.accent} height={4} />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                    <span style={{ fontSize: 11, color: C.textFaint }}>Sprint progress</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: C.text, fontFamily: "'Syne', sans-serif" }}>{pct}%</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Shared sub-panels ───────────────────────────────────────────────────────
+function SectionHeader({ title, count, action }: { title: string; count?: number; action?: React.ReactNode }) {
+    return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: "'Syne', sans-serif" }}>{title}</span>
+                {count !== undefined && (
+                    <span style={{ fontSize: 10, color: C.textFaint, background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "1px 7px", fontWeight: 600 }}>{count}</span>
+                )}
+            </div>
+            {action}
+        </div>
+    );
+}
+
+function HierarchyCard({ icon: Icon, color, title, subtitle, progress, badge, onClick, compact }: any) {
+    const [hov, setHov] = useState(false);
+    return (
+        <div
+            onClick={onClick}
+            onMouseEnter={() => setHov(true)}
+            onMouseLeave={() => setHov(false)}
+            style={{
+                background: hov ? C.surfaceEl : C.surface,
+                border: `1px solid ${hov ? C.borderHov : C.border}`,
+                borderRadius: 10, padding: compact ? "10px 12px" : "12px 14px",
+                cursor: "pointer", transition: "all .15s",
+                transform: hov ? "translateY(-1px)" : "none",
+            }}
+        >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 24, height: 24, borderRadius: 6, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={12} style={{ color }} />
+                </div>
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
+                    <p style={{ fontSize: 10, color: C.textFaint, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</p>
+                </div>
+                {badge && <Pill label={badge} color={C.green} bg="rgba(34,211,160,0.12)" />}
+            </div>
+            <Bar pct={progress ?? 0} color={color} />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                <span style={{ fontSize: 9, color: C.textFaint, fontWeight: 600 }}>{progress ?? 0}%</span>
+            </div>
+        </div>
+    );
+}
+
+function DeadlinesPanel({ tasks }: { tasks: TaskResponseDto[] }) {
+    return (
+        <div style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: ".7px" }}>Upcoming</p>
+                {tasks.length > 0 && <Pill label={`${tasks.length}`} color={C.red} bg="rgba(244,63,94,0.12)" />}
+            </div>
+            {tasks.length === 0
+                ? <p style={{ fontSize: 11, color: C.textFaint, textAlign: "center", padding: "10px 0" }}>No upcoming deadlines</p>
+                : tasks.map((t: TaskResponseDto) => {
+                    const pc = PRIORITY_COLOR[t.priority?.toLowerCase() ?? "medium"] ?? C.accent;
+                    return (
+                        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+                            <div style={{ width: 6, height: 6, borderRadius: "50%", background: pc, flexShrink: 0 }} />
+                            <p style={{ flex: 1, fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</p>
+                            <span style={{ fontSize: 9, color: C.textMuted, flexShrink: 0 }}>{fmtDate(t.dueDate ?? undefined)}</span>
+                        </div>
+                    );
+                })
+            }
+        </div>
+    );
+}
+
+function ActivityPanel({ tasks }: { tasks: TaskResponseDto[] }) {
+    const recent = [...tasks]
+        .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+        .slice(0, 5);
+    return (
+        <div style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 10 }}>Recent Activity</p>
+            {recent.length === 0
+                ? <p style={{ fontSize: 11, color: C.textFaint, textAlign: "center", padding: "10px 0" }}>No recent activity</p>
+                : recent.map((t: TaskResponseDto) => {
+                    const sm = STATUS_META[t.status] ?? STATUS_META.TO_DO;
+                    return (
+                        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+                            <Pill label={sm.label} color={sm.color} bg={sm.bg} />
+                            <p style={{ flex: 1, fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</p>
+                        </div>
+                    );
+                })
+            }
+        </div>
+    );
+}
+
+// ─── WORKSPACE / LIST FORM MODALS ─────────────────────────────────────────────
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+    return (
+        <div style={{
+            position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)",
         }} onClick={onClose}>
             <div
-                onClick={(e) => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
                 style={{
-                    background: "#16161a", border: "0.5px solid rgba(255,255,255,0.1)",
-                    borderRadius: 18, padding: "28px 32px", width: 420, maxWidth: "calc(100vw - 40px)",
-                    boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+                    background: C.surface, border: `1px solid ${C.border}`,
+                    borderRadius: 14, padding: "22px 24px", width: 380, maxWidth: "calc(100vw - 40px)",
+                    boxShadow: "0 32px 80px rgba(0,0,0,0.7)",
                     fontFamily: "'DM Sans', sans-serif",
                 }}
             >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
-                    <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 17, fontWeight: 700, color: "#fff", margin: 0 }}>
-                        {mode === "create" ? "Create Workspace" : "Edit Workspace"}
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", display: "flex", padding: 4, borderRadius: 8 }}
-                    >
-                        <X size={17} />
-                    </button>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+                    <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>{title}</h2>
+                    <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, display: "flex" }}><X size={14} /></button>
                 </div>
-
-                <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: 16 }}>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.6px" }}>
-                            Workspace Name
-                        </label>
-                        <input
-                            id="ws-name-input"
-                            type="text"
-                            value={name}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                            placeholder="e.g. My Team"
-                            autoFocus
-                            style={{
-                                width: "100%", background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
-                                borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#fff",
-                                fontFamily: "'DM Sans', sans-serif", outline: "none", transition: "border-color 0.2s",
-                                boxSizing: "border-box",
-                            }}
-                            onFocus={(e) => (e.target.style.borderColor = "rgba(83,74,183,0.6)")}
-                            onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: 22 }}>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.6px" }}>
-                            Slug
-                        </label>
-                        <div style={{ position: "relative" }}>
-                            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "rgba(255,255,255,0.25)", pointerEvents: "none" }}>
-                                /
-                            </span>
-                            <input
-                                id="ws-slug-input"
-                                type="text"
-                                value={slug}
-                                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
-                                placeholder="my-team"
-                                style={{
-                                    width: "100%", background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)",
-                                    borderRadius: 10, padding: "10px 14px 10px 24px", fontSize: 14, color: "#fff",
-                                    fontFamily: "'DM Sans', sans-serif", outline: "none", transition: "border-color 0.2s",
-                                    boxSizing: "border-box",
-                                }}
-                                onFocus={(e) => (e.target.style.borderColor = "rgba(83,74,183,0.6)")}
-                                onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
-                            />
-                        </div>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 5 }}>
-                            Only lowercase letters, numbers, and hyphens.
-                        </p>
-                    </div>
-
-                    {error && (
-                        <p style={{ fontSize: 12, color: "#E24B4A", marginBottom: 14, background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8 }}>
-                            {error}
-                        </p>
-                    )}
-
-                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            style={{
-                                background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)",
-                                borderRadius: 10, padding: "9px 18px", color: "rgba(255,255,255,0.6)",
-                                fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                            }}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            id="ws-form-submit-btn"
-                            type="submit"
-                            disabled={isSubmitting}
-                            style={{
-                                background: "linear-gradient(135deg, #534AB7, #3C3489)", border: "none",
-                                borderRadius: 10, padding: "9px 20px", color: "#fff",
-                                fontSize: 13, fontWeight: 600, cursor: isSubmitting ? "not-allowed" : "pointer",
-                                fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 7,
-                                opacity: isSubmitting ? 0.7 : 1,
-                            }}
-                        >
-                            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                            {mode === "create" ? "Create" : "Save Changes"}
-                        </button>
-                    </div>
-                </form>
+                {children}
             </div>
         </div>
     );
 }
 
-// ============================================================================
-// DELETE CONFIRM MODAL
-// ============================================================================
-
-interface DeleteConfirmModalProps {
-    workspaceName: string;
-    onConfirm: () => Promise<void>;
-    onClose: () => void;
+function FieldInput({ label, value, onChange, placeholder, prefix }: any) {
+    return (
+        <div style={{ marginBottom: 14 }}>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.textFaint, marginBottom: 4, textTransform: "uppercase", letterSpacing: ".7px" }}>{label}</label>
+            <div style={{ position: "relative" }}>
+                {prefix && <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.textFaint }}>{prefix}</span>}
+                <input
+                    type="text"
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    style={{
+                        width: "100%", background: C.surfaceEl, border: `1px solid ${C.border}`,
+                        borderRadius: 8, padding: `8px 12px 8px ${prefix ? 20 : 12}px`, fontSize: 12, color: C.text,
+                        fontFamily: "'DM Sans', sans-serif", outline: "none", boxSizing: "border-box",
+                        transition: "border-color .2s",
+                    }}
+                    onFocus={e => e.target.style.borderColor = C.accent}
+                    onBlur={e => e.target.style.borderColor = C.border}
+                />
+            </div>
+        </div>
+    );
 }
 
-function DeleteConfirmModal({ workspaceName, onConfirm, onClose }: DeleteConfirmModalProps) {
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+function WorkspaceFormModal({ mode, initialName = "", initialSlug = "", onSubmit, onClose }: any) {
+    const [name, setName] = useState(initialName);
+    const [slug, setSlug] = useState(initialSlug);
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState<string | null>(null);
 
-    const handleConfirm = async () => {
-        setIsDeleting(true);
-        setError(null);
-        try {
-            await onConfirm();
-            onClose();
-        } catch (err: any) {
-            setError(err.message || "Failed to delete workspace.");
-        } finally {
-            setIsDeleting(false);
-        }
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name.trim() || !slug.trim()) { setErr("Name and slug are required."); return; }
+        setBusy(true); setErr(null);
+        try { await onSubmit(name.trim(), slug.trim()); onClose(); }
+        catch (e: any) { setErr(e.message || "An error occurred."); }
+        finally { setBusy(false); }
     };
 
     return (
-        <div style={{
-            position: "fixed", inset: 0, zIndex: 1000,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)",
-        }} onClick={onClose}>
-            <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                    background: "#16161a", border: "0.5px solid rgba(226,75,74,0.2)",
-                    borderRadius: 18, padding: "28px 32px", width: 380, maxWidth: "calc(100vw - 40px)",
-                    boxShadow: "0 24px 64px rgba(0,0,0,0.6)", fontFamily: "'DM Sans', sans-serif",
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(226,75,74,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Trash2 size={17} style={{ color: "#E24B4A" }} />
-                    </div>
-                    <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700, color: "#fff", margin: 0 }}>
-                        Delete Workspace
-                    </h2>
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginBottom: 20 }}>
-                    Are you sure you want to delete <span style={{ color: "#fff", fontWeight: 600 }}>"{workspaceName}"</span>? This action cannot be undone.
-                </p>
-                {error && (
-                    <p style={{ fontSize: 12, color: "#E24B4A", marginBottom: 14, background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8 }}>
-                        {error}
-                    </p>
-                )}
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                    <button
-                        onClick={onClose}
-                        style={{ background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "9px 18px", color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        id="ws-delete-confirm-btn"
-                        onClick={handleConfirm}
-                        disabled={isDeleting}
-                        style={{ background: "#E24B4A", border: "none", borderRadius: 10, padding: "9px 20px", color: "#fff", fontSize: 13, fontWeight: 600, cursor: isDeleting ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 7, opacity: isDeleting ? 0.7 : 1 }}
-                    >
-                        {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        Delete
+        <Modal title={mode === "create" ? "New Workspace" : "Edit Workspace"} onClose={onClose}>
+            <form onSubmit={handleSubmit}>
+                <FieldInput label="Name" value={name} onChange={(v: string) => { setName(v); if (mode === "create") setSlug(v.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")); }} placeholder="My Team" />
+                <FieldInput label="Slug" value={slug} onChange={(v: string) => setSlug(v.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))} placeholder="my-team" prefix="/" />
+                {err && <p style={{ fontSize: 11, color: C.red, background: "rgba(244,63,94,0.08)", padding: "8px 12px", borderRadius: 8, marginBottom: 12 }}>{err}</p>}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" onClick={onClose} style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 14px", color: C.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                    <button type="submit" disabled={busy} style={{ background: C.accent, border: "none", borderRadius: 8, padding: "7px 16px", color: "#fff", fontSize: 12, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1, display: "flex", alignItems: "center", gap: 6 }}>
+                        {busy ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={12} />}
+                        {mode === "create" ? "Create" : "Save"}
                     </button>
                 </div>
-            </div>
-        </div>
+            </form>
+        </Modal>
     );
 }
 
-// ============================================================================
-// MAIN PAGE
-// ============================================================================
+function DeleteModal({ name, onConfirm, onClose }: any) {
+    const [busy, setBusy] = useState(false);
+    const [err, setErr]   = useState<string | null>(null);
+    const go = async () => { setBusy(true); setErr(null); try { await onConfirm(); onClose(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+    return (
+        <Modal title="Delete Workspace" onClose={onClose}>
+            <p style={{ fontSize: 12, color: C.textMuted, marginBottom: 16, lineHeight: 1.6 }}>
+                Delete <strong style={{ color: C.text }}>"{name}"</strong>? This cannot be undone.
+            </p>
+            {err && <p style={{ fontSize: 11, color: C.red, background: "rgba(244,63,94,0.08)", padding: "8px 12px", borderRadius: 8, marginBottom: 12 }}>{err}</p>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={onClose} style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 14px", color: C.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                <button onClick={go} disabled={busy} style={{ background: C.red, border: "none", borderRadius: 8, padding: "7px 16px", color: "#fff", fontSize: 12, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}>
+                    {busy ? "Deleting…" : "Delete"}
+                </button>
+            </div>
+        </Modal>
+    );
+}
 
+// ─── MAIN PAGE ───────────────────────────────────────────────────────────────
 export default function WorkspacePage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const [collapsed, setCollapsed] = useState(false);
 
-    // ── Core data ──
-    const [isLoading, setIsLoading] = useState(true);
-    const [activeView, setActiveView] = useState<"overview" | "list" | "members" | "board">("overview");
+    const [isLoading, setIsLoading]   = useState(true);
+    const [viewMode, setViewMode]     = useState<ViewMode>("overview");
     const [workspaces, setWorkspaces] = useState<WorkspaceResponseDto[]>([]);
     const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceResponseDto | null>(null);
-    const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
-    const [user, setUser] = useState({ name: "User", avatar: "US" });
-
-    // ── Resource state (Flat lists across workspace) ──
+    const [spaces, setSpaces]   = useState<SpaceResponseDto[]>([]);
     const [folders, setFolders] = useState<FolderResponseDto[]>([]);
     const [sprints, setSprints] = useState<SprintResponseDto[]>([]);
-    const [listes, setListes] = useState<ListeResponseDto[]>([]);
-    const [tasks, setTasks] = useState<TaskResponseDto[]>([]);
+    const [listes, setListes]   = useState<ListeResponseDto[]>([]);
+    const [tasks, setTasks]     = useState<TaskResponseDto[]>([]);
     const [members, setMembers] = useState<WorkspaceMemberResponseDto[]>([]);
-    const [sprintLoading, setSprintLoading] = useState(false);
+    const [selectedHierarchy, setSelectedHierarchy] = useState<SelectedHierarchy | null>(null);
+    const [user, setUser] = useState({ name: "User", avatar: "US" });
+    const [collapsed, setCollapsed] = useState(false);
 
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceResponseDto | null>(null);
-    const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceResponseDto | null>(null);
-    const [workspaceCreateFeedback, setWorkspaceCreateFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+    const [showCreateWs, setShowCreateWs]   = useState(false);
+    const [editingWs, setEditingWs]         = useState<WorkspaceResponseDto | null>(null);
+    const [deletingWs, setDeletingWs]       = useState<WorkspaceResponseDto | null>(null);
+    const [showTaskForm, setShowTaskForm]   = useState(false);
+    const [editingTask, setEditingTask]     = useState<TaskResponseDto | null>(null);
+    const [deletingTask, setDeletingTask]   = useState<TaskResponseDto | null>(null);
+    const [showListForm, setShowListForm]   = useState(false);
+    const [editingList, setEditingList]     = useState<ListeResponseDto | null>(null);
+    const [deletingList, setDeletingList]   = useState<ListeResponseDto | null>(null);
+    const [showInviteModal, setShowInviteModal]       = useState(false);
 
-    // ── Task modal state ──
-    const [showTaskForm, setShowTaskForm] = useState(false);
-    const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
-    const [deletingTask, setDeletingTask] = useState<TaskResponseDto | null>(null);
+    // ── Filtered data by hierarchy ──
+    const filteredTasks = (() => {
+        if (!selectedHierarchy) return tasks;
+        if (selectedHierarchy.type === "space") return tasks.filter(t => {
+            const l = listes.find(li => li.id === t.listeId);
+            const f = folders.find(fo => fo.id === l?.folderId);
+            return f?.spaceId === selectedHierarchy.id;
+        });
+        if (selectedHierarchy.type === "folder") return tasks.filter(t => {
+            const l = listes.find(li => li.id === t.listeId);
+            return l?.folderId === selectedHierarchy.id;
+        });
+        if (selectedHierarchy.type === "list")   return tasks.filter(t => t.listeId === selectedHierarchy.id);
+        if (selectedHierarchy.type === "sprint") return tasks.filter(t => t.sprintId === selectedHierarchy.id);
+        return tasks;
+    })();
 
-    // ── List modal state ──
-    const [showListForm, setShowListForm] = useState(false);
-    const [editingList, setEditingList] = useState<ListeResponseDto | null>(null);
-    const [deletingList, setDeletingList] = useState<ListeResponseDto | null>(null);
+    const filteredListes = (() => {
+        if (!selectedHierarchy) return listes;
+        if (selectedHierarchy.type === "space") return listes.filter(l => {
+            const f = folders.find(fo => fo.id === l.folderId);
+            return f?.spaceId === selectedHierarchy.id;
+        });
+        if (selectedHierarchy.type === "folder") return listes.filter(l => l.folderId === selectedHierarchy.id);
+        if (selectedHierarchy.type === "list")   return listes.filter(l => l.id === selectedHierarchy.id);
+        return listes;
+    })();
 
-    // ── Invite modal state ──
-    const [showInviteModal, setShowInviteModal] = useState(false);
-
-    // ── Computed stats ──
-    const activeProjectsCount = spaces.length;
-    const tasksInProgress = tasks.filter(t =>
-        t.status === "IN_DEV" || t.status === "IN_TEST" || t.status === "IN_REVIEW"
-    ).length;
-    const tasksDone = tasks.filter(t => t.status === "DONE").length;
-    const completionRate = tasks.length > 0
-        ? Math.round((tasksDone / tasks.length) * 100)
-        : 0;
-    // Upcoming deadlines: tasks with a dueDate that are not done
-    const upcomingDeadlines = tasks
-        .filter(t => t.dueDate && t.status !== "DONE")
-        .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
-        .slice(0, 5);
-
-    // Pick the most recent sprint
-    const now = Date.now();
-    const activeSprint: SprintResponseDto | null =
-        sprints.find((s) => {
-            if (!s.startDate || !s.endDate) return false;
-            return new Date(s.startDate).getTime() <= now && now <= new Date(s.endDate).getTime();
-        }) ?? sprints[sprints.length - 1] ?? null;
-
-    const sprintProgress = computeSprintProgress(activeSprint);
+    // ── User load ──
+    useEffect(() => {
+        try {
+            const u = localStorage.getItem("user");
+            if (u) {
+                const p = JSON.parse(u);
+                setUser({ name: p.firstName || "User", avatar: ((p.firstName?.[0] || "") + (p.lastName?.[0] || "")).toUpperCase() || "US" });
+            }
+        } catch { /* ignore */ }
+    }, []);
 
     // ── Initial load ──
     useEffect(() => {
-        const invitationSuccessMessageKey = "pendingWorkspaceInvitationSuccessMessage";
-
-        // Message one-shot affiche apres acceptation d'invitation.
-        const pendingInvitationMessage = localStorage.getItem(invitationSuccessMessageKey);
-        if (pendingInvitationMessage) {
-            setWorkspaceCreateFeedback({
-                type: "success",
-                message: pendingInvitationMessage,
-            });
-            localStorage.removeItem(invitationSuccessMessageKey);
-        }
-
-        try {
-            const storedUser = localStorage.getItem("user");
-            if (storedUser) {
-                const parsed = JSON.parse(storedUser);
-                setUser({
-                    name: parsed.firstName || "User",
-                    avatar: ((parsed.firstName?.[0] || "") + (parsed.lastName?.[0] || "")).toUpperCase() || "US",
-                });
-            }
-        } catch (e) {
-            console.error("Failed to parse user from local storage", e);
-        }
-
-        const loadInitialData = async () => {
+        (async () => {
             try {
                 const wsData = await getWorkspacesByUser();
                 setWorkspaces(wsData);
                 if (wsData.length > 0) {
-                    const savedWorkspaceId = localStorage.getItem("activeWorkspaceId");
-                    const savedWorkspace = wsData.find((workspace) => workspace.id === savedWorkspaceId);
-                    setActiveWorkspace(savedWorkspace ?? wsData[0]);
+                    const saved = localStorage.getItem("activeWorkspaceId");
+                    setActiveWorkspace(wsData.find(w => w.id === saved) ?? wsData[0]);
                 }
-            } catch (error) {
-                console.error("Failed to load workspaces", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadInitialData();
+            } catch { /* ignore */ } finally { setIsLoading(false); }
+        })();
     }, []);
 
     useEffect(() => {
-        if (activeWorkspace) {
-            localStorage.setItem("activeWorkspaceId", activeWorkspace.id);
-        }
+        if (activeWorkspace) { localStorage.setItem("activeWorkspaceId", activeWorkspace.id); setSelectedHierarchy(null); }
     }, [activeWorkspace]);
 
-    useEffect(() => {
-        if (!workspaceCreateFeedback) return;
-        const timer = window.setTimeout(() => setWorkspaceCreateFeedback(null), 3500);
-        return () => window.clearTimeout(timer);
-    }, [workspaceCreateFeedback]);
-
-    // ── Load spaces when active workspace changes ──
-    const reloadDashboardData = useCallback(async () => {
-        if (!activeWorkspace) {
-            setSpaces([]);
-            setFolders([]);
-            setSprints([]);
-            setListes([]);
-            setTasks([]);
-            setMembers([]);
-            return;
-        }
+    // ── Reload dashboard data ──
+    const reloadData = useCallback(async () => {
+        if (!activeWorkspace) { setSpaces([]); setFolders([]); setSprints([]); setListes([]); setTasks([]); setMembers([]); return; }
         try {
-            // Load spaces + members in parallel
             const [spacesData, membersData] = await Promise.all([
                 getSpacesByWorkspace(activeWorkspace.id),
                 getWorkspaceMembers(activeWorkspace.id).catch(() => [] as WorkspaceMemberResponseDto[]),
             ]);
-            setSpaces(spacesData);
-            setMembers(membersData);
-
-            // Fetch all folders for all spaces
-            const foldersResults = await Promise.all(spacesData.map(s => getFoldersBySpace(s.id)));
-            const flatFolders = foldersResults.flat();
-            setFolders(flatFolders);
-
-            if (flatFolders.length > 0) {
-                setSprintLoading(true);
-                const [sprintsResults, listesResults] = await Promise.all([
-                    Promise.all(flatFolders.map(f => getSprintsByFolder(f.id!))),
-                    Promise.all(flatFolders.map(f => getListesByFolder(f.id!))),
+            setSpaces(spacesData); setMembers(membersData);
+            const foldersAll = (await Promise.all(spacesData.map(s => getFoldersBySpace(s.id)))).flat();
+            setFolders(foldersAll);
+            if (foldersAll.length > 0) {
+                const [spRes, liRes] = await Promise.all([
+                    Promise.all(foldersAll.map(async f => (await getSprintsByFolder(f.id!)).map(s => ({ ...s, folderId: f.id })))),
+                    Promise.all(foldersAll.map(f => getListesByFolder(f.id!))),
                 ]);
-
-                const flatSprints = sprintsResults.flat();
-                const flatListes = listesResults.flat();
-                setSprints(flatSprints);
-                setListes(flatListes);
-                setSprintLoading(false);
-
-                // Load tasks for all lists
-                if (flatListes.length > 0) {
-                    const tasksResults = await Promise.all(
-                        flatListes.map(l => getTasksByListe(l.id).catch(() => [] as TaskResponseDto[]))
-                    );
-                    setTasks(tasksResults.flat());
-                } else {
-                    setTasks([]);
-                }
-            } else {
-                setSprints([]);
-                setListes([]);
-                setTasks([]);
-                setSprintLoading(false);
-            }
-
-        } catch (error) {
-            console.error("Failed to fetch dashboard data", error);
-            setSprintLoading(false);
-        }
+                const flatSp = spRes.flat(); const flatLi = liRes.flat();
+                setSprints(flatSp); setListes(flatLi);
+                const tasksAll = (await Promise.all(flatLi.map(l => getTasksByListe(l.id).catch(() => [] as TaskResponseDto[])))).flat();
+                setTasks(tasksAll);
+            } else { setSprints([]); setListes([]); setTasks([]); }
+        } catch (e) { console.error(e); }
     }, [activeWorkspace]);
+    useEffect(() => { reloadData(); }, [reloadData]);
 
     useEffect(() => {
-        reloadDashboardData();
-    }, [reloadDashboardData]);
+        setViewMode("overview");
+    }, [selectedHierarchy]);
 
-
-
-    // ── Workspace CRUD handlers ──
-    const handleCreateWorkspace = async (name: string, slug: string) => {
-        try {
-            const created = await createWorkspace({ name, slug });
-            setWorkspaces((prev) => [...prev, created]);
-            setActiveWorkspace(created);
-            setWorkspaceCreateFeedback({
-                type: "success",
-                message: `Workspace \"${created.name}\" created successfully.`,
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to create workspace.";
-            setWorkspaceCreateFeedback({ type: "error", message });
-            throw error;
-        }
+    // ── Workspace CRUD ──
+    const handleCreateWs = async (name: string, slug: string) => {
+        const c = await createWorkspace({ name, slug }); setWorkspaces(p => [...p, c]); setActiveWorkspace(c);
+    };
+    const handleUpdateWs = async (name: string, slug: string) => {
+        if (!editingWs) return;
+        const u = await updateWorkspace(editingWs.id, { name, slug });
+        setWorkspaces(p => p.map(w => w.id === u.id ? u : w));
+        if (activeWorkspace?.id === u.id) setActiveWorkspace(u);
+    };
+    const handleDeleteWs = async () => {
+        if (!deletingWs) return;
+        await deleteWorkspace(deletingWs.id);
+        const rem = workspaces.filter(w => w.id !== deletingWs.id);
+        setWorkspaces(rem);
+        if (activeWorkspace?.id === deletingWs.id) setActiveWorkspace(rem[0] ?? null);
     };
 
-    const handleUpdateWorkspace = async (name: string, slug: string) => {
-        if (!editingWorkspace) return;
-        const updated = await updateWorkspace(editingWorkspace.id, { name, slug });
-        setWorkspaces((prev) => prev.map((ws) => (ws.id === updated.id ? updated : ws)));
-        if (activeWorkspace?.id === updated.id) setActiveWorkspace(updated);
-    };
-
-    const handleDeleteWorkspace = async () => {
-        if (!deletingWorkspace) return;
-        await deleteWorkspace(deletingWorkspace.id);
-        const remaining = workspaces.filter((ws) => ws.id !== deletingWorkspace.id);
-        setWorkspaces(remaining);
-        if (activeWorkspace?.id === deletingWorkspace.id) {
-            setActiveWorkspace(remaining.length > 0 ? remaining[0] : null);
-        }
-    };
-
-    // ── Task / Liste handlers ──
+    // ── Task / List CRUD ──
     const handleTaskSubmit = async (data: TaskRequestDto) => {
-        try {
-            if (editingTask) {
-                await updateTask(editingTask.id, data);
-                setEditingTask(null);
-            } else {
-                await createTask(data);
-                setShowTaskForm(false);
-            }
-            reloadDashboardData();
-        } catch (err) {
-            console.error("Form error:", err);
-            throw err;
-        }
+        if (editingTask) { await updateTask(editingTask.id, data); setEditingTask(null); }
+        else { await createTask(data); setShowTaskForm(false); }
+        reloadData();
+    };
+    const handleListSubmit = async (data: ListeRequestDto) => {
+        if (editingList) { await updateListe(editingList.id, data); setEditingList(null); }
+        else { await createListe(data); setShowListForm(false); }
+        reloadData();
+    };
+    const handleTaskDelete  = async (id: string) => { await deleteTask(id); setDeletingTask(null); reloadData(); };
+    const handleListDelete  = async (id: string) => { await deleteListe(id); setDeletingList(null); setSelectedHierarchy(null); reloadData(); };
+    const handleStatusChange = async (task: TaskResponseDto, status: TaskStatus) => {
+        setTasks(p => p.map(t => t.id === task.id ? { ...t, status } : t));
+        try { await updateTask(task.id, { ...task, status }); } catch { reloadData(); }
     };
 
-    const handleListeSubmit = async (data: ListeRequestDto) => {
-        try {
-            if (editingList) {
-                await updateListe(editingList.id, data);
-                setEditingList(null);
-            } else {
-                await createListe(data);
-                setShowListForm(false);
-            }
-            reloadDashboardData();
-        } catch (err) {
-            console.error("Form error:", err);
-            throw err;
-        }
-    };
-
-    const handleTaskDelete = async (id: string) => {
-        await deleteTask(id);
-        setDeletingTask(null);
-        reloadDashboardData();
-    };
-
-    const handleTaskStatusChange = async (task: TaskResponseDto, newStatus: TaskStatus) => {
-        if (task.status === newStatus) return;
-
-        setTasks((prev) => prev.map((item) => item.id === task.id ? { ...item, status: newStatus } : item));
-
-        try {
-            await updateTask(task.id, { ...task, status: newStatus });
-        } catch (error) {
-            console.error("Failed to update task status", error);
-            reloadDashboardData();
-        }
-    };
-
-    const handleListeDelete = async (id: string) => {
-        await deleteListe(id);
-        setDeletingList(null);
-        reloadDashboardData();
-    };
-
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-
-    // ── Dynamic stats cards ──
-    const stats = [
-        {
-            label: "Tasks In Progress",
-            value: tasksInProgress,
-            icon: Zap,
-            color: "#534AB7",
-            bg: "rgba(83,74,183,0.12)",
-            delta: tasksInProgress > 0 ? `${tasksInProgress} active task${tasksInProgress > 1 ? "s" : ""}` : "No tasks in progress",
-        },
-        {
-            label: "Active Projects",
-            value: activeProjectsCount,
-            icon: Folders,
-            color: "#1D9E75",
-            bg: "rgba(29,158,117,0.12)",
-            delta: activeProjectsCount > 0 ? `${activeProjectsCount} space${activeProjectsCount > 1 ? "s" : ""} in workspace` : "No spaces yet",
-        },
-        {
-            label: "Completion Rate",
-            value: `${completionRate}%`,
-            icon: Target,
-            color: "#EF9F27",
-            bg: "rgba(239,159,39,0.12)",
-            delta: tasks.length > 0 ? `${tasksDone} of ${tasks.length} tasks done` : "No tasks yet",
-        },
-        {
-            label: "Team Velocity",
-            value: members.length,
-            icon: TrendingUp,
-            color: "#D4537E",
-            bg: "rgba(212,83,126,0.12)",
-            delta: members.length > 0 ? `${members.length} member${members.length > 1 ? "s" : ""} in workspace` : "No members yet",
-            onClick: () => setShowInviteModal(true),
-        },
+    // ── Sidebar Nav Items ──
+    const navItems = [
+        { icon: LayoutGrid, label: "Dashboard" },
+        { icon: Sparkles, label: "Ask AI" },
+        { icon: Bell, label: "Notifications" },
     ];
 
     const sidebarNavItems = navItems.map((item) => {
         if (item.label === "Dashboard") {
             return {
                 ...item,
-                active: location.pathname === "/workspace",
-                onClick: () => navigate("/workspace"),
+                active: location.pathname === "/workspace" && !selectedHierarchy,
+                onClick: () => {
+                    navigate("/workspace");
+                    setSelectedHierarchy(null);
+                },
             };
         }
-
         if (item.label === "Ask AI") {
             return {
                 ...item,
@@ -750,17 +862,67 @@ export default function WorkspacePage() {
                 onClick: () => navigate("/ai"),
             };
         }
-
-        if (item.label === "Members") {
-            return {
-                ...item,
-                active: activeView === "members",
-                onClick: () => setActiveView("members"),
-            };
-        }
-
         return item;
     });
+
+    // ── Title of current level ──
+    const levelTitle = selectedHierarchy ? selectedHierarchy.name : (activeWorkspace?.name ?? "Workspace");
+    const levelType  = selectedHierarchy?.type ?? "workspace";
+
+    // ── Overview rendering ──
+    const renderOverview = () => {
+        if (!selectedHierarchy) return <WorkspaceOverview tasks={tasks} spaces={spaces} members={members} sprints={sprints} listes={listes} folders={folders} onSelect={setSelectedHierarchy} />;
+        if (selectedHierarchy.type === "space")  return <SpaceOverview  space={selectedHierarchy}  folders={folders} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} />;
+        if (selectedHierarchy.type === "folder") {
+            const folder = folders.find(f => f.id === selectedHierarchy.id);
+            return folder ? <FolderOverview folder={folder} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} /> : null;
+        }
+        if (selectedHierarchy.type === "list") {
+            const liste = listes.find(l => l.id === selectedHierarchy.id);
+            return liste ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    <ListOverview liste={liste} tasks={tasks} />
+                    <div style={{ background: C.surfaceEl, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                            <h3 style={{ fontSize: 13, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>Tasks in this List</h3>
+                        </div>
+                        <ListView
+                            lists={[liste]}
+                            tasks={filteredTasks}
+                            onEditTask={setEditingTask}
+                            onDeleteTask={setDeletingTask}
+                            onEditList={setEditingList}
+                            onDeleteList={setDeletingList}
+                            onAddList={() => setShowListForm(true)}
+                        />
+                    </div>
+                </div>
+            ) : null;
+        }
+        if (selectedHierarchy.type === "sprint") {
+            const sprint = sprints.find(s => s.id === selectedHierarchy.id);
+            return sprint ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    <SprintOverview sprint={sprint} tasks={tasks} />
+                    <div style={{ background: C.surfaceEl, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                            <h3 style={{ fontSize: 13, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>Tasks in this Sprint</h3>
+                        </div>
+                        <ListView
+                            lists={filteredListes}
+                            tasks={filteredTasks}
+                            onEditTask={setEditingTask}
+                            onDeleteTask={setDeletingTask}
+                            onEditList={setEditingList}
+                            onDeleteList={setDeletingList}
+                            onAddList={() => setShowListForm(true)}
+                        />
+                    </div>
+                </div>
+            ) : null;
+        }
+        return null;
+    };
 
     return (
         <Layout
@@ -774,15 +936,17 @@ export default function WorkspacePage() {
                             workspaces={workspaces}
                             activeWorkspace={activeWorkspace}
                             onSelect={setActiveWorkspace}
-                            onCreateClick={() => setShowCreateModal(true)}
-                            onEditClick={(ws) => setEditingWorkspace(ws)}
-                            onDeleteClick={(ws) => setDeletingWorkspace(ws)}
+                            onCreateClick={() => setShowCreateWs(true)}
+                            onEditClick={(ws) => setEditingWs(ws)}
+                            onDeleteClick={(ws) => setDeletingWs(ws)}
                         />
                     }
                     resourcesPanel={
                         <WorkspaceResourcesPanel
                             workspaceId={activeWorkspace?.id}
-                            onResourcesChange={reloadDashboardData}
+                            onResourcesChange={reloadData}
+                            selectedHierarchy={selectedHierarchy}
+                            onSelectHierarchy={setSelectedHierarchy}
                         />
                     }
                     userName={user.name}
@@ -791,440 +955,135 @@ export default function WorkspacePage() {
             )}
         >
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer; transition: background 0.18s, color 0.18s; color: rgba(255,255,255,0.45); font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; }
-        .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
-        .nav-item.active { background: rgba(83,74,183,0.18); color: #a89ef5; }
-        .stat-card { background: #16161a; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 20px; transition: border-color 0.2s, transform 0.2s; cursor: default; }
-        .stat-card:hover { border-color: rgba(255,255,255,0.14); transform: translateY(-2px); }
-        .project-card { background: #16161a; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 20px; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
-        .project-card:hover { border-color: rgba(255,255,255,0.14); transform: translateY(-2px); }
-        .deadline-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid rgba(255,255,255,0.05); transition: background 0.15s; cursor: pointer; }
-        .deadline-row:hover { background: rgba(255,255,255,0.025); border-radius: 8px; padding-left: 6px; }
-        .deadline-row:last-child { border-bottom: none; }
-        .search-input { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 14px 8px 38px; font-size: 13px; color: #fff; font-family: 'DM Sans', sans-serif; outline: none; width: 240px; transition: border-color 0.2s, width 0.3s; }
-        .search-input:focus { border-color: rgba(83,74,183,0.5); width: 300px; }
-        .search-input::placeholder { color: rgba(255,255,255,0.25); }
-        .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.18s, border-color 0.18s; }
-        .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
-        .view-nav-tab { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: none; background: transparent; color: rgba(255,255,255,0.45); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; transition: color 0.15s, background 0.15s; }
-        .view-nav-tab:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.04); }
-        .view-nav-tab.active { color: #f4f4ff; background: rgba(255,255,255,0.08); }
-        .ws-selector { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); cursor: pointer; transition: background 0.18s; font-size: 13px; color: rgba(255,255,255,0.7); }
-        .ws-selector:hover { background: rgba(255,255,255,0.06); }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
+                @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&display=swap');
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                ::-webkit-scrollbar { width: 5px; height: 5px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+                ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+                @keyframes spin { 100% { transform: rotate(360deg); } }
+                .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s, color 0.15s; color: rgba(255,255,255,0.42); font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; font-family: 'DM Sans', sans-serif; }
+                .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.82); }
+                .nav-item.active { background: rgba(108,99,255,0.15); color: #a89ef5; }
+                .ws-selector { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; font-family: 'DM Sans', sans-serif; }
+                .ws-selector:hover { background: rgba(255,255,255,0.05); }
+                .search-input { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 12px 6px 34px; font-size: 12px; color: #fff; font-family: 'DM Sans', sans-serif; outline: none; width: 220px; transition: border-color 0.2s, width 0.3s; }
+                .search-input:focus { border-color: rgba(108,99,255,0.5); width: 280px; }
+                .search-input::placeholder { color: rgba(255,255,255,0.22); }
+                .icon-btn { width: 30px; height: 30px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+                .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); }
+            `}</style>
 
             <Content>
                 <WorkspaceTopBar userName={user.name} userAvatar={user.avatar} onInvite={() => setShowInviteModal(true)} />
-                <ViewNavBar activeView={activeView} onViewChange={setActiveView} />
+                <ViewTabs active={viewMode} onChange={setViewMode} />
 
-                {workspaceCreateFeedback && (
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: 24,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            zIndex: 1200,
-                            minWidth: 260,
-                            maxWidth: 560,
-                            width: "fit-content",
-                            padding: "12px 16px",
-                            borderRadius: 12,
-                            border: workspaceCreateFeedback.type === "success"
-                                ? "1px solid rgba(0,255,174,0.55)"
-                                : "1px solid rgba(255,96,96,0.62)",
-                            background: workspaceCreateFeedback.type === "success"
-                                ? "linear-gradient(180deg, rgba(8,46,38,0.95), rgba(5,30,25,0.95))"
-                                : "linear-gradient(180deg, rgba(66,20,20,0.95), rgba(41,12,12,0.95))",
-                            color: workspaceCreateFeedback.type === "success" ? "#D7FFF2" : "#FFE4E4",
-                            fontSize: 14,
-                            fontWeight: 600,
-                            letterSpacing: "0.1px",
-                            backdropFilter: "blur(8px)",
-                            boxShadow: workspaceCreateFeedback.type === "success"
-                                ? "0 14px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,255,174,0.18)"
-                                : "0 14px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,96,96,0.2)",
-                            textAlign: "center",
-                            pointerEvents: "none",
-                        }}
-                    >
-                        {workspaceCreateFeedback.message}
-                    </div>
-                )}
-
-                {/* CONTENT */}
-                <main style={{ flex: 1, overflowY: "auto", padding: "28px 28px 40px" }}>
+                <main style={{ flex: 1, overflowY: "auto", padding: "0px 24px 40px", background: C.bg, fontFamily: "'DM Sans', sans-serif", color: C.text }}>
                     {isLoading ? (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "rgba(255,255,255,0.5)" }}>
-                            <Loader2 size={32} className="animate-spin" style={{ marginBottom: 16, color: "#534AB7" }} />
-                            <p>Loading dashboard...</p>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 12 }}>
+                            <Loader2 size={24} style={{ color: C.accent, animation: "spin 1s linear infinite" }} />
+                            <p style={{ fontSize: 12, color: C.textMuted }}>Loading…</p>
                         </div>
                     ) : (
                         <>
-                            {activeView === "overview" ? (
-                                <>
-                                    {/* Welcome */}
-                                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
-                                        <div>
-                                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>
-                                                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                                            </p>
-                                            <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.2 }}>
-                                                {greeting}, {user.name}
-                                            </h1>
-                                            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-                                                {activeWorkspace
-                                                    ? <>Workspace: <span style={{ color: "#a89ef5", fontWeight: 500 }}>{activeWorkspace.name}</span></>
-                                                    : "No workspace selected."
-                                                }
-                                            </p>
-                                        </div>
-                                        <div style={{ display: "flex", gap: 10 }}>
-                                            <button
-                                                onClick={async () => {
-                                                    if (folders.length === 0) await reloadDashboardData();
-                                                    setShowListForm(true);
-                                                }}
-                                                style={{
-                                                    display: "flex", alignItems: "center", gap: 8,
-                                                    background: "rgba(255,255,255,0.03)",
-                                                    border: "0.5px solid rgba(255,255,255,0.08)",
-                                                    borderRadius: 10, padding: "10px 18px",
-                                                    color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                                    fontFamily: "'DM Sans', sans-serif",
-                                                    transition: "background 0.2s"
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
-                                                onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
-                                            >
-                                                <Plus size={15} /> New List
-                                            </button>
-                                            <button
-                                                onClick={async () => {
-                                                    if (folders.length === 0) await reloadDashboardData();
-                                                    setShowTaskForm(true);
-                                                }}
-                                                style={{
-                                                    display: "flex", alignItems: "center", gap: 8,
-                                                    background: "linear-gradient(135deg, #534AB7, #3C3489)",
-                                                    border: "none", borderRadius: 10, padding: "10px 18px",
-                                                    color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                                    fontFamily: "'DM Sans', sans-serif",
-                                                }}
-                                            >
-                                                <Plus size={15} /> New Task
-                                            </button>
-                                        </div>
+                            {/* Level header */}
+                            <div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                                <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                                        {levelType === "workspace" && <Hash size={13} style={{ color: C.accent }} />}
+                                        {levelType === "space"     && <Folder size={13} style={{ color: C.accent }} />}
+                                        {levelType === "folder"    && <FolderOpen size={13} style={{ color: C.orange }} />}
+                                        {levelType === "list"      && <List size={13} style={{ color: C.blue }} />}
+                                        {levelType === "sprint"    && <Zap size={13} style={{ color: C.orange }} />}
+                                        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: "-0.1px", margin: 0 }}>{levelTitle}</h1>
                                     </div>
+                                    <p style={{ fontSize: 11, color: C.textFaint, margin: 0 }}>
+                                        {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                                    </p>
+                                </div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    {(levelType === 'folder' || levelType === 'space' || levelType === 'workspace') && viewMode !== 'board' && viewMode !== 'members' && (
+                                        <button
+                                            onClick={async () => {
+                                                if (folders.length === 0) await reloadData();
+                                                setShowListForm(true);
+                                            }}
+                                            style={{
+                                                display: "flex", alignItems: "center", gap: 6,
+                                                background: "transparent", border: `1px solid ${C.border}`,
+                                                borderRadius: 8, padding: "6px 12px", color: C.textMuted,
+                                                fontSize: 12, fontWeight: 500, cursor: "pointer",
+                                                fontFamily: "'DM Sans', sans-serif", transition: "all .15s",
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = C.surfaceEl; e.currentTarget.style.color = C.text; }}
+                                            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textMuted; }}
+                                        >
+                                            <Plus size={13} /> List
+                                        </button>
+                                    )}
+                                    {viewMode !== 'members' && (
+                                    <button
+                                        onClick={async () => {
+                                            if (folders.length === 0) await reloadData();
+                                            setShowTaskForm(true);
+                                        }}
+                                        style={{
+                                            display: "flex", alignItems: "center", gap: 6,
+                                            background: C.accent, border: "none",
+                                            borderRadius: 8, padding: "6px 14px", color: "#fff",
+                                            fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                            fontFamily: "'DM Sans', sans-serif",
+                                            boxShadow: `0 4px 12px ${C.accentGlow}`,
+                                        }}
+                                    >
+                                        <Plus size={13} /> Task
+                                    </button>
+                                    )}
+                                </div>
+                            </div>
 
-                                    {/* Stats */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-                                        {stats.map((s) => (
-                                            <div
-                                                key={s.label}
-                                                className="stat-card"
-                                                onClick={s.label === "Team Velocity" ? () => setActiveView("members") : (s as any).onClick}
-                                                style={{ cursor: (s.label === "Team Velocity" || (s as any).onClick) ? "pointer" : "default" }}
-                                            >
-                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                        <s.icon size={17} style={{ color: s.color }} />
-                                                    </div>
-                                                    <ArrowUpRight size={14} style={{ color: "rgba(255,255,255,0.2)" }} />
-                                                </div>
-                                                <p style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{s.value}</p>
-                                                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{s.label}</p>
-                                                <p style={{ fontSize: 11, color: s.color, marginTop: 8, fontWeight: 500 }}>{s.delta}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Bottom grid */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
-
-                                        {/* Recent Projects (Spaces) */}
-                                        <div>
-                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                                                <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700 }}>Recent Projects</h2>
-                                                <button style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                                                    View all <ChevronRight size={12} />
-                                                </button>
-                                            </div>
-                                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                                {spaces.map((space) => {
-                                                    const c = space.color?.startsWith("#") ? space.color : "#534AB7";
-                                                    return (
-                                                        <div key={space.id} className="project-card">
-                                                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                                                    <div style={{ width: 40, height: 40, borderRadius: 10, background: c + "22", border: `1px solid ${c}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                                        <Folders size={17} style={{ color: c }} />
-                                                                    </div>
-                                                                    <div>
-                                                                        <p style={{ fontWeight: 600, fontSize: 14, color: "#fff" }}>{space.spaceName}</p>
-                                                                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{space.isPrivate ? "Private Space" : "Public Space"}</p>
-                                                                    </div>
-                                                                </div>
-                                                                <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", display: "flex" }}>
-                                                                    <MoreHorizontal size={15} />
-                                                                </button>
-                                                            </div>
-                                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
-                                                                <Avatar initials={space.spaceName.charAt(0).toUpperCase()} size={24} color={c} />
-                                                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
-                                                                    {(() => {
-                                                                        const count = tasks.filter(t => t.listeName !== undefined).length;
-                                                                        return count > 0 ? `${count} task${count > 1 ? "s" : ""}` : "No tasks yet";
-                                                                    })()}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                                {spaces.length === 0 && (
-                                                    <div style={{ padding: 20, textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 13, border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 16 }}>
-                                                        No spaces found in this workspace.
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Right column */}
-                                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-                                            {/* Upcoming Deadlines — structure ready for TaskResponseDto */}
-                                            <div>
-                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                                                    <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700 }}>Upcoming Deadlines</h2>
-                                                    <span style={{ fontSize: 11, background: "rgba(226,75,74,0.15)", color: "#E24B4A", borderRadius: 99, padding: "2px 8px", fontWeight: 600 }}>
-                                                        {upcomingDeadlines.length} pending
-                                                    </span>
-                                                </div>
-                                                <div style={{ background: "#16161a", border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "8px 16px" }}>
-                                                    {upcomingDeadlines.length > 0
-                                                        ? upcomingDeadlines.map((task) => (
-                                                            <div key={task.id} className="deadline-row">
-                                                                <Circle size={15} style={{ color: priorityColors[task.priority?.toLowerCase() ?? "medium"] ?? "rgba(255,255,255,0.2)", flexShrink: 0 }} />
-                                                                <div style={{ flex: 1, overflow: "hidden" }}>
-                                                                    <p style={{ fontSize: 13, fontWeight: 500, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                                        {task.title}
-                                                                    </p>
-                                                                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>
-                                                                        {task.listeName ?? "—"}
-                                                                    </p>
-                                                                </div>
-                                                                <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, background: (priorityColors[task.priority?.toLowerCase() ?? "medium"] ?? "#534AB7") + "22", color: priorityColors[task.priority?.toLowerCase() ?? "medium"] ?? "#534AB7", flexShrink: 0 }}>
-                                                                    {task.dueDate ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : task.status}
-                                                                </span>
-                                                            </div>
-                                                        ))
-                                                        : (
-                                                            <div style={{ padding: "16px 0", textAlign: "center" }}>
-                                                                <Clock size={20} style={{ color: "rgba(255,255,255,0.15)", margin: "0 auto 8px" }} />
-                                                                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>No deadlines yet.</p>
-                                                                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 4 }}>Will populate from Tasks API.</p>
-                                                            </div>
-                                                        )
-                                                    }
-                                                </div>
-                                            </div>
-
-                                            {/* Sprint Progress — live from SprintController via folder chain */}
-                                            <div style={{ background: "linear-gradient(135deg, rgba(83,74,183,0.15), rgba(29,158,117,0.1))", border: "0.5px solid rgba(83,74,183,0.25)", borderRadius: 16, padding: "16px" }}>
-                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                        <Star size={14} style={{ color: "#EF9F27" }} />
-                                                        <p style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>Sprint Progress</p>
-                                                    </div>
-                                                    {sprintLoading && <Loader2 size={13} className="animate-spin" style={{ color: "rgba(255,255,255,0.3)" }} />}
-                                                </div>
-
-                                                {activeSprint ? (
-                                                    <>
-                                                        <ProgressBar value={sprintProgress} color="#534AB7" />
-                                                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, alignItems: "flex-start" }}>
-                                                            <div>
-                                                                <p style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>{activeSprint.name}</p>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                                                                    <CalendarDays size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
-                                                                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                                                                        {formatDate(activeSprint.startDate)} → {formatDate(activeSprint.endDate)}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <span style={{ fontSize: 13, color: "#a89ef5", fontWeight: 700 }}>{sprintProgress}%</span>
-                                                        </div>
-                                                        {sprints.length > 1 && (
-                                                            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 8 }}>
-                                                                +{sprints.length - 1} other sprint{sprints.length - 1 > 1 ? "s" : ""} in this folder
-                                                            </p>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <div style={{ textAlign: "center", padding: "8px 0" }}>
-                                                        {sprintLoading
-                                                            ? <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Loading sprints…</p>
-                                                            : (
-                                                                <>
-                                                                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>No sprint found.</p>
-                                                                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 4 }}>
-                                                                        Create a folder + sprint to see progress.
-                                                                    </p>
-                                                                </>
-                                                            )
-                                                        }
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                        </div>
-                                    </div>
-                                    <div style={{ marginTop: 24 }}>
-                                        <ListView
-                                            lists={listes}
-                                            tasks={tasks}
-                                            onEditTask={setEditingTask}
-                                            onDeleteTask={setDeletingTask}
-                                            onEditList={setEditingList}
-                                            onDeleteList={setDeletingList}
-                                            onAddList={() => setShowListForm(true)}
-                                        />
-                                    </div>
-                                </>
-                            ) : activeView === "list" ? (
+                            {viewMode === "overview" && renderOverview()}
+                            {viewMode === "list" && (
                                 <ListView
-                                    lists={listes}
-                                    tasks={tasks}
+                                    lists={filteredListes}
+                                    tasks={filteredTasks}
                                     onEditTask={setEditingTask}
                                     onDeleteTask={setDeletingTask}
                                     onEditList={setEditingList}
                                     onDeleteList={setDeletingList}
                                     onAddList={() => setShowListForm(true)}
                                 />
-                            ) : activeView === "board" ? (
+                            )}
+                            {viewMode === "board" && (
                                 <BoardView
-                                    tasks={tasks}
+                                    tasks={filteredTasks}
                                     onEditTask={setEditingTask}
                                     onDeleteTask={setDeletingTask}
-                                    onStatusChange={handleTaskStatusChange}
+                                    onStatusChange={handleStatusChange}
                                 />
-                            ) : (
-                                <MembersView
-                                    members={members}
-                                    onInvite={() => setShowInviteModal(true)}
-                                    activeWorkspaceName={activeWorkspace?.name || ""}
-                                />
+                            )}
+                            {viewMode === "members" && (
+                                <MembersView members={members} onInvite={() => setShowInviteModal(true)} />
                             )}
                         </>
                     )}
                 </main>
             </Content>
 
-            {/* CREATE WORKSPACE MODAL */}
-            {showCreateModal && (
-                <WorkspaceFormModal
-                    mode="create"
-                    onSubmit={handleCreateWorkspace}
-                    onClose={() => setShowCreateModal(false)}
-                />
-            )}
+            {/* MODALS */}
+            {showCreateWs && <WorkspaceFormModal mode="create" onSubmit={handleCreateWs} onClose={() => setShowCreateWs(false)} />}
+            {editingWs    && <WorkspaceFormModal mode="edit" initialName={editingWs.name} initialSlug={editingWs.slug} onSubmit={handleUpdateWs} onClose={() => setEditingWs(null)} />}
+            {deletingWs   && <DeleteModal name={deletingWs.name} onConfirm={handleDeleteWs} onClose={() => setDeletingWs(null)} />}
 
-            {/* EDIT WORKSPACE MODAL */}
-            {editingWorkspace && (
-                <WorkspaceFormModal
-                    mode="edit"
-                    initialName={editingWorkspace.name}
-                    initialSlug={editingWorkspace.slug}
-                    onSubmit={handleUpdateWorkspace}
-                    onClose={() => setEditingWorkspace(null)}
-                />
-            )}
+            {showTaskForm && <TaskAdd listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} />}
+            {editingTask  && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} />}
+            {deletingTask && <TaskDelete task={deletingTask} onDelete={handleTaskDelete} onClose={() => setDeletingTask(null)} />}
 
-            {/* DELETE CONFIRM MODAL */}
-            {deletingWorkspace && (
-                <DeleteConfirmModal
-                    workspaceName={deletingWorkspace.name}
-                    onConfirm={handleDeleteWorkspace}
-                    onClose={() => setDeletingWorkspace(null)}
-                />
-            )}
-            {/* TASK FORMS */}
-            {showTaskForm && (
-                <TaskAdd
-                    listes={listes.map(l => ({ value: l.id!, label: l.name }))}
-                    sprints={sprints.map(s => ({ value: s.id!, label: s.name }))}
-                    assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))}
-                    onSubmit={handleTaskSubmit}
-                    onClose={() => setShowTaskForm(false)}
-                />
-            )}
-            {editingTask && (
-                <TaskUpdate
-                    taskId={editingTask.id}
-                    defaults={editingTask}
-                    listes={listes.map(l => ({ value: l.id!, label: l.name }))}
-                    sprints={sprints.map(s => ({ value: s.id!, label: s.name }))}
-                    assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))}
-                    onSubmit={handleTaskSubmit}
-                    onClose={() => setEditingTask(null)}
-                />
-            )}
-            {deletingTask && (
-                <TaskDelete
-                    task={deletingTask}
-                    onDelete={handleTaskDelete}
-                    onClose={() => setDeletingTask(null)}
-                />
-            )}
+            {showListForm && <ListeAdd folders={folders.map(f => ({ value: f.id!, label: f.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} onSubmit={handleListSubmit} onClose={() => setShowListForm(false)} />}
+            {editingList  && <ListeUpdate listeId={editingList.id} defaults={editingList} folders={folders.map(f => ({ value: f.id!, label: f.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} onSubmit={handleListSubmit} onClose={() => setEditingList(null)} />}
+            {deletingList && <ListeDelete liste={deletingList} onDelete={handleListDelete} onClose={() => setDeletingList(null)} />}
 
-            {/* LISTE FORMS */}
-            {showListForm && (
-                <ListeAdd
-                    folders={folders.map(f => ({ value: f.id!, label: f.name }))}
-                    sprints={sprints.map(s => ({ value: s.id!, label: s.name }))}
-                    onSubmit={handleListeSubmit}
-                    onClose={() => setShowListForm(false)}
-                />
-            )}
-            {editingList && (
-                <ListeUpdate
-                    listeId={editingList.id}
-                    defaults={editingList}
-                    folders={folders.map(f => ({ value: f.id!, label: f.name }))}
-                    sprints={sprints.map(s => ({ value: s.id!, label: s.name }))}
-                    onSubmit={handleListeSubmit}
-                    onClose={() => setEditingList(null)}
-                />
-            )}
-            {deletingList && (
-                <ListeDelete
-                    liste={deletingList}
-                    onDelete={handleListeDelete}
-                    onClose={() => setDeletingList(null)}
-                />
-            )}
-
-            {/* INVITE FORM */}
             {showInviteModal && activeWorkspace && (
-                <InviteMemberForm
-                    workspaceId={activeWorkspace.id}
-                    onSubmit={(successMessage) => {
-                        setShowInviteModal(false);
-                        setWorkspaceCreateFeedback({
-                            type: "success",
-                            message: successMessage,
-                        });
-                        reloadDashboardData();
-                    }}
-                    onClose={() => setShowInviteModal(false)}
-                />
+                <InviteMemberForm workspaceId={activeWorkspace.id} onSubmit={() => { setShowInviteModal(false); reloadData(); }} onClose={() => setShowInviteModal(false)} />
             )}
         </Layout>
     );
