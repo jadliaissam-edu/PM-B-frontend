@@ -4,7 +4,7 @@ import { inviteMemberByEmail, type WorkspaceRole } from "../api/workspaceMemberA
 
 interface InviteMemberFormProps {
     workspaceId: string;
-    onSubmit: () => void;
+    onSubmit: (successMessage: string) => void;
     onClose: () => void;
 }
 
@@ -13,6 +13,7 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
     const [role, setRole] = useState<WorkspaceRole>("MEMBER");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -20,15 +21,24 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
 
         setIsSubmitting(true);
         setError(null);
+        setSuccessMessage(null);
 
         try {
-            await inviteMemberByEmail({
+            const response = await inviteMemberByEmail({
                 email: email.trim(),
                 workspaceId,
                 role
             });
-            onSubmit();
+
+            const message = response.message || "Invitation sent successfully.";
+            setSuccessMessage(message);
+
+            // Petit delai pour laisser le feedback visible avant fermeture de la modale.
+            window.setTimeout(() => {
+                onSubmit(message);
+            }, 900);
         } catch (err) {
+            setSuccessMessage(null);
             setError(err instanceof Error ? err.message : "Failed to send invitation");
         } finally {
             setIsSubmitting(false);
@@ -70,6 +80,18 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ padding: 32 }}>
+                    {successMessage && (
+                        <div style={{
+                            background: "rgba(29, 158, 117, 0.12)",
+                            border: "1px solid rgba(29, 158, 117, 0.28)",
+                            borderRadius: 12, padding: "12px 16px", marginBottom: 24,
+                            color: "#7df0c8", fontSize: 13, display: "flex", alignItems: "center", gap: 10
+                        }}>
+                            <Shield size={16} />
+                            {successMessage}
+                        </div>
+                    )}
+
                     {error && (
                         <div style={{
                             background: "rgba(239, 68, 68, 0.1)",
@@ -145,17 +167,17 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                         </button>
                         <button
                             type="submit"
-                            disabled={isSubmitting || !email.trim()}
+                            disabled={isSubmitting || !email.trim() || Boolean(successMessage)}
                             style={{
                                 flex: 2, padding: "14px", borderRadius: 12,
                                 background: "#7c3aed", color: "#fff", fontWeight: 600,
-                                border: "none", cursor: (isSubmitting || !email.trim()) ? "not-allowed" : "pointer",
-                                opacity: (isSubmitting || !email.trim()) ? 0.6 : 1,
+                                border: "none", cursor: (isSubmitting || !email.trim() || Boolean(successMessage)) ? "not-allowed" : "pointer",
+                                opacity: (isSubmitting || !email.trim() || Boolean(successMessage)) ? 0.6 : 1,
                                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8
                             }}
                         >
                             {isSubmitting ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
-                            {isSubmitting ? "Sending Invitation..." : "Send Invite"}
+                            {isSubmitting ? "Sending Invitation..." : successMessage ? "Invitation Sent" : "Send Invite"}
                         </button>
                     </div>
                 </form>

@@ -480,6 +480,18 @@ export default function WorkspacePage() {
 
     // ── Initial load ──
     useEffect(() => {
+        const invitationSuccessMessageKey = "pendingWorkspaceInvitationSuccessMessage";
+
+        // Message one-shot affiche apres acceptation d'invitation.
+        const pendingInvitationMessage = localStorage.getItem(invitationSuccessMessageKey);
+        if (pendingInvitationMessage) {
+            setWorkspaceCreateFeedback({
+                type: "success",
+                message: pendingInvitationMessage,
+            });
+            localStorage.removeItem(invitationSuccessMessageKey);
+        }
+
         try {
             const storedUser = localStorage.getItem("user");
             if (storedUser) {
@@ -1203,8 +1215,12 @@ export default function WorkspacePage() {
             {showInviteModal && activeWorkspace && (
                 <InviteMemberForm
                     workspaceId={activeWorkspace.id}
-                    onSubmit={() => {
+                    onSubmit={(successMessage) => {
                         setShowInviteModal(false);
+                        setWorkspaceCreateFeedback({
+                            type: "success",
+                            message: successMessage,
+                        });
                         reloadDashboardData();
                     }}
                     onClose={() => setShowInviteModal(false)}
