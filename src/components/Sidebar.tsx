@@ -353,7 +353,7 @@ export default function Sidebar({
                         role={item.onClick ? "button" : undefined}
                         tabIndex={item.onClick ? 0 : -1}
                     >
-                        <item.icon size={17} style={{ flexShrink: 0 }} />
+                        <item.icon size={15} style={{ flexShrink: 0 }} />
                         {!collapsed && (
                             <>
                                 <span style={{ flex: 1 }}>{item.label}</span>
@@ -381,7 +381,7 @@ export default function Sidebar({
 
             <div style={{ padding: "12px 8px 20px", borderTop: "0.5px solid rgba(255,255,255,0.06)" }}>
                 <div className="nav-item" style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
-                    <Settings size={17} style={{ flexShrink: 0 }} />
+                    <Settings size={15} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Settings</span>}
                 </div>
 
