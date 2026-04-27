@@ -18,6 +18,7 @@ export interface SprintResponseDto {
     endDate?: string;
     goal?: string;
     isActive?: boolean;
+    folderId?: string;
 }
 
 function asArray<T>(value: unknown): T[] {

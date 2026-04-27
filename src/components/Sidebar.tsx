@@ -353,74 +353,51 @@ export default function Sidebar({
                     </p>
                 )}
 
-                {navItems.map((item) => {
-                    const isExpanded = expandedLabels.has(item.label);
-                    return (
-                        <div key={item.label}>
-                            <div
-                                className={`nav-item ${item.active ? "active" : ""}`}
-                                style={{ justifyContent: collapsed ? "center" : "flex-start", marginBottom: 2 }}
-                                onClick={(e) => {
-                                    if (item.subItems) {
-                                        toggleExpand(item.label);
-                                    }
-                                    if (item.onClick) item.onClick();
-                                }}
-                                role="button"
-                                tabIndex={0}
-                            >
-                                <item.icon size={17} style={{ flexShrink: 0 }} />
-                                {!collapsed && (
-                                    <>
-                                        <span style={{ flex: 1 }}>{item.label}</span>
-                                        {item.badge && (
-                                            <span style={{ background: "rgba(83,74,183,0.3)", color: "#a89ef5", fontSize: 11, fontWeight: 600, borderRadius: 99, padding: "1px 7px" }}>
-                                                {item.badge}
-                                            </span>
-                                        )}
-                                        {item.subItems && (
-                                            <ChevronRight 
-                                                size={12} 
-                                                style={{ 
-                                                    marginLeft: 6, 
-                                                    opacity: 0.4, 
-                                                    transition: "transform 0.2s", 
-                                                    transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" 
-                                                }} 
-                                            />
-                                        )}
-                                    </>
+                {navItems.map((item) => (
+                    <div
+                        key={item.label}
+                        className={`nav-item ${item.active ? "active" : ""}`}
+                        style={{ justifyContent: collapsed ? "center" : "flex-start", marginBottom: 2 }}
+                        onClick={item.onClick}
+                        onKeyDown={(e) => {
+                            if (!item.onClick) return;
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                item.onClick();
+                            }
+                        }}
+                        role={item.onClick ? "button" : undefined}
+                        tabIndex={item.onClick ? 0 : -1}
+                    >
+                        <item.icon size={15} style={{ flexShrink: 0 }} />
+                        {!collapsed && (
+                            <>
+                                <span style={{ flex: 1 }}>{item.label}</span>
+                                {item.badge && (
+                                    <span
+                                        style={{
+                                            background: "rgba(83,74,183,0.3)",
+                                            color: "#a89ef5",
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            borderRadius: 99,
+                                            padding: "1px 7px",
+                                        }}
+                                    >
+                                        {item.badge}
+                                    </span>
                                 )}
-                            </div>
-
-                            {!collapsed && item.subItems && isExpanded && (
-                                <div style={{ marginLeft: 26, borderLeft: "1px solid rgba(255,255,255,0.08)", paddingLeft: 4, marginTop: 2, marginBottom: 8 }}>
-                                    {item.subItems.map((sub) => (
-                                        <div
-                                            key={sub.label}
-                                            className={`nav-item ${sub.active ? "active" : ""}`}
-                                            style={{ height: 32, fontSize: 13, color: sub.active ? "#a89ef5" : "rgba(255,255,255,0.4)" }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                sub.onClick();
-                                            }}
-                                        >
-                                            <sub.icon size={14} style={{ opacity: 0.7 }} />
-                                            <span>{sub.label}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
+                            </>
+                        )}
+                    </div>
+                ))}
 
                 {!collapsed && resourcesPanel}
             </div>
 
             <div style={{ padding: "12px 8px 20px", borderTop: "0.5px solid rgba(255,255,255,0.06)" }}>
                 <div className="nav-item" style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
-                    <Settings size={17} style={{ flexShrink: 0 }} />
+                    <Settings size={15} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Settings</span>}
                 </div>
 

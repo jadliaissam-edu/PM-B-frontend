@@ -10,12 +10,12 @@ export default function WorkspaceTopBar({ userName: _userName, userAvatar: _user
     return (
         <header
             style={{
-                height: 60,
+                height: 48,
                 borderBottom: "0.5px solid rgba(255,255,255,0.07)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "0 24px",
+                padding: "0 20px",
                 background: "#0d0d0f",
                 flexShrink: 0,
             }}
@@ -28,17 +28,17 @@ export default function WorkspaceTopBar({ userName: _userName, userAvatar: _user
                 <button 
                     onClick={onInvite}
                     style={{
-                        display: "flex", alignItems: "center", gap: 8,
+                        display: "flex", alignItems: "center", gap: 6,
                         background: "rgba(124, 58, 237, 0.1)",
                         border: "1px solid rgba(124, 58, 237, 0.2)",
-                        borderRadius: 8, padding: "6px 12px",
-                        color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        borderRadius: 7, padding: "5px 10px",
+                        color: "#a78bfa", fontSize: 12, fontWeight: 600, cursor: "pointer",
                         transition: "all 0.2s"
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(124, 58, 237, 0.15)"}
                     onMouseLeave={e => e.currentTarget.style.background = "rgba(124, 58, 237, 0.1)"}
                 >
-                    <UserPlus size={14} />
+                    <UserPlus size={13} />
                     Invite
                 </button>
                 
