@@ -51,9 +51,19 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
         { value: "GUEST", label: "Viewer", desc: "Can only view and comment on tasks." }
     ];
 
+    const fieldLabelStyle = {
+        display: "block",
+        fontSize: 12,
+        fontWeight: 700,
+        color: "rgba(255,255,255,0.45)",
+        marginBottom: 10,
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.8px"
+    };
+
     return (
         <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: 500, width: "100%", padding: 0, overflow: "hidden" }}>
+            <div className="modal-content" style={{ maxWidth: 500, width: "100%", padding: 0, overflow: "hidden", fontFamily: "'DM Sans', sans-serif" }}>
                 {/* Header */}
                 <div style={{
                     padding: "24px 32px",
@@ -72,8 +82,8 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                             <UserPlus size={20} style={{ color: "#7c3aed" }} />
                         </div>
                         <div>
-                            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Invite Team Member</h2>
-                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Add someone to your workspace</p>
+                            <h2 style={{ fontSize: 24, fontWeight: 800, margin: 0, fontFamily: "'Syne', sans-serif" }}>Invite Team Member</h2>
+                            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Add someone to your workspace</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="close-btn"><X size={20} /></button>
@@ -105,7 +115,7 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                     )}
 
                     <div style={{ marginBottom: 24 }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
+                        <label style={fieldLabelStyle}>
                             Email Address
                         </label>
                         <div style={{ position: "relative" }}>
@@ -120,7 +130,7 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                                     width: "100%", padding: "14px 16px 14px 48px",
                                     background: "rgba(255,255,255,0.03)",
                                     border: "1px solid rgba(255,255,255,0.08)",
-                                    borderRadius: 12, color: "#fff", fontSize: 14, outline: "none"
+                                    borderRadius: 14, color: "#fff", fontSize: 15, outline: "none"
                                 }}
                                 required
                             />
@@ -128,7 +138,7 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                     </div>
 
                     <div style={{ marginBottom: 32 }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
+                        <label style={fieldLabelStyle}>
                             Workspace Role
                         </label>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -144,10 +154,10 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                                     }}
                                 >
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                        <span style={{ fontWeight: 600, fontSize: 14, color: role === r.value ? "#fff" : "rgba(255,255,255,0.7)" }}>{r.label}</span>
+                                        <span style={{ fontWeight: 700, fontSize: 15, color: role === r.value ? "#fff" : "rgba(255,255,255,0.7)" }}>{r.label}</span>
                                         {role === r.value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#7c3aed" }} />}
                                     </div>
-                                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 4, marginBottom: 0 }}>{r.desc}</p>
+                                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 4, marginBottom: 0 }}>{r.desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -158,9 +168,9 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                             type="button"
                             onClick={onClose}
                             style={{
-                                flex: 1, padding: "14px", borderRadius: 12,
+                                flex: 1, padding: "14px", borderRadius: 14,
                                 border: "1px solid rgba(255,255,255,0.08)",
-                                background: "transparent", color: "#fff", fontWeight: 600, cursor: "pointer"
+                                background: "transparent", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer"
                             }}
                         >
                             Cancel
@@ -169,8 +179,9 @@ export default function InviteMemberForm({ workspaceId, onSubmit, onClose }: Inv
                             type="submit"
                             disabled={isSubmitting || !email.trim() || Boolean(successMessage)}
                             style={{
-                                flex: 2, padding: "14px", borderRadius: 12,
+                                flex: 2, padding: "14px", borderRadius: 14,
                                 background: "#7c3aed", color: "#fff", fontWeight: 600,
+                                fontSize: 14,
                                 border: "none", cursor: (isSubmitting || !email.trim() || Boolean(successMessage)) ? "not-allowed" : "pointer",
                                 opacity: (isSubmitting || !email.trim() || Boolean(successMessage)) ? 0.6 : 1,
                                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8

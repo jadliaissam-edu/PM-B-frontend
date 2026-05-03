@@ -1,7 +1,8 @@
 import { API_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
+import type { InvitationResponseDto } from "./invitationApi";
 
-export type WorkspaceRole = "ADMIN" | "MEMBER" | "GUEST";
+export type WorkspaceRole = "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
 
 export interface WorkspaceMemberResponseDto {
     id: string;
@@ -61,9 +62,15 @@ export async function getWorkspaceMembers(workspaceId: string): Promise<Workspac
     return asArray<WorkspaceMemberResponseDto>(data);
 }
 
+/** Get all membership rows by user id */
+export async function getWorkspaceMembershipsByUser(userId: string): Promise<WorkspaceMemberResponseDto[]> {
+    const data = await request<unknown>(`/workspaceMembers/User/${userId}`);
+    return asArray<WorkspaceMemberResponseDto>(data);
+}
+
 /** Invite a user to a workspace by their email address */
-export async function inviteMemberByEmail(payload: InviteMemberRequestDto): Promise<WorkspaceMemberResponseDto> {
-    return request<WorkspaceMemberResponseDto>("/workspaceMembers/invite", {
+export async function inviteMemberByEmail(payload: InviteMemberRequestDto): Promise<InvitationResponseDto> {
+    return request<InvitationResponseDto>("/workspaceMembers/invite", {
         method: "POST",
         body: JSON.stringify(payload),
     });

@@ -1,12 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutGrid, ChevronRight, ChevronDown, Plus, TrendingUp, Clock,
-    Folder, Target, Circle, Zap, Star, Loader2, Trash2, X, Check,
-    CalendarDays, Sparkles, Users, UserPlus, List, Kanban, Home,
-    Hash, MoreVertical, Settings, Bell, Search, LogOut,
-    FolderOpen, Layers, Activity, CheckCircle2, AlertCircle,
-    ArrowRight, Filter, SortAsc, Eye, EyeOff,
+    LayoutGrid, Plus, Clock,
+    Folder, Target, Zap, Loader2, Trash2, X, Check,
+    CalendarDays, Sparkles, Users, UserPlus, List, Kanban,
+    Hash, Bell, FolderOpen, Activity, CheckCircle2,
 } from "lucide-react";
 
 import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";
@@ -21,7 +19,7 @@ import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import ListView from "../components/ListView";
 import BoardView from "../components/BoardView";
 import {
-    getWorkspacesByUser, createWorkspace, updateWorkspace, deleteWorkspace,
+    getWorkspacesByUser, getWorkspaceById, createWorkspace, updateWorkspace, deleteWorkspace,
 } from "../api/workspaceApi.tsx";
 
 export type HierarchyType = 'workspace' | 'space' | 'folder' | 'list' | 'sprint';
@@ -39,7 +37,12 @@ import {
     createListe, updateListe, deleteListe, getListesByFolder,
     type ListeResponseDto, type ListeRequestDto,
 } from "../api/listeApi.tsx";
-import { getWorkspaceMembers, type WorkspaceMemberResponseDto } from "../api/workspaceMemberApi";
+import {
+    getWorkspaceMembers,
+    getWorkspaceMembershipsByUser,
+    removeMember,
+    type WorkspaceMemberResponseDto,
+} from "../api/workspaceMemberApi";
 
 // ─── Palette & tokens ────────────────────────────────────────────────────────
 const C = {
@@ -181,7 +184,17 @@ const ROLE_COLORS: Record<string, { c: string; bg: string }> = {
     MEMBER: { c: "#22d3a0", bg: "rgba(34,211,160,0.1)"  },
     VIEWER: { c: "#f59e0b", bg: "rgba(245,158,11,0.1)"  },
 };
-function MembersView({ members, onInvite }: { members: WorkspaceMemberResponseDto[]; onInvite: () => void }) {
+function MembersView({
+    members,
+    onInvite,
+    onRemoveMember,
+    deletingMemberId,
+}: {
+    members: WorkspaceMemberResponseDto[];
+    onInvite: () => void;
+    onRemoveMember: (memberId: string) => Promise<void>;
+    deletingMemberId: string | null;
+}) {
     if (members.length === 0) return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 12 }}>
             <Users size={32} style={{ color: C.textFaint }} />
@@ -203,14 +216,50 @@ function MembersView({ members, onInvite }: { members: WorkspaceMemberResponseDt
                 {members.map((m) => {
                     const rc = ROLE_COLORS[m.role] ?? ROLE_COLORS.MEMBER;
                     const initials = ((m.userName?.split(" ")[0]?.[0] ?? "") + (m.userName?.split(" ")[1]?.[0] ?? "")).toUpperCase() || "??";
+                    const isDeleting = deletingMemberId === m.id;
+                    const canRemove = m.role !== "OWNER";
                     return (
-                        <div key={m.userId} style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                            <Avatar name={initials} size={32} color={C.accent} />
-                            <div style={{ flex: 1, overflow: "hidden" }}>
-                                <p style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.userName}</p>
-                                <p style={{ fontSize: 10, color: C.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.userEmail}</p>
+                        <div key={m.id} style={{ background: C.surfaceEl, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                                <Avatar name={initials} size={32} color={C.accent} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ fontSize: 12, fontWeight: 600, color: C.text, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.35 }}>
+                                        {m.userName}
+                                    </p>
+                                    <p style={{ fontSize: 10, color: C.textFaint, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.3, marginTop: 2 }}>
+                                        {m.userEmail}
+                                    </p>
+                                </div>
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: rc.c, background: rc.bg, borderRadius: 6, padding: "2px 7px", flexShrink: 0 }}>{m.role}</span>
+
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: rc.c, background: rc.bg, borderRadius: 6, padding: "2px 7px", flexShrink: 0 }}>{m.role}</span>
+                                {canRemove && (
+                                    <button
+                                        onClick={() => onRemoveMember(m.id)}
+                                        disabled={isDeleting}
+                                        title="Remove member"
+                                        style={{
+                                            border: "1px solid rgba(244,63,94,0.35)",
+                                            background: "rgba(244,63,94,0.12)",
+                                            color: "#fda4af",
+                                            borderRadius: 7,
+                                            padding: "4px 7px",
+                                            cursor: isDeleting ? "not-allowed" : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 5,
+                                            fontSize: 10,
+                                            fontWeight: 600,
+                                            opacity: isDeleting ? 0.65 : 1,
+                                            flexShrink: 0,
+                                        }}
+                                    >
+                                        <Trash2 size={11} />
+                                        {isDeleting ? "..." : "Remove"}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     );
                 })}
@@ -220,7 +269,7 @@ function MembersView({ members, onInvite }: { members: WorkspaceMemberResponseDt
 }
 
 // ─── OVERVIEW panels ─────────────────────────────────────────────────────────
-function WorkspaceOverview({ tasks, spaces, members, sprints, listes, folders, onSelect }: any) {
+function WorkspaceOverview({ tasks, spaces, members, listes, folders, onSelect }: any) {
     const done    = tasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
     const active  = tasks.filter((t: TaskResponseDto) => ["IN_DEV","IN_TEST","IN_REVIEW"].includes(t.status)).length;
     const compPct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
@@ -277,7 +326,7 @@ function WorkspaceOverview({ tasks, spaces, members, sprints, listes, folders, o
     );
 }
 
-function SpaceOverview({ space, folders, listes, tasks, sprints, onSelect }: any) {
+function SpaceOverview({ space, folders, listes, tasks, onSelect }: any) {
     const spFolders = folders.filter((f: FolderResponseDto) => f.spaceId === space.id);
     const spTasks   = tasks.filter((t: TaskResponseDto) => {
         const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
@@ -693,6 +742,7 @@ export default function WorkspacePage() {
     const [isLoading, setIsLoading]   = useState(true);
     const [viewMode, setViewMode]     = useState<ViewMode>("overview");
     const [workspaces, setWorkspaces] = useState<WorkspaceResponseDto[]>([]);
+    const [teamWorkspaces, setTeamWorkspaces] = useState<WorkspaceResponseDto[]>([]);
     const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [spaces, setSpaces]   = useState<SpaceResponseDto[]>([]);
     const [folders, setFolders] = useState<FolderResponseDto[]>([]);
@@ -708,12 +758,14 @@ export default function WorkspacePage() {
     const [editingWs, setEditingWs]         = useState<WorkspaceResponseDto | null>(null);
     const [deletingWs, setDeletingWs]       = useState<WorkspaceResponseDto | null>(null);
     const [showTaskForm, setShowTaskForm]   = useState(false);
+    const [taskCreateDefaults, setTaskCreateDefaults] = useState<Partial<TaskRequestDto> | undefined>(undefined);
     const [editingTask, setEditingTask]     = useState<TaskResponseDto | null>(null);
     const [deletingTask, setDeletingTask]   = useState<TaskResponseDto | null>(null);
     const [showListForm, setShowListForm]   = useState(false);
     const [editingList, setEditingList]     = useState<ListeResponseDto | null>(null);
     const [deletingList, setDeletingList]   = useState<ListeResponseDto | null>(null);
     const [showInviteModal, setShowInviteModal]       = useState(false);
+    const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
 
     // ── Filtered data by hierarchy ──
     const filteredTasks = (() => {
@@ -760,9 +812,36 @@ export default function WorkspacePage() {
             try {
                 const wsData = await getWorkspacesByUser();
                 setWorkspaces(wsData);
-                if (wsData.length > 0) {
+
+                const currentUserId = (() => {
+                    try {
+                        const raw = localStorage.getItem("user");
+                        if (!raw) return "";
+                        const parsed = JSON.parse(raw) as { id?: string };
+                        return parsed.id ?? "";
+                    } catch {
+                        return "";
+                    }
+                })();
+
+                let teamData: WorkspaceResponseDto[] = [];
+                if (currentUserId) {
+                    const memberships = await getWorkspaceMembershipsByUser(currentUserId).catch(() => [] as WorkspaceMemberResponseDto[]);
+                    const ownedIds = new Set(wsData.map((w) => w.id));
+                    const uniqueTeamIds = Array.from(new Set(memberships.map((m) => m.workspaceId).filter((id) => !ownedIds.has(id))));
+
+                    const resolved = await Promise.all(
+                        uniqueTeamIds.map((workspaceId) => getWorkspaceById(workspaceId).catch(() => null))
+                    );
+                    teamData = resolved.filter((w): w is WorkspaceResponseDto => Boolean(w));
+                }
+
+                setTeamWorkspaces(teamData);
+
+                const allWorkspaces = [...wsData, ...teamData];
+                if (allWorkspaces.length > 0) {
                     const saved = localStorage.getItem("activeWorkspaceId");
-                    setActiveWorkspace(wsData.find(w => w.id === saved) ?? wsData[0]);
+                    setActiveWorkspace(allWorkspaces.find(w => w.id === saved) ?? allWorkspaces[0]);
                 }
             } catch { /* ignore */ } finally { setIsLoading(false); }
         })();
@@ -816,13 +895,13 @@ export default function WorkspacePage() {
         await deleteWorkspace(deletingWs.id);
         const rem = workspaces.filter(w => w.id !== deletingWs.id);
         setWorkspaces(rem);
-        if (activeWorkspace?.id === deletingWs.id) setActiveWorkspace(rem[0] ?? null);
+        if (activeWorkspace?.id === deletingWs.id) setActiveWorkspace(rem[0] ?? teamWorkspaces[0] ?? null);
     };
 
     // ── Task / List CRUD ──
     const handleTaskSubmit = async (data: TaskRequestDto) => {
         if (editingTask) { await updateTask(editingTask.id, data); setEditingTask(null); }
-        else { await createTask(data); setShowTaskForm(false); }
+        else { await createTask(data); setShowTaskForm(false); setTaskCreateDefaults(undefined); }
         reloadData();
     };
     const handleListSubmit = async (data: ListeRequestDto) => {
@@ -835,6 +914,24 @@ export default function WorkspacePage() {
     const handleStatusChange = async (task: TaskResponseDto, status: TaskStatus) => {
         setTasks(p => p.map(t => t.id === task.id ? { ...t, status } : t));
         try { await updateTask(task.id, { ...task, status }); } catch { reloadData(); }
+    };
+
+    const openTaskCreateModal = async (defaults?: Partial<TaskRequestDto>) => {
+        if (folders.length === 0) await reloadData();
+        setTaskCreateDefaults(defaults);
+        setShowTaskForm(true);
+    };
+
+    const handleRemoveMember = async (memberId: string) => {
+        setDeletingMemberId(memberId);
+        try {
+            await removeMember(memberId);
+            await reloadData();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setDeletingMemberId(null);
+        }
     };
 
     // ── Sidebar Nav Items ──
@@ -934,6 +1031,7 @@ export default function WorkspacePage() {
                     workspaceDropdown={
                         <WorkspacesDropdown
                             workspaces={workspaces}
+                            teamWorkspaces={teamWorkspaces}
                             activeWorkspace={activeWorkspace}
                             onSelect={setActiveWorkspace}
                             onCreateClick={() => setShowCreateWs(true)}
@@ -1022,10 +1120,7 @@ export default function WorkspacePage() {
                                     )}
                                     {viewMode !== 'members' && (
                                     <button
-                                        onClick={async () => {
-                                            if (folders.length === 0) await reloadData();
-                                            setShowTaskForm(true);
-                                        }}
+                                        onClick={() => { void openTaskCreateModal(); }}
                                         style={{
                                             display: "flex", alignItems: "center", gap: 6,
                                             background: C.accent, border: "none",
@@ -1059,10 +1154,16 @@ export default function WorkspacePage() {
                                     onEditTask={setEditingTask}
                                     onDeleteTask={setDeletingTask}
                                     onStatusChange={handleStatusChange}
+                                    onAddTask={(status) => { void openTaskCreateModal({ status }); }}
                                 />
                             )}
                             {viewMode === "members" && (
-                                <MembersView members={members} onInvite={() => setShowInviteModal(true)} />
+                                <MembersView
+                                    members={members}
+                                    onInvite={() => setShowInviteModal(true)}
+                                    onRemoveMember={handleRemoveMember}
+                                    deletingMemberId={deletingMemberId}
+                                />
                             )}
                         </>
                     )}
@@ -1074,7 +1175,7 @@ export default function WorkspacePage() {
             {editingWs    && <WorkspaceFormModal mode="edit" initialName={editingWs.name} initialSlug={editingWs.slug} onSubmit={handleUpdateWs} onClose={() => setEditingWs(null)} />}
             {deletingWs   && <DeleteModal name={deletingWs.name} onConfirm={handleDeleteWs} onClose={() => setDeletingWs(null)} />}
 
-            {showTaskForm && <TaskAdd listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} />}
+            {showTaskForm && <TaskAdd defaults={taskCreateDefaults} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => { setShowTaskForm(false); setTaskCreateDefaults(undefined); }} />}
             {editingTask  && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} />}
             {deletingTask && <TaskDelete task={deletingTask} onDelete={handleTaskDelete} onClose={() => setDeletingTask(null)} />}
 

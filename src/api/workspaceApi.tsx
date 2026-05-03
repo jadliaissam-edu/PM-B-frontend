@@ -51,6 +51,10 @@ export async function getWorkspacesByUser(): Promise<WorkspaceResponseDto[]> {
     return asArray<WorkspaceResponseDto>(data);
 }
 
+export async function getWorkspaceById(workspaceId: string): Promise<WorkspaceResponseDto> {
+    return request<WorkspaceResponseDto>(`/workspaces/${workspaceId}`);
+}
+
 export async function createWorkspace(payload: WorkspaceRequestDto): Promise<WorkspaceResponseDto> {
     return request<WorkspaceResponseDto>("/workspaces", {
         method: "POST",
