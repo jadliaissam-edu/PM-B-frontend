@@ -3,9 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
-
-
 import AIPage from "./pages/AIPage";
+import GitHubCallbackPage from "./pages/GitHubCallbackPage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("accessToken");
@@ -34,6 +33,7 @@ export default function App() {
                         </ProtectedRoute>
                     )}
                 />
+                <Route path="/github/callback" element={<GitHubCallbackPage />} />
                 <Route path="/" element={<Navigate to="/workspace" replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
