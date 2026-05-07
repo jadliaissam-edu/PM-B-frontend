@@ -125,13 +125,13 @@ function Select({ options, value, onChange, placeholder }: {
                 style={{
                     ...inputStyle,
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    cursor: "pointer", textAlign: "left", padding: "9px 10px 9px 12px",
+                    cursor: "pointer", textAlign: "left",
                 }}
             >
-                <span style={{ color: selected ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.25)", fontSize: 13 }}>
+                <span style={{ color: selected ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.25)" }}>
                     {selected?.label ?? placeholder ?? "Select…"}
                 </span>
-                <ChevronDown size={13} style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
+                <ChevronDown size={18} style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
             </button>
 
             {open && (
@@ -339,13 +339,13 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
         try {
             await onSubmit({
                 title: title.trim(),
-                description: description.trim() || undefined,
+                description: description.trim(),
                 status,
                 priority,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
                 listeId,
-                sprintId: sprintId || undefined,
-                assigneeId: assigneeId || undefined
+                sprintId: sprintId || null,
+                assigneeId: assigneeId || null
             });
             onClose();
         } catch (e: unknown) {
@@ -357,7 +357,7 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
         <div style={overlayStyle} onClick={onClose}>
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>New Task</span>
+                    <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>New Task</span>
                     <CloseButton onClose={onClose} />
                 </div>
 
@@ -391,13 +391,13 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
         try {
             await onSubmit({
                 title: title.trim(),
-                description: description.trim() || undefined,
+                description: description.trim(),
                 status,
                 priority,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
                 listeId,
-                sprintId: sprintId || undefined,
-                assigneeId: assigneeId || undefined
+                sprintId: sprintId || null,
+                assigneeId: assigneeId || null
             });
             onClose();
         } catch (e: unknown) {
@@ -410,8 +410,8 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>Edit Task</span>
-                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, fontFamily: "monospace" }}>#{taskId.slice(-8)}</span>
+                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>Edit Task</span>
+                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontFamily: "monospace" }}>#{taskId.slice(-8)}</span>
                     </div>
                     <CloseButton onClose={onClose} />
                 </div>
@@ -542,13 +542,13 @@ function CloseButton({ onClose }: { onClose: () => void }) {
             style={{
                 background: "none", border: "none", cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                width: 28, height: 28, borderRadius: 6,
+                width: 32, height: 32, borderRadius: 8,
                 color: "rgba(255,255,255,0.35)", transition: "background 0.15s, color 0.15s",
             }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.35)"; }}
         >
-            <X size={14} />
+            <X size={18} />
         </button>
     );
 }
@@ -568,8 +568,8 @@ function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel, su
                 style={{
                     background: "none",
                     border: "0.5px solid rgba(255,255,255,0.09)",
-                    borderRadius: 7, padding: "7px 16px",
-                    fontSize: 12, fontWeight: 500,
+                    borderRadius: 12, padding: "12px 20px",
+                    fontSize: 14, fontWeight: 600,
                     color: "rgba(255,255,255,0.45)",
                     cursor: "pointer", transition: "all 0.15s",
                 }}
@@ -584,8 +584,8 @@ function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel, su
                 style={{
                     background: loading ? `${submitColor}99` : submitColor,
                     border: "0.5px solid rgba(168,158,245,0.5)",
-                    borderRadius: 7, padding: "7px 18px",
-                    fontSize: 12, fontWeight: 600,
+                    borderRadius: 12, padding: "12px 24px",
+                    fontSize: 14, fontWeight: 700,
                     color: "#fff",
                     cursor: loading ? "not-allowed" : "pointer",
                     transition: "all 0.15s",

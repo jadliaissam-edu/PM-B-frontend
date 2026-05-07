@@ -1,4 +1,4 @@
-import { X, Trash2, Calendar, Target, ChevronDown, Rocket } from "lucide-react";
+import { X, Trash2, Target, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { SprintRequestDto, SprintResponseDto } from "../api/sprintApi";
 
@@ -37,6 +37,8 @@ const modalStyle: React.CSSProperties = {
     borderRadius: 24,
     width: 500,
     maxWidth: "calc(100vw - 32px)",
+    maxHeight: "calc(100vh - 32px)",
+    overflowY: "auto",
     padding: "40px",
     boxShadow: "0 32px 64px rgba(0,0,0,0.8)",
     display: "flex", flexDirection: "column", gap: 32,
@@ -239,7 +241,8 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
     );
 }
 
-export function SprintUpdate({ sprintId, onSubmit, onClose, folders, defaults }: SprintFormProps & { sprintId: string }) {
+export function SprintUpdate(props: SprintFormProps & { sprintId: string }) {
+    const { onSubmit, onClose, folders, defaults } = props;
     const today = new Date().toISOString().split('T')[0];
     const [name, setName] = useState(defaults?.name || "");
     const [goal, setGoal] = useState(defaults?.goal || "");

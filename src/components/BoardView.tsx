@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
     DndContext,
     type DragEndEvent,
@@ -12,7 +12,7 @@ import {
     useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Trash2, Pencil, GripVertical, User, AlignLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Pencil, GripVertical, User, ChevronDown, ChevronUp, MoreHorizontal, Plus } from "lucide-react";
 import type { TaskResponseDto, TaskStatus } from "../api/taskApi";
 
 interface BoardViewProps {
@@ -20,6 +20,7 @@ interface BoardViewProps {
     onEditTask: (task: TaskResponseDto) => void;
     onDeleteTask: (task: TaskResponseDto) => void;
     onStatusChange: (task: TaskResponseDto, newStatus: TaskStatus) => void;
+    onAddTask: (status: TaskStatus) => void;
 }
 
 const columns = [
@@ -46,6 +47,25 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
     });
     
     const [showDesc, setShowDesc] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!menuRef.current) return;
+            if (!menuRef.current.contains(event.target as Node)) {
+                setMenuOpen(false);
+            }
+        };
+
+        if (menuOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [menuOpen]);
 
     const style = {
         transform: transform ? CSS.Translate.toString(transform) : undefined,
@@ -66,25 +86,29 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                 cursor: "default",
                 transition: "transform 0.15s, background 0.15s",
                 boxShadow: isDragging ? "0 18px 45px rgba(0,0,0,0.18)" : "none",
+                position: "relative",
             }}
         >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
                     <strong style={{ 
                         fontSize: 13, 
                         color: "#fff",
-                        display: showDesc ? "block" : "-webkit-box",
-                        WebkitLineClamp: showDesc ? undefined : 2,
-                        WebkitBoxOrient: showDesc ? undefined : "vertical",
-                        overflow: showDesc ? "visible" : "hidden",
-                        textOverflow: showDesc ? "clip" : "ellipsis",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                         wordBreak: "break-word",
                         lineHeight: 1.4
                     }}>
                         {task.title}
                     </strong>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
                     {task.priority && (
                         <span style={{
                             fontSize: 10,
@@ -98,41 +122,126 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                             {task.priority}
                         </span>
                     )}
+
+                    {task.dueDate && (
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 4 }}>
+                            {new Date(task.dueDate).toLocaleDateString()}
+                        </span>
+                    )}
+
                     <div {...listeners} style={{ cursor: "grab", color: "rgba(255,255,255,0.4)" }}>
                         <GripVertical size={14} />
                     </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                     <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowDesc(!showDesc); }}
+                        onClick={(e) => { e.stopPropagation(); setShowDesc((prev) => !prev); }}
                         style={{ display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "rgba(255,255,255,0.05)", borderRadius: 6, width: 22, height: 22, color: "rgba(255,255,255,0.55)", cursor: "pointer", padding: 0 }}
                         onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                         onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                     >
                         {showDesc ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
+
+                    <div ref={menuRef} style={{ position: "relative" }}>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuOpen((prev) => !prev);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "none",
+                                background: "rgba(255,255,255,0.05)",
+                                borderRadius: 6,
+                                width: 22,
+                                height: 22,
+                                color: "rgba(255,255,255,0.6)",
+                                cursor: "pointer",
+                                padding: 0,
+                            }}
+                            title="Task actions"
+                        >
+                            <MoreHorizontal size={14} />
+                        </button>
+
+                        {menuOpen && (
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    top: 26,
+                                    right: 0,
+                                    minWidth: 118,
+                                    borderRadius: 8,
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    background: "#15151b",
+                                    boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+                                    zIndex: 30,
+                                    overflow: "hidden",
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        setMenuOpen(false);
+                                        onEditTask(task);
+                                    }}
+                                    style={{
+                                        width: "100%",
+                                        border: "none",
+                                        background: "transparent",
+                                        color: "rgba(255,255,255,0.82)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "8px 10px",
+                                        fontSize: 11,
+                                        cursor: "pointer",
+                                        textAlign: "left",
+                                    }}
+                                >
+                                    <Pencil size={12} />
+                                    Edit task
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        setMenuOpen(false);
+                                        onDeleteTask(task);
+                                    }}
+                                    style={{
+                                        width: "100%",
+                                        border: "none",
+                                        borderTop: "1px solid rgba(255,255,255,0.08)",
+                                        background: "transparent",
+                                        color: "#fda4af",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "8px 10px",
+                                        fontSize: 11,
+                                        cursor: "pointer",
+                                        textAlign: "left",
+                                    }}
+                                >
+                                    <Trash2 size={12} />
+                                    Delete task
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {showDesc && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ display: "flex", gap: 6 }}>
-                            {task.dueDate && (
-                                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 4 }}>
-                                    {new Date(task.dueDate).toLocaleDateString()}
-                                </span>
-                            )}
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                            <button onClick={(event) => { event.stopPropagation(); onEditTask(task); }} style={{ border: "none", background: "transparent", color: "rgba(255,255,255,0.55)", cursor: "pointer" }}>
-                                <Pencil size={12} />
-                            </button>
-                            <button onClick={(event) => { event.stopPropagation(); onDeleteTask(task); }} style={{ border: "none", background: "transparent", color: "#E24B4A", cursor: "pointer" }}>
-                                <Trash2 size={12} />
-                            </button>
-                        </div>
-                    </div>
-
                     {task.description ? (
                         <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
                             {task.description}
@@ -160,16 +269,21 @@ function ColumnZone({
     column,
     children,
     count,
+    onAddTask,
 }: {
     column: typeof columns[number];
     children: ReactNode;
     count: number;
+    onAddTask: (status: TaskStatus) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: column.key });
+    const [isHovered, setIsHovered] = useState(false);
 
     return (
         <div
             ref={setNodeRef}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             style={{
                 background: isOver ? "rgba(124, 58, 237, 0.15)" : "#16161a",
                 border: `1px solid ${isOver ? "rgba(124, 58, 237, 0.35)" : "rgba(255,255,255,0.08)"}`,
@@ -185,7 +299,37 @@ function ColumnZone({
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: column.accent, display: "inline-block" }} />
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{column.label}</span>
                 </div>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{count}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{count}</span>
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onAddTask(column.key);
+                        }}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            border: "1px solid rgba(255,255,255,0.14)",
+                            background: "rgba(255,255,255,0.05)",
+                            color: "rgba(255,255,255,0.82)",
+                            borderRadius: 999,
+                            padding: "3px 9px",
+                            fontSize: 10,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            opacity: isHovered || isOver ? 1 : 0,
+                            transform: isHovered || isOver ? "translateY(0)" : "translateY(-2px)",
+                            pointerEvents: isHovered || isOver ? "auto" : "none",
+                            transition: "opacity 0.14s ease, transform 0.14s ease",
+                        }}
+                        title={`Add task in ${column.label}`}
+                    >
+                        <Plus size={11} />
+                        Task
+                    </button>
+                </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 80 }}>
                 {children}
@@ -194,7 +338,7 @@ function ColumnZone({
     );
 }
 
-export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusChange }: BoardViewProps) {
+export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusChange, onAddTask }: BoardViewProps) {
     const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
     const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
@@ -223,25 +367,41 @@ export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusCha
 
     return (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12, alignItems: "start" }}>
-                {columns.map((column) => (
-                    <ColumnZone key={column.key} column={column} count={tasksByStatus[column.key].length}>
-                        {tasksByStatus[column.key].length === 0 ? (
-                            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.45)", fontSize: 12, minHeight: 60 }}>
-                                No tasks yet.
-                            </div>
-                        ) : (
-                            tasksByStatus[column.key].map((task) => (
-                                <TaskCard
-                                    key={task.id}
-                                    task={task}
-                                    onEditTask={onEditTask}
-                                    onDeleteTask={onDeleteTask}
-                                />
-                            ))
-                        )}
-                    </ColumnZone>
-                ))}
+            <div style={{ overflowX: "auto", overflowY: "hidden", paddingBottom: 6 }}>
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${columns.length}, minmax(300px, 320px))`,
+                        gap: 12,
+                        alignItems: "start",
+                        width: "max-content",
+                        minWidth: "100%",
+                    }}
+                >
+                    {columns.map((column) => (
+                        <ColumnZone
+                            key={column.key}
+                            column={column}
+                            count={tasksByStatus[column.key].length}
+                            onAddTask={onAddTask}
+                        >
+                            {tasksByStatus[column.key].length === 0 ? (
+                                <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.45)", fontSize: 12, minHeight: 60 }}>
+                                    No tasks yet.
+                                </div>
+                            ) : (
+                                tasksByStatus[column.key].map((task) => (
+                                    <TaskCard
+                                        key={task.id}
+                                        task={task}
+                                        onEditTask={onEditTask}
+                                        onDeleteTask={onDeleteTask}
+                                    />
+                                ))
+                            )}
+                        </ColumnZone>
+                    ))}
+                </div>
             </div>
 
             <DragOverlay>

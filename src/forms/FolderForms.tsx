@@ -1,4 +1,4 @@
-import { X, Trash2, AlertTriangle, ChevronDown, Folder, EyeOff, Layout } from "lucide-react";
+import { X, Trash2, ChevronDown, EyeOff } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { FolderRequestDto, FolderResponseDto } from "../api/folderApi";
 
@@ -41,6 +41,8 @@ const modalStyle: React.CSSProperties = {
     borderRadius: 24,
     width: 480,
     maxWidth: "calc(100vw - 32px)",
+    maxHeight: "calc(100vh - 32px)",
+    overflowY: "auto",
     padding: "40px",
     boxShadow: "0 32px 64px rgba(0,0,0,0.8)",
     display: "flex",
@@ -263,7 +265,8 @@ export function FolderAdd({ onSubmit, onClose, spaces, defaults }: FolderFormPro
     );
 }
 
-export function FolderUpdate({ folderId, onSubmit, onClose, spaces, defaults }: FolderFormProps & { folderId: string }) {
+export function FolderUpdate(props: FolderFormProps & { folderId: string }) {
+    const { onSubmit, onClose, spaces, defaults } = props;
     const [name, setName] = useState(defaults?.name || "");
     const [description, setDescription] = useState(defaults?.description || "");
     const [spaceId, setSpaceId] = useState(defaults?.spaceId || "");

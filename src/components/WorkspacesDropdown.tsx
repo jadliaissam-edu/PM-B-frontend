@@ -4,6 +4,7 @@ import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
 
 interface WorkspacesDropdownProps {
     workspaces: WorkspaceResponseDto[];
+    teamWorkspaces?: WorkspaceResponseDto[];
     activeWorkspace: WorkspaceResponseDto | null;
     onSelect: (workspace: WorkspaceResponseDto) => void;
     onCreateClick?: () => void;
@@ -13,6 +14,7 @@ interface WorkspacesDropdownProps {
 
 export default function WorkspacesDropdown({
     workspaces,
+    teamWorkspaces = [],
     activeWorkspace,
     onSelect,
     onCreateClick,
@@ -201,6 +203,80 @@ export default function WorkspacesDropdown({
                         {workspaces.length === 0 && (
                             <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", padding: "8px 12px" }}>
                                 No workspaces yet.
+                            </p>
+                        )}
+
+                        <p
+                            style={{
+                                fontSize: 10,
+                                fontWeight: 500,
+                                color: "rgba(255,255,255,0.25)",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.8px",
+                                padding: "12px 12px 6px",
+                            }}
+                        >
+                            Team Workspaces
+                        </p>
+
+                        {teamWorkspaces.map((workspace) => (
+                            <div
+                                key={workspace.id}
+                                onMouseEnter={() => setHoveredId(workspace.id)}
+                                onMouseLeave={() => setHoveredId(null)}
+                                onClick={() => {
+                                    onSelect(workspace);
+                                    setOpen(false);
+                                }}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    background: hoveredId === workspace.id ? "rgba(255,255,255,0.04)" : "transparent",
+                                    transition: "background 0.15s",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        width: 22,
+                                        height: 22,
+                                        borderRadius: 6,
+                                        background:
+                                            workspace.id === activeWorkspace?.id
+                                                ? "linear-gradient(135deg, #1D9E75, #147557)"
+                                                : "rgba(255,255,255,0.08)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: "#fff",
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    {workspace.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span
+                                    style={{
+                                        flex: 1,
+                                        fontSize: 13,
+                                        color: workspace.id === activeWorkspace?.id ? "#7df0c8" : "rgba(255,255,255,0.7)",
+                                        fontWeight: workspace.id === activeWorkspace?.id ? 500 : 400,
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                    }}
+                                >
+                                    {workspace.name}
+                                </span>
+                            </div>
+                        ))}
+
+                        {teamWorkspaces.length === 0 && (
+                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", padding: "8px 12px" }}>
+                                No team workspaces.
                             </p>
                         )}
                     </div>

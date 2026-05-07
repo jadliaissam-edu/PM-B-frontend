@@ -5,6 +5,8 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import AIPage from "./pages/AIPage";
 import GitHubCallbackPage from "./pages/GitHubCallbackPage";
+import InvitationWelcomePage from "./pages/InvitationWelcomePage";
+import InviteRegisterPage from "./pages/InviteRegisterPage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("accessToken");
@@ -17,6 +19,8 @@ export default function App() {
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/invite" element={<InvitationWelcomePage />} />
+                <Route path="/invite/register" element={<InviteRegisterPage />} />
                 <Route
                     path="/workspace"
                     element={(

@@ -1,4 +1,4 @@
-import { X, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
+import { X, ChevronDown, AlertTriangle } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
 
 import type { ListeRequestDto, ListeResponseDto, ListType } from "../api/listeApi";
@@ -166,7 +166,7 @@ function Select({ options, value, onChange, placeholder }: {
                 style={inputStyle}
             >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ color: selected ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)", fontSize: 14 }}>
+                    <span style={{ color: selected ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)", fontSize: 15 }}>
                         {selected?.label ?? placeholder ?? "Select…"}
                     </span>
                     <ChevronDown size={18} style={{ color: "rgba(255,255,255,0.3)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.25s" }} />
@@ -240,8 +240,8 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>New List</span>
-                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>Organize tasks within a folder or sprint</span>
+                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>New List</span>
+                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12 }}>Organize tasks within a folder or sprint</span>
                     </div>
                     <CloseButton onClose={onClose} />
                 </div>
@@ -264,9 +264,7 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
 
                 {/* Type */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                        Type
-                    </label>
+                    <label style={labelStyle}>Type</label>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
                         {LIST_TYPES.map(t => {
                             const selected = type === t.value;
@@ -313,28 +311,15 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
 
                 {/* Order */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                        Order
-                    </label>
+                    <label style={labelStyle}>Order</label>
                     <input
                         type="number"
                         min={0}
                         value={order}
                         onChange={e => setOrder(Math.max(0, parseInt(e.target.value) || 0))}
-                        style={{
-                            background: "rgba(255,255,255,0.04)",
-                            border: "0.5px solid rgba(255,255,255,0.09)",
-                            borderRadius: 8,
-                            padding: "9px 12px",
-                            fontSize: 13,
-                            color: "rgba(255,255,255,0.85)",
-                            outline: "none",
-                            width: "100%",
-                            boxSizing: "border-box",
-                            transition: "border-color 0.15s",
-                        }}
+                        style={inputStyle}
                         onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                        onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")}
+                        onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
                     />
                 </div>
 
@@ -359,7 +344,7 @@ export function ListeAdd({ onSubmit, onClose, defaultOrder = 0, folders = [], sp
     );
 }
 
-export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, folders = [], sprints = [], defaults = {} }: ListeUpdateProps) {
+export function ListeUpdate({ onSubmit, onClose, defaultOrder = 0, folders = [], sprints = [], defaults = {} }: ListeUpdateProps) {
     const [name, setName] = useState(defaults.name || "");
     const [type, setType] = useState<ListType>(defaults.type || "SPRINT");
     const [order, setOrder] = useState<number>(defaults.order ?? defaultOrder);
@@ -394,8 +379,8 @@ export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, fold
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600, letterSpacing: 0.1 }}>Edit List</span>
-                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>Update list settings and associations</span>
+                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>Edit List</span>
+                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12 }}>Update list settings and associations</span>
                     </div>
                     <CloseButton onClose={onClose} />
                 </div>
@@ -416,7 +401,7 @@ export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, fold
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>Type</label>
+                    <label style={labelStyle}>Type</label>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
                         {LIST_TYPES.map(t => {
                             const selected = type === t.value;
@@ -442,8 +427,8 @@ export function ListeUpdate({ listeId, onSubmit, onClose, defaultOrder = 0, fold
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <label style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6 }}>Order</label>
-                    <input type="number" min={0} value={order} onChange={e => setOrder(Math.max(0, parseInt(e.target.value) || 0))} style={{ background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "rgba(255,255,255,0.85)", outline: "none", width: "100%", boxSizing: "border-box", transition: "border-color 0.15s" }} onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")} onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.09)")} />
+                    <label style={labelStyle}>Order</label>
+                    <input type="number" min={0} value={order} onChange={e => setOrder(Math.max(0, parseInt(e.target.value) || 0))} style={inputStyle} onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")} onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")} />
                 </div>
 
                 <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
@@ -486,6 +471,9 @@ export function ListeDelete({ liste, onDelete, onClose }: ListeDeleteProps) {
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 }}>
                         Are you sure you want to delete <span style={{ color: "#fff", fontWeight: 500 }}>"{liste.name}"</span>? This will also remove all tasks within this list.
                     </p>
+                    {error && (
+                        <p style={{ color: "#fda4af", fontSize: 12, margin: "4px 0 0" }}>{error}</p>
+                    )}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20 }}>

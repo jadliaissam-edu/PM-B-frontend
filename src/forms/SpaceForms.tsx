@@ -1,5 +1,5 @@
-import { X, Trash2, Palette, Shield, ShieldOff, ChevronDown } from "lucide-react";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { X, Trash2, Shield, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import type { SpaceRequestDto, SpaceResponseDto } from "../api/spaceApi";
 
 export type { SpaceRequestDto, SpaceResponseDto };
@@ -41,6 +41,8 @@ const modalStyle: React.CSSProperties = {
     borderRadius: 24,
     width: 520,
     maxWidth: "calc(100vw - 32px)",
+    maxHeight: "calc(100vh - 32px)",
+    overflowY: "auto",
     padding: "40px",
     boxShadow: "0 32px 64px rgba(0,0,0,0.8)",
     display: "flex",
@@ -177,7 +179,7 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
                 </button>
 
                 <div>
-                    <h2 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 8px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>Create a Space</h2>
+                    <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>Create a Space</h2>
                     <p style={{ margin: 0, fontSize: 14, color: theme.textMuted, lineHeight: 1.5 }}>
                         A Space represents teams, departments, or groups, each with its own Lists, workflows, and settings.
                     </p>
@@ -198,7 +200,7 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
                             </div>
                             <input
                                 autoFocus
-                                style={{ ...inputStyle, fontSize: 16, height: 52, fontWeight: 500 }}
+                                style={inputStyle}
                                 value={name}
                                 onChange={e => setName(e.target.value)}
                                 placeholder="e.g. Marketing, Engineering, HR"
@@ -297,7 +299,8 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
     );
 }
 
-export function SpaceUpdate({ spaceId, onSubmit, onClose, workspaces, defaults }: SpaceFormProps & { spaceId: string }) {
+export function SpaceUpdate(props: SpaceFormProps & { spaceId: string }) {
+    const { onSubmit, onClose, workspaces, defaults } = props;
     const [name, setName] = useState(defaults?.name || "");
     const [description, setDescription] = useState(defaults?.description || "");
     const [color, setColor] = useState(defaults?.color || colorOptions[0]);
@@ -328,7 +331,7 @@ export function SpaceUpdate({ spaceId, onSubmit, onClose, workspaces, defaults }
                 </button>
 
                 <div>
-                    <h2 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 8px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>Edit Space</h2>
+                    <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>Edit Space</h2>
                     <p style={{ margin: 0, fontSize: 14, color: theme.textMuted }}>Update your space configuration and settings.</p>
                 </div>
 
@@ -346,7 +349,7 @@ export function SpaceUpdate({ spaceId, onSubmit, onClose, workspaces, defaults }
                             </div>
                             <input
                                 autoFocus
-                                style={{ ...inputStyle, fontSize: 16, height: 52, fontWeight: 500 }}
+                                style={inputStyle}
                                 value={name}
                                 onChange={e => setName(e.target.value)}
                             />

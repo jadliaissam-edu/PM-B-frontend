@@ -4,7 +4,6 @@ import {
     ChevronDown,
     ChevronRight,
     Folder,
-    FolderPlus,
     FolderTree,
     List,
     Pencil,
@@ -68,11 +67,6 @@ interface WorkspaceResourcesPanelProps {
     onResourcesChange?: () => void;
     selectedHierarchy?: SelectedHierarchy | null;
     onSelectHierarchy?: (hierarchy: SelectedHierarchy | null) => void;
-}
-
-function toLocalDateTimeString(date: Date): string {
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 19);
 }
 
 export default function WorkspaceResourcesPanel({

@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 // import { login, verifyMfa } from "../api/authApi";
 import { login, verifyMfa } from "../api/authApi.js";
+import logoImage from "../assets/images/Logo.png";
 export default function LoginPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const initialEmail = searchParams.get("email") || "";
     // Etat du formulaire de la premiere etape (email + password).
     const [formData, setFormData] = useState({
-        email: "",
+        email: initialEmail,
         password: ""
     });
 
@@ -121,14 +124,8 @@ export default function LoginPage() {
             <div className="relative z-10 w-full max-w-sm bg-[#16161a] border border-white/[0.08] rounded-2xl p-10">
                 {/* Logo */}
                 <div className="flex items-center gap-2.5 mb-8">
-                    <div className="w-9 h-9 rounded-[10px] flex items-center justify-center"
-                         style={{ background: "linear-gradient(135deg, #534AB7, #1D9E75)" }}>
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                            <rect x="2" y="2" width="6" height="6" rx="2" fill="white" opacity="0.9" />
-                            <rect x="10" y="2" width="6" height="6" rx="2" fill="white" opacity="0.5" />
-                            <rect x="2" y="10" width="6" height="6" rx="2" fill="white" opacity="0.5" />
-                            <rect x="10" y="10" width="6" height="6" rx="2" fill="white" opacity="0.9" />
-                        </svg>
+                    <div className="w-11 h-9 rounded-[10px] flex items-center justify-center overflow-hidden">
+                        <img src={logoImage} alt="Orbyte" className="w-full h-full object-cover" />
                     </div>
                     <span className="font-bold text-lg text-white tracking-tight">Orbyte</span>
                 </div>
