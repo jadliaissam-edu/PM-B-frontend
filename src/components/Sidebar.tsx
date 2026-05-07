@@ -11,6 +11,7 @@ export interface SidebarNavItem {
     active?: boolean;
     badge?: number;
     onClick?: () => void;
+    subItems?: { label: string; icon: LucideIcon; onClick: () => void; active?: boolean }[];
 }
 
 interface SidebarProps {
@@ -183,6 +184,21 @@ export default function Sidebar({
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+    // État pour gérer les menus accordéons (repliables)
+    const [expandedLabels, setExpandedLabels] = useState<Set<string>>(() => {
+        const activeItem = navItems.find(item => item.active);
+        return new Set(activeItem ? [activeItem.label] : []);
+    });
+
+    const toggleExpand = (label: string) => {
+        setExpandedLabels(prev => {
+            const next = new Set(prev);
+            if (next.has(label)) next.delete(label);
+            else next.add(label);
+            return next;
+        });
+    };
+
     useEffect(() => {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(expandedWidth));
     }, [expandedWidth]);
@@ -259,212 +275,270 @@ export default function Sidebar({
                 flexShrink: 0,
             }}
         >
-        <aside
-            style={{
-                width: sidebarWidth,
-                background: "#111114",
-                borderRight: "0.5px solid rgba(255,255,255,0.07)",
-                display: "flex",
-                flexDirection: "column",
-                transition: isResizing ? "none" : "width 0.25s cubic-bezier(.4,0,.2,1)",
-                overflow: "hidden",
-                position: "fixed",
-                left: 0,
-                top: 0,
-                bottom: 0,
-                zIndex: 10,
-            }}
-        >
-            <div style={{ padding: "20px 16px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
-                    <div
-                        style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 9,
-                            flexShrink: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            overflow: "hidden",
-                        }}
-                    >
-                        <img
-                            src={logoImage}
-                            alt="Orbyte"
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                    </div>
-                    {!collapsed && (
-                        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff", whiteSpace: "nowrap" }}>
-                            Orbyte
-                        </span>
-                    )}
-                </div>
-
-                <button
-                    onClick={onToggleCollapse}
-                    style={{
-                        background: "none",
-                        border: "none",
-                        color: "rgba(255,255,255,0.3)",
-                        cursor: "pointer",
-                        display: "flex",
-                        padding: 4,
-                        borderRadius: 6,
-                        flexShrink: 0,
-                    }}
-                >
-                    {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-                </button>
-            </div>
-
-            {!collapsed && workspaceDropdown}
-
-            <div style={{ padding: "0 8px", flex: 1, minHeight: 0, overflowY: "auto" }}>
-                {!collapsed && (
-                    <p
-                        style={{
-                            fontSize: 10,
-                            fontWeight: 500,
-                            color: "rgba(255,255,255,0.25)",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.8px",
-                            padding: "0 8px 8px",
-                        }}
-                    >
-                        Menu
-                    </p>
-                )}
-
-                {navItems.map((item) => (
-                    <div
-                        key={item.label}
-                        className={`nav-item ${item.active ? "active" : ""}`}
-                        style={{ justifyContent: collapsed ? "center" : "flex-start", marginBottom: 2 }}
-                        onClick={item.onClick}
-                        onKeyDown={(e) => {
-                            if (!item.onClick) return;
-                            if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                item.onClick();
-                            }
-                        }}
-                        role={item.onClick ? "button" : undefined}
-                        tabIndex={item.onClick ? 0 : -1}
-                    >
-                        <item.icon size={15} style={{ flexShrink: 0 }} />
-                        {!collapsed && (
-                            <>
-                                <span style={{ flex: 1 }}>{item.label}</span>
-                                {item.badge && (
-                                    <span
-                                        style={{
-                                            background: "rgba(83,74,183,0.3)",
-                                            color: "#a89ef5",
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            borderRadius: 99,
-                                            padding: "1px 7px",
-                                        }}
-                                    >
-                                        {item.badge}
-                                    </span>
-                                )}
-                            </>
-                        )}
-                    </div>
-                ))}
-
-                {!collapsed && resourcesPanel}
-            </div>
-
-            <div style={{ padding: "12px 8px 20px", borderTop: "0.5px solid rgba(255,255,255,0.06)" }}>
-                <div className="nav-item" style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
-                    <Settings size={15} style={{ flexShrink: 0 }} />
-                    {!collapsed && <span>Settings</span>}
-                </div>
-
-                {!collapsed && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 0" }}>
-                        <SidebarAvatar initials={userAvatar} size={30} color="#534AB7" />
-                        <div style={{ overflow: "hidden", flex: 1 }}>
-                            <p
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: 500,
-                                    color: "#fff",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                }}
-                            >
-                                {userName}
-                            </p>
-                            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Admin</p>
-                        </div>
-                        <button
-                            onClick={() => setShowLogoutConfirm(true)}
-                            title="Deconnexion"
-                            disabled={isLoggingOut}
+            <aside
+                style={{
+                    width: sidebarWidth,
+                    background: "#111114",
+                    borderRight: "0.5px solid rgba(255,255,255,0.07)",
+                    display: "flex",
+                    flexDirection: "column",
+                    transition: isResizing ? "none" : "width 0.25s cubic-bezier(.4,0,.2,1)",
+                    overflow: "hidden",
+                    position: "fixed",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    zIndex: 10,
+                }}
+            >
+                <div style={{ padding: "20px 16px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
+                        <div
                             style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 8,
-                                border: "0.5px solid rgba(255,255,255,0.12)",
-                                background: "rgba(255,255,255,0.04)",
+                                width: 32,
+                                height: 32,
+                                borderRadius: 9,
+                                flexShrink: 0,
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                color: "rgba(255,255,255,0.7)",
-                                cursor: isLoggingOut ? "not-allowed" : "pointer",
-                                opacity: isLoggingOut ? 0.6 : 1,
+                                overflow: "hidden",
                             }}
                         >
-                            <LogOut size={14} />
-                        </button>
+                            <img
+                                src={logoImage}
+                                alt="Orbyte"
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                        </div>
+                        {!collapsed && (
+                            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff", whiteSpace: "nowrap" }}>
+                                Orbyte
+                            </span>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={onToggleCollapse}
+                        style={{
+                            background: "none",
+                            border: "none",
+                            color: "rgba(255,255,255,0.3)",
+                            cursor: "pointer",
+                            display: "flex",
+                            padding: 4,
+                            borderRadius: 6,
+                            flexShrink: 0,
+                        }}
+                    >
+                        {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+                    </button>
+                </div>
+
+                {!collapsed && workspaceDropdown}
+
+                <div style={{ padding: "0 8px", flex: 1, minHeight: 0, overflowY: "auto" }}>
+                    {!collapsed && (
+                        <p
+                            style={{
+                                fontSize: 10,
+                                fontWeight: 500,
+                                color: "rgba(255,255,255,0.25)",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.8px",
+                                padding: "0 8px 8px",
+                            }}
+                        >
+                            Menu
+                        </p>
+                    )}
+
+                    {navItems.map((item) => {
+                        const isExpanded = expandedLabels.has(item.label);
+                        return (
+                            <div key={item.label}>
+                                <div
+                                    className={`nav-item ${item.active ? "active" : ""}`}
+                                    style={{ justifyContent: collapsed ? "center" : "flex-start", marginBottom: 2 }}
+                                    onClick={() => {
+                                        if (item.subItems) toggleExpand(item.label);
+                                        if (item.onClick) item.onClick();
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            if (item.subItems) toggleExpand(item.label);
+                                            if (item.onClick) item.onClick();
+                                        }
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                >
+                                    <item.icon size={15} style={{ flexShrink: 0 }} />
+                                    {!collapsed && (
+                                        <>
+                                            <span style={{ flex: 1 }}>{item.label}</span>
+                                            {item.badge && (
+                                                <span
+                                                    style={{
+                                                        background: "rgba(83,74,183,0.3)",
+                                                        color: "#a89ef5",
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        borderRadius: 99,
+                                                        padding: "1px 7px",
+                                                    }}
+                                                >
+                                                    {item.badge}
+                                                </span>
+                                            )}
+                                            {item.subItems && (
+                                                <ChevronRight
+                                                    size={12}
+                                                    style={{
+                                                        marginLeft: 6,
+                                                        opacity: 0.4,
+                                                        transition: "transform 0.2s",
+                                                        transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                                                    }}
+                                                />
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+                                {!collapsed && item.subItems && isExpanded && (
+                                    <div
+                                        style={{
+                                            marginLeft: 26,
+                                            borderLeft: "1px solid rgba(255,255,255,0.08)",
+                                            paddingLeft: 4,
+                                            marginTop: 2,
+                                            marginBottom: 8,
+                                        }}
+                                    >
+                                        {item.subItems.map((sub) => (
+                                            <div
+                                                key={sub.label}
+                                                className={`nav-item ${sub.active ? "active" : ""}`}
+                                                style={{
+                                                    height: 34,
+                                                    fontSize: 13,
+                                                    color: sub.active ? "#a89ef5" : "rgba(255,255,255,0.4)",
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    sub.onClick();
+                                                }}
+                                                role="button"
+                                                tabIndex={0}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" || e.key === " ") {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        sub.onClick();
+                                                    }
+                                                }}
+                                            >
+                                                <sub.icon size={14} style={{ opacity: 0.7 }} />
+                                                <span>{sub.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {!collapsed && resourcesPanel}
+                </div>
+
+                <div style={{ padding: "12px 8px 20px", borderTop: "0.5px solid rgba(255,255,255,0.06)" }}>
+                    <div className="nav-item" style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
+                        <Settings size={15} style={{ flexShrink: 0 }} />
+                        {!collapsed && <span>Settings</span>}
+                    </div>
+
+                    {!collapsed && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 0" }}>
+                            <SidebarAvatar initials={userAvatar} size={30} color="#534AB7" />
+                            <div style={{ overflow: "hidden", flex: 1 }}>
+                                <p
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        color: "#fff",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                    }}
+                                >
+                                    {userName}
+                                </p>
+                                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Admin</p>
+                            </div>
+                            <button
+                                onClick={() => setShowLogoutConfirm(true)}
+                                title="Deconnexion"
+                                disabled={isLoggingOut}
+                                style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: 8,
+                                    border: "0.5px solid rgba(255,255,255,0.12)",
+                                    background: "rgba(255,255,255,0.04)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: "rgba(255,255,255,0.7)",
+                                    cursor: isLoggingOut ? "not-allowed" : "pointer",
+                                    opacity: isLoggingOut ? 0.6 : 1,
+                                }}
+                            >
+                                <LogOut size={14} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {!collapsed && (
+                    <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize sidebar"
+                        onMouseDown={handleResizeStart}
+                        style={{
+                            position: "absolute",
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            width: 8,
+                            cursor: "col-resize",
+                            zIndex: 20,
+                            display: "flex",
+                            justifyContent: "center",
+                            background: isResizing ? "rgba(255,255,255,0.04)" : "transparent",
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: 2,
+                                margin: "8px 0",
+                                borderRadius: 99,
+                                background: isResizing ? "rgba(168,158,245,0.6)" : "rgba(255,255,255,0.12)",
+                            }}
+                        />
                     </div>
                 )}
-            </div>
+            </aside>
 
-            {!collapsed && (
-                <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label="Resize sidebar"
-                    onMouseDown={handleResizeStart}
-                    style={{
-                        position: "absolute",
-                        top: 0,
-                        right: 0,
-                        bottom: 0,
-                        width: 8,
-                        cursor: "col-resize",
-                        zIndex: 20,
-                        display: "flex",
-                        justifyContent: "center",
-                        background: isResizing ? "rgba(255,255,255,0.04)" : "transparent",
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 2,
-                            margin: "8px 0",
-                            borderRadius: 99,
-                            background: isResizing ? "rgba(168,158,245,0.6)" : "rgba(255,255,255,0.12)",
-                        }}
-                    />
-                </div>
+            {showLogoutConfirm && (
+                <LogoutConfirmModal
+                    isLoading={isLoggingOut}
+                    onConfirm={handleLogout}
+                    onClose={() => setShowLogoutConfirm(false)}
+                />
             )}
-        </aside>
-
-        {showLogoutConfirm && (
-            <LogoutConfirmModal
-                isLoading={isLoggingOut}
-                onConfirm={handleLogout}
-                onClose={() => setShowLogoutConfirm(false)}
-            />
-        )}
         </div>
     );
 }

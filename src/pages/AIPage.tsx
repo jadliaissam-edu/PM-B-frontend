@@ -1,20 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { 
+import {
     LayoutDashboard, FolderGit2,
-    Sparkles, Send, Loader2, Plus, 
-    X, Check, Trash2, Pencil
+    Sparkles, Send, Loader2, Plus,
+    X, Check, Trash2, Pencil,
+    ChevronRight, ChevronDown,
+    SquarePen, History, Bell,
+    Folder, FolderOpen, List, Zap, Target, Activity, Users, CheckCircle2,
+    Clock, CalendarDays, ArrowLeft, LayoutGrid
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { 
-    getWorkspacesByUser, 
-    createWorkspace, 
-    updateWorkspace, 
-    deleteWorkspace 
+import {
+    getWorkspacesByUser,
+    createWorkspace,
+    updateWorkspace,
+    deleteWorkspace
 } from "../api/workspaceApi";
 import type { WorkspaceResponseDto } from "../api/workspaceApi";
-import { analyzeRepo } from "../api/iaApi";
+import { analyzeRepo, validateRepo, indexRepositories, generateEntity } from "../api/iaApi";
+import type { GenerateEntityResponse } from "../api/iaApi";
+import { IA_REPO_BASE_URL } from "../config/baseURL";
+import { createTask, getTasksByListe } from "../api/taskApi";
+import type { TaskResponseDto } from "../api/taskApi";
+import { getAllListes, getListesByFolder } from "../api/listeApi";
+import type { ListeResponseDto } from "../api/listeApi";
+import { getSpacesByWorkspace } from "../api/spaceApi";
+import type { SpaceResponseDto } from "../api/spaceApi";
+import { getFoldersBySpace } from "../api/folderApi";
+import type { FolderResponseDto } from "../api/folderApi";
+import { getSprintsByFolder } from "../api/sprintApi";
+import type { SprintResponseDto } from "../api/sprintApi";
 import {
     addConversationMessage,
     createConversation,
@@ -23,6 +39,8 @@ import {
     getMyConversations,
     updateConversationTitle,
 } from "../api/conversationApi";
+import { getWorkspaceMembers } from "../api/workspaceMemberApi";
+import type { WorkspaceMemberResponseDto } from "../api/workspaceMemberApi";
 import type { ConversationResponseDto } from "../api/conversationApi";
 
 import Sidebar from "../components/Sidebar";
@@ -31,6 +49,232 @@ import Content from "../components/layout/Content";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
 import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
+
+// ─── Hierarchy types (mirrors DashboardPage) ──────────────────────────────────
+type HierarchyType = 'space' | 'folder' | 'list' | 'sprint';
+interface SelectedHierarchy { type: HierarchyType; id: string; name: string; }
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const DC = {
+    surface: "#111118", surfaceEl: "#18181f",
+    border: "rgba(255,255,255,0.06)",
+    text: "#f0f0f8", textMuted: "rgba(240,240,248,0.45)", textFaint: "rgba(240,240,248,0.22)",
+    accent: "#6c63ff", green: "#22d3a0", orange: "#f59e0b", blue: "#3b82f6",
+};
+
+function HStatChip({ value, label, color, icon: Icon }: { value: any; label: string; color: string; icon: any }) {
+    return (
+        <div style={{ flex: 1, background: DC.surfaceEl, border: `1px solid ${DC.border}`, borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ width: 22, height: 22, borderRadius: 5, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={11} style={{ color }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{value}</span>
+            </div>
+            <p style={{ fontSize: 10, color: DC.textMuted, fontWeight: 500 }}>{label}</p>
+        </div>
+    );
+}
+
+function HBar({ pct, color = DC.accent }: { pct: number; color?: string }) {
+    return (
+        <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: `linear-gradient(90deg, ${color}, ${color}88)`, transition: "width .6s ease" }} />
+        </div>
+    );
+}
+
+function HCard({ icon: Icon, color, title, subtitle, progress, onClick }: any) {
+    const [hov, setHov] = useState(false);
+    return (
+        <div
+            onClick={onClick}
+            onMouseEnter={() => setHov(true)}
+            onMouseLeave={() => setHov(false)}
+            style={{
+                background: hov ? DC.surfaceEl : "rgba(255,255,255,0.015)",
+                border: `1px solid ${hov ? DC.accent + "44" : DC.border}`,
+                borderRadius: 10, padding: "12px 14px", cursor: "pointer",
+                transition: "all .2s",
+            }}
+        >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={13} style={{ color }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+            </div>
+            {subtitle && <p style={{ fontSize: 10, color: DC.textFaint, marginBottom: 6 }}>{subtitle}</p>}
+            {progress !== undefined && <HBar pct={progress} color={color} />}
+        </div>
+    );
+}
+
+function InlineHierarchyView({ hierarchy, workspaceId, onNavigate, onBack }: {
+    hierarchy: SelectedHierarchy;
+    workspaceId: string | undefined;
+    onNavigate: (h: SelectedHierarchy) => void;
+    onBack: () => void;
+}) {
+    const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
+    const [folders, setFolders] = useState<FolderResponseDto[]>([]);
+    const [listes, setListes] = useState<ListeResponseDto[]>([]);
+    const [sprints, setSprints] = useState<SprintResponseDto[]>([]);
+    const [tasks, setTasks] = useState<TaskResponseDto[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!workspaceId) return;
+        setLoading(true);
+        (async () => {
+            try {
+                if (hierarchy.type === "space") {
+                    const fds = await getFoldersBySpace(hierarchy.id);
+                    setFolders(fds);
+                    const [spRes, liRes] = await Promise.all([
+                        Promise.all(fds.map(f => getSprintsByFolder(f.id!))),
+                        Promise.all(fds.map(f => getListesByFolder(f.id!))),
+                    ]);
+                    const allLi = liRes.flat();
+                    setListes(allLi);
+                    setSprints(spRes.flat());
+                    const taskArrays = await Promise.all(allLi.map(l => getTasksByListe(l.id).catch(() => [] as TaskResponseDto[])));
+                    setTasks(taskArrays.flat());
+                } else if (hierarchy.type === "folder") {
+                    const [fSprints, fListes] = await Promise.all([
+                        getSprintsByFolder(hierarchy.id),
+                        getListesByFolder(hierarchy.id),
+                    ]);
+                    setSprints(fSprints);
+                    setListes(fListes);
+                    const taskArrays = await Promise.all(fListes.map(l => getTasksByListe(l.id).catch(() => [] as TaskResponseDto[])));
+                    setTasks(taskArrays.flat());
+                } else if (hierarchy.type === "list") {
+                    const t = await getTasksByListe(hierarchy.id).catch(() => [] as TaskResponseDto[]);
+                    setTasks(t);
+                } else if (hierarchy.type === "sprint") {
+                    // tasks linked via sprintId
+                    // we load all listes then tasks and filter
+                    setTasks([]);
+                }
+            } catch (e) { console.error(e); }
+            finally { setLoading(false); }
+        })();
+    }, [hierarchy.id, hierarchy.type, workspaceId]);
+
+    const icons: Record<string, any> = { space: Folder, folder: FolderOpen, list: List, sprint: Zap };
+    const colors: Record<string, string> = { space: DC.accent, folder: DC.orange, list: DC.blue, sprint: DC.green };
+    const HIcon = icons[hierarchy.type] || Folder;
+    const hColor = colors[hierarchy.type] || DC.accent;
+
+    const done = tasks.filter(t => t.status === "DONE").length;
+    const active = tasks.filter(t => ["IN_DEV", "IN_TEST", "IN_REVIEW"].includes(t.status)).length;
+    const compPct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+
+    const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) : "—";
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d0d0f", overflow: "hidden" }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", borderBottom: "0.5px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+                <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "5px 10px", color: "rgba(255,255,255,0.6)", fontSize: 12, cursor: "pointer" }}>
+                    <ArrowLeft size={13} /> Retour au chat
+                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: hColor + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <HIcon size={15} style={{ color: hColor }} />
+                    </div>
+                    <div>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: DC.text, fontFamily: "'Syne',sans-serif" }}>{hierarchy.name}</p>
+                        <p style={{ fontSize: 10, color: DC.textFaint, textTransform: "capitalize" }}>{hierarchy.type}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+                {loading ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: DC.textFaint, gap: 10 }}>
+                        <Loader2 size={18} className="animate-spin" /> Chargement...
+                    </div>
+                ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                        {/* Stats */}
+                        <div style={{ display: "flex", gap: 10 }}>
+                            <HStatChip value={tasks.length} label="Tâches" color={DC.accent} icon={List} />
+                            <HStatChip value={active} label="En cours" color={DC.blue} icon={Activity} />
+                            <HStatChip value={`${compPct}%`} label="Complété" color={DC.green} icon={Target} />
+                            <HStatChip value={done} label="Terminé" color={DC.green} icon={CheckCircle2} />
+                        </div>
+
+                        {/* Space → Folders */}
+                        {hierarchy.type === "space" && (
+                            <div>
+                                <p style={{ fontSize: 11, fontWeight: 700, color: DC.textFaint, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 10 }}>Folders ({folders.length})</p>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+                                    {folders.map(f => {
+                                        const ft = tasks.filter(t => { const l = listes.find(li => li.id === t.listeId); return l?.folderId === f.id; });
+                                        const fd = ft.filter(t => t.status === "DONE").length;
+                                        return <HCard key={f.id} icon={FolderOpen} color={DC.orange} title={f.name} subtitle={`${ft.length} tâches`} progress={ft.length > 0 ? Math.round((fd / ft.length) * 100) : 0} onClick={() => onNavigate({ type: "folder", id: f.id!, name: f.name })} />;
+                                    })}
+                                    {folders.length === 0 && <p style={{ fontSize: 12, color: DC.textFaint }}>Aucun folder.</p>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Folder → Lists + Sprints */}
+                        {hierarchy.type === "folder" && (
+                            <>
+                                {listes.length > 0 && (
+                                    <div>
+                                        <p style={{ fontSize: 11, fontWeight: 700, color: DC.textFaint, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 10 }}>Lists ({listes.length})</p>
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                                            {listes.map(l => {
+                                                const lt = tasks.filter(t => t.listeId === l.id);
+                                                const ld = lt.filter(t => t.status === "DONE").length;
+                                                return <HCard key={l.id} icon={List} color={DC.blue} title={l.name} subtitle={`${lt.length} tâches`} progress={lt.length > 0 ? Math.round((ld / lt.length) * 100) : 0} onClick={() => onNavigate({ type: "list", id: l.id!, name: l.name })} />;
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                                {sprints.length > 0 && (
+                                    <div>
+                                        <p style={{ fontSize: 11, fontWeight: 700, color: DC.textFaint, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 10 }}>Sprints ({sprints.length})</p>
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+                                            {sprints.map(s => <HCard key={s.id} icon={Zap} color={s.isActive ? DC.green : DC.orange} title={s.name} subtitle={`${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`} progress={(() => { if (!s.startDate || !s.endDate) return 0; const st = new Date(s.startDate).getTime(), en = new Date(s.endDate).getTime(), now = Date.now(); if (now <= st) return 0; if (now >= en) return 100; return Math.round(((now - st) / (en - st)) * 100); })()} onClick={() => onNavigate({ type: "sprint", id: s.id!, name: s.name })} />)}
+                                        </div>
+                                    </div>
+                                )}
+                                {listes.length === 0 && sprints.length === 0 && <p style={{ fontSize: 12, color: DC.textFaint }}>Aucune liste ou sprint.</p>}
+                            </>
+                        )}
+
+                        {/* List / Sprint → Tasks */}
+                        {(hierarchy.type === "list" || hierarchy.type === "sprint") && (
+                            <div>
+                                <p style={{ fontSize: 11, fontWeight: 700, color: DC.textFaint, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 10 }}>Tâches ({tasks.length})</p>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                    {tasks.length === 0 && <p style={{ fontSize: 12, color: DC.textFaint }}>Aucune tâche.</p>}
+                                    {tasks.map(t => {
+                                        const statusColors: Record<string, string> = { TO_DO: "#818cf8", IN_DEV: DC.blue, IN_TEST: DC.orange, IN_REVIEW: "#ec4899", DONE: DC.green };
+                                        const sc = statusColors[t.status] || DC.textFaint;
+                                        return (
+                                            <div key={t.id} style={{ background: DC.surfaceEl, border: `1px solid ${DC.border}`, borderRadius: 9, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: sc, flexShrink: 0 }} />
+                                                <span style={{ flex: 1, fontSize: 12, color: DC.text, fontWeight: 500 }}>{t.title}</span>
+                                                <span style={{ fontSize: 10, color: sc, background: sc + "18", borderRadius: 5, padding: "2px 7px", fontWeight: 600 }}>{t.status?.replace("_", " ")}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 // ============================================================================
 // MODALS (Identiques au Dashboard)
@@ -451,12 +695,420 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
 }
 
 // ============================================================================
+// AI CONFIRM CARD — carte de confirmation d'entité générée par l'IA
+// ============================================================================
+
+const ENTITY_ICONS: Record<string, string> = {
+    task: "✅",
+    workspace: "🏢",
+    space: "📁",
+    sprint: "🚀",
+    liste: "📋",
+};
+
+const ENTITY_LABELS: Record<string, string> = {
+    task: "Tâche",
+    workspace: "Workspace",
+    space: "Space",
+    sprint: "Sprint",
+    liste: "Liste",
+};
+
+const FIELD_LABELS: Record<string, string> = {
+    title: "Titre",
+    name: "Nom",
+    description: "Description",
+    status: "Statut",
+    priority: "Priorité",
+    dueDate: "Échéance",
+    listeId: "ID Liste",
+    sprintId: "ID Sprint",
+    assigneeId: "Membre Assigné",
+    workspaceId: "ID Workspace",
+    spaceId: "ID Space",
+    startDate: "Début",
+    endDate: "Fin",
+    slug: "Slug",
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+    CRITICAL: "#E24B4A",
+    HIGH: "#F97316",
+    MEDIUM: "#EAB308",
+    LOW: "#22C55E",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+    TO_DO: "#6B7280",
+    IN_PROGRESS: "#3B82F6",
+    DONE: "#22C55E",
+    CANCELLED: "#E24B4A",
+};
+
+interface AIConfirmCardProps {
+    generated: GenerateEntityResponse;
+    workspaceId?: string;
+    onAccept: (editedEntity: any) => Promise<void>;
+    onReject: () => void;
+}
+
+function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirmCardProps) {
+    const navigate = useNavigate();
+    const [localEntity, setLocalEntity] = useState<any>(() => {
+        const base = generated.entity ?? {};
+        if (generated.intent === "task") return { spaceId: "", folderId: "", listeId: "", sprintId: "", ...base };
+        if (generated.intent === "liste") return { spaceId: "", folderId: "", type: "SPRINT", ...base };
+        if (generated.intent === "sprint") return { spaceId: "", folderId: "", ...base };
+        if (generated.intent === "folder") return { spaceId: "", ...base };
+        return base;
+    });
+    const [isAccepting, setIsAccepting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [accepted, setAccepted] = useState(false);
+    const [acceptedData, setAcceptedData] = useState<any>(null);
+
+    const [listesOptions, setListesOptions] = useState<any[]>([]);
+    const [sprintsOptions, setSprintsOptions] = useState<any[]>([]);
+    const [spacesOptions, setSpacesOptions] = useState<any[]>([]);
+    const [foldersOptions, setFoldersOptions] = useState<any[]>([]);
+    const [membersOptions, setMembersOptions] = useState<WorkspaceMemberResponseDto[]>([]);
+
+    useEffect(() => {
+        if (!workspaceId) {
+            setSpacesOptions([]);
+            setMembersOptions([]);
+            return;
+        }
+        import("../api/spaceApi").then(api => api.getSpacesByWorkspace(workspaceId).then(res => setSpacesOptions(res || []))).catch(() => { });
+        getWorkspaceMembers(workspaceId).then(res => setMembersOptions(res || [])).catch(() => { });
+    }, [workspaceId]);
+
+    useEffect(() => {
+        if (!localEntity.spaceId) {
+            setFoldersOptions([]);
+            return;
+        }
+        import("../api/folderApi").then(api => api.getFoldersBySpace(localEntity.spaceId).then(res => setFoldersOptions(res || []))).catch(() => { });
+    }, [localEntity.spaceId]);
+
+    useEffect(() => {
+        if (!localEntity.folderId) {
+            setListesOptions([]);
+            setSprintsOptions([]);
+            return;
+        }
+        import("../api/listeApi").then(api => api.getListesByFolder(localEntity.folderId).then(res => setListesOptions(res || []))).catch(() => { });
+        import("../api/sprintApi").then(api => api.getSprintsByFolder(localEntity.folderId).then(res => setSprintsOptions(res || []))).catch(() => { });
+    }, [localEntity.folderId]);
+
+    const handleChange = (key: string, value: any) => {
+        setLocalEntity((prev: any) => {
+            const next = { ...prev, [key]: value };
+            if (key === "spaceId") {
+                next.folderId = "";
+                next.listeId = "";
+                next.sprintId = "";
+            }
+            if (key === "folderId") {
+                next.listeId = "";
+                next.sprintId = "";
+            }
+            return next;
+        });
+    };
+
+    const handleAccept = async () => {
+        setIsAccepting(true);
+        setError(null);
+        try {
+            const data = await onAccept(localEntity);
+            if (data) {
+                setAcceptedData(data);
+            }
+            setAccepted(true);
+        } catch (e: any) {
+            setError(e.message || "Erreur lors de la création.");
+        } finally {
+            setIsAccepting(false);
+        }
+    };
+
+    const icon = ENTITY_ICONS[generated.intent] ?? "⚡";
+    const label = ENTITY_LABELS[generated.intent] ?? generated.intent;
+
+    if (accepted) {
+        return (
+            <div style={{
+                background: "rgba(34,197,94,0.08)",
+                border: "1px solid rgba(34,197,94,0.25)",
+                borderRadius: 14, padding: "16px 20px",
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 20 }}>✅</span>
+                    <span style={{ color: "#22C55E", fontSize: 14, fontWeight: 600 }}>
+                        {label} créé(e) avec succès !
+                    </span>
+                </div>
+                {acceptedData && acceptedData.type !== "task" && acceptedData.type !== "workspace" && (
+                    <button
+                        onClick={() => {
+                            localStorage.setItem("pendingSelectedHierarchy", JSON.stringify({
+                                type: acceptedData.type,
+                                id: acceptedData.id,
+                                name: acceptedData.name
+                            }));
+                            navigate("/workspace");
+                        }}
+                        style={{
+                            background: "rgba(34,197,94,0.15)",
+                            border: "1px solid rgba(34,197,94,0.4)",
+                            borderRadius: 8, padding: "6px 14px",
+                            color: "#22C55E", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        }}
+                        className="btn-voir-entity"
+                        data-type={acceptedData.type}
+                        data-id={acceptedData.id}
+                        data-name={acceptedData.name}
+                    >
+                        Voir
+                    </button>
+                )}
+                {acceptedData && acceptedData.type === "task" && acceptedData.listOrSprintId && (
+                    <button
+                        onClick={() => {
+                            localStorage.setItem("pendingSelectedHierarchy", JSON.stringify({
+                                type: acceptedData.listOrSprintType,
+                                id: acceptedData.listOrSprintId,
+                                name: acceptedData.listOrSprintName
+                            }));
+                            navigate("/workspace");
+                        }}
+                        style={{
+                            background: "rgba(34,197,94,0.15)",
+                            border: "1px solid rgba(34,197,94,0.4)",
+                            borderRadius: 8, padding: "6px 14px",
+                            color: "#22C55E", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        }}
+                        className="btn-voir-entity"
+                        data-type={acceptedData.listOrSprintType}
+                        data-id={acceptedData.listOrSprintId}
+                        data-name={acceptedData.listOrSprintName}
+                    >
+                        Voir
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div style={{
+            background: "rgba(83,74,183,0.08)",
+            border: "1px solid rgba(83,74,183,0.3)",
+            borderRadius: 16, padding: "18px 20px",
+            fontFamily: "'DM Sans', sans-serif",
+            maxWidth: 480,
+        }}>
+            <style>{`
+                .ai-form-select option {
+                    background-color: #2B274F;
+                    color: white;
+                }
+            `}</style>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <span style={{ fontSize: 22 }}>{icon}</span>
+                <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#a89ef5" }}>
+                        IA — Créer un(e) {label}
+                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                        {generated.explanation}
+                    </div>
+                </div>
+            </div>
+
+            {/* Editable Fields */}
+            <div style={{
+                background: "rgba(0,0,0,0.25)", borderRadius: 10,
+                padding: "16px", marginBottom: 14,
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14,
+            }}>
+                {Object.entries(localEntity)
+                    .filter(([key]) => {
+                        if (key === "workspaceId") return false;
+
+                        // Cacher les listes et sprints si on ne crée pas de tâche
+                        if (generated.intent !== "task" && (key === "listeId" || key === "sprintId")) {
+                            return false;
+                        }
+
+                        // Cacher le folder si on crée un workspace, un space ou un folder
+                        if ((generated.intent === "workspace" || generated.intent === "space" || generated.intent === "folder") && key === "folderId") {
+                            return false;
+                        }
+
+                        // Cacher le space si on crée un workspace
+                        if (generated.intent === "workspace" && key === "spaceId") {
+                            return false;
+                        }
+
+                        return true;
+                    })
+                    .map(([key, value]) => {
+                        const fieldLabel = FIELD_LABELS[key] ?? key;
+                        const val = value as string;
+
+                        let inputElement;
+
+                        const inputStyle = {
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "8px", padding: "6px 10px",
+                            color: "white", fontSize: "13px",
+                            width: "100%", fontFamily: "'DM Sans', sans-serif"
+                        };
+
+                        if (key === "status") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="TO_DO">À faire (TO_DO)</option>
+                                    <option value="IN_DEV">En dev (IN_DEV)</option>
+                                    <option value="IN_TEST">En test (IN_TEST)</option>
+                                    <option value="IN_REVIEW">En revue (IN_REVIEW)</option>
+                                    <option value="DONE">Terminé (DONE)</option>
+                                </select>
+                            );
+                        } else if (key === "priority") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="LOW">Basse (LOW)</option>
+                                    <option value="MEDIUM">Moyenne (MEDIUM)</option>
+                                    <option value="HIGH">Haute (HIGH)</option>
+                                    <option value="URGENT">Urgente (URGENT)</option>
+                                </select>
+                            );
+                        } else if (key === "listeId") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="">-- Sélectionner une Liste --</option>
+                                    {listesOptions.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                </select>
+                            );
+                        } else if (key === "sprintId") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="">-- Sélectionner un Sprint --</option>
+                                    {sprintsOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            );
+                        } else if (key === "spaceId") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="">-- Sélectionner un Space --</option>
+                                    {spacesOptions.map(s => <option key={s.id} value={s.id}>{s.spaceName || s.name}</option>)}
+                                </select>
+                            );
+                        } else if (key === "folderId") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="">-- Sélectionner un Folder --</option>
+                                    {foldersOptions.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                </select>
+                            );
+                        } else if (key === "type" && generated.intent === "liste") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val || "SPRINT"} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="SPRINT">Sprint</option>
+                                    <option value="PHASE">Phase</option>
+                                </select>
+                            );
+                        } else if (key === "description") {
+                            inputElement = <textarea value={val || ""} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />;
+                        } else if (key === "assigneeId") {
+                            inputElement = (
+                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                    <option value="">-- Non assignée --</option>
+                                    {membersOptions.map(m => (
+                                        <option key={m.userId} value={m.userId}>
+                                            {m.userName} ({m.role})
+                                        </option>
+                                    ))}
+                                </select>
+                            );
+                        } else {
+                            const isDate = key.toLowerCase().includes("date");
+                            let formattedVal = val;
+                            if (isDate && val && val.length === 10) {
+                                // yyyy-MM-dd -> yyyy-MM-ddT00:00
+                                formattedVal = `${val}T00:00`;
+                            }
+                            inputElement = <input type={isDate ? "datetime-local" : "text"} value={formattedVal || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle} />;
+                        }
+
+                        return (
+                            <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                                    {fieldLabel}
+                                </span>
+                                {inputElement}
+                            </div>
+                        );
+                    })}
+            </div>
+
+            {error && (
+                <div style={{
+                    fontSize: 12, color: "#E24B4A", marginBottom: 10,
+                    background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8
+                }}>
+                    {error}
+                </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10 }}>
+                <button
+                    onClick={onReject}
+                    disabled={isAccepting}
+                    style={{
+                        flex: 1, background: "rgba(255,255,255,0.05)",
+                        border: "0.5px solid rgba(255,255,255,0.12)",
+                        borderRadius: 10, padding: "9px 0", color: "rgba(255,255,255,0.55)",
+                        fontSize: 13, fontWeight: 500, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    }}
+                >
+                    <X size={13} /> Refuser
+                </button>
+                <button
+                    onClick={handleAccept}
+                    disabled={isAccepting}
+                    style={{
+                        flex: 1, background: "linear-gradient(135deg, #534AB7, #3C3489)",
+                        border: "none", borderRadius: 10, padding: "9px 0", color: "#fff",
+                        fontSize: 13, fontWeight: 600, cursor: isAccepting ? "not-allowed" : "pointer",
+                        opacity: isAccepting ? 0.7 : 1,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    }}
+                >
+                    {isAccepting ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    Confirmer
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
 // PAGE IA
 // ============================================================================
 
 const navItems = [
     { icon: LayoutDashboard, label: "Dashboard" },
     { icon: Sparkles, label: "Ask AI" },
+    { icon: Bell, label: "Notifications" },
 ];
 
 type ChatRole = "user" | "assistant" | "system";
@@ -465,6 +1117,7 @@ interface ChatMessage {
     role: ChatRole;
     content: string;
     timestamp: string | Date;
+    generated?: GenerateEntityResponse;  // si l'IA a genere une entite
 }
 
 const INITIAL_VISIBLE_MESSAGES = 20;
@@ -496,12 +1149,40 @@ export default function AIPage() {
     const [collapsed, setCollapsed] = useState(false);
     const [user, setUser] = useState({ name: "User", avatar: "US" });
     const [workspaces, setWorkspaces] = useState<WorkspaceResponseDto[]>([]);
+    // ── Inline hierarchy view ──
+    const [selectedHierarchy, setSelectedHierarchy] = useState<SelectedHierarchy | null>(null);
     const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceResponseDto | null>(null);
-    
+    const [actionTypeState, setActionTypeState] = useState<"chat" | "generate">("chat");
+
     // State pour les modales de workspace
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceResponseDto | null>(null);
+
+    // GitHub OAuth
+    const [githubConnected, setGithubConnected] = useState<boolean>(
+        () => !!localStorage.getItem("github_access_token")
+    );
+
+    const connectGitHub = async () => {
+        // Récupérer le client_id depuis le backend (ne jamais l'exposer en dur)
+        try {
+            const res = await fetch("/api/github/oauth/client-id");
+            const data = await res.json();
+            const clientId = data.client_id;
+            const redirectUri = encodeURIComponent(`${window.location.origin}/github/callback`);
+            const scope = encodeURIComponent("repo read:user");
+            window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+        } catch {
+            alert("Impossible de contacter le backend pour l'OAuth GitHub.");
+        }
+    };
+
+    const disconnectGitHub = () => {
+        localStorage.removeItem("github_access_token");
+        localStorage.removeItem("github_scope");
+        setGithubConnected(false);
+    };
 
     // State pour l'IA
     const [repoList, setRepoList] = useState<{ owner: string; repo: string; branch: string }[]>(() => {
@@ -521,7 +1202,19 @@ export default function AIPage() {
     const [showRepoModal, setShowRepoModal] = useState(false);
     const [editingRepoIndex, setEditingRepoIndex] = useState<number | null>(null);
     const [deletingRepoIndex, setDeletingRepoIndex] = useState<number | null>(null);
+    const [isReposExpanded, setIsReposExpanded] = useState(true);
     const [deletingConversation, setDeletingConversation] = useState<ConversationResponseDto | null>(null);
+    const [acceptedCards, setAcceptedCards] = useState<Set<number>>(new Set());
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Ajustement dynamique de la hauteur du textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "24px"; // Hauteur de base
+            const scrollHeight = textareaRef.current.scrollHeight;
+            textareaRef.current.style.height = scrollHeight > 24 ? `${scrollHeight}px` : "24px";
+        }
+    }, [input]);
 
     const toChatMessages = (conversationMessages: { role: string; content: string; createdAt: string }[]): ChatMessage[] => {
         return conversationMessages.map((msg) => ({
@@ -590,6 +1283,19 @@ export default function AIPage() {
         }
     }, [activeWorkspace]);
 
+    // Gérer les actions de navigation depuis les autres pages (?new=1 / ?history=1)
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get("new") === "1") {
+            handleCreateConversation();
+            navigate("/ai", { replace: true });
+        } else if (params.get("history") === "1") {
+            setIsConversationPanelOpen(true);
+            navigate("/ai", { replace: true });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search]);
+
     useEffect(() => {
         if (conversationId) {
             localStorage.setItem("activeConversationId", conversationId);
@@ -625,23 +1331,7 @@ export default function AIPage() {
         }
     };
 
-    const sidebarNavItems = navItems.map((item) => {
-        if (item.label === "Dashboard") {
-            return {
-                ...item,
-                active: location.pathname === "/workspace",
-                onClick: () => navigate("/workspace"),
-            };
-        }
-        if (item.label === "Ask AI") {
-            return {
-                ...item,
-                active: location.pathname === "/ai",
-                onClick: () => navigate("/ai"),
-            };
-        }
-        return item;
-    });
+
 
     const refreshConversations = async () => {
         const updatedConversations = await getMyConversations();
@@ -748,63 +1438,208 @@ export default function AIPage() {
         }
     };
 
-    const handleSend = async () => {
-        const userInput = input.trim();
-        if (!userInput || isTyping) return;
+    const [statusText, setStatusText] = useState("");
 
+    // Detect if user wants to generate an entity
+    const isGenerateIntent = (query: string): boolean => {
+        const lower = query.toLowerCase();
+        const generateKeywords = ["génère", "genere", "crée", "cree", "create", "generate", "ajoute", "add", "nouvelle tâche", "new task"];
+        return generateKeywords.some(kw => lower.includes(kw));
+    };
+
+    const handleConfirmEntity = async (generated: GenerateEntityResponse): Promise<any> => {
+        if (!generated.entity) throw new Error("Aucune entité à créer.");
+        const entity = { ...generated.entity };
+
+        // Nettoyer les chaînes vides pour éviter les erreurs "not found" côté backend
+        if (entity.spaceId === "") delete entity.spaceId;
+        if (entity.folderId === "") delete entity.folderId;
+        if (entity.listeId === "") delete entity.listeId;
+        if (entity.sprintId === "") delete entity.sprintId;
+
+        switch (generated.intent) {
+            case "task": {
+                if (!entity.listeId) {
+                    const page = await getAllListes(0, 1);
+                    if (page.content && page.content.length > 0) {
+                        entity.listeId = page.content[0].id;
+                    } else {
+                        throw new Error("Veuillez d'abord créer une Liste pour pouvoir y ajouter des tâches.");
+                    }
+                }
+                const res = await createTask(entity);
+                return { type: "task", id: res.id, name: res.title, listOrSprintId: entity.listeId || entity.sprintId, listOrSprintType: entity.listeId ? "list" : "sprint", listOrSprintName: "la liste" };
+            }
+            case "workspace": {
+                const ws = await createWorkspace(entity);
+                setWorkspaces(prev => [...prev, ws]);
+                return { type: "workspace", id: ws.id, name: ws.name };
+            }
+            case "space": {
+                if (!entity.workspaceId && activeWorkspace) {
+                    entity.workspaceId = activeWorkspace.id;
+                }
+                const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+                    body: JSON.stringify(entity),
+                });
+                const data = await resp.json();
+                return { type: "space", id: data.id, name: data.spaceName || data.name };
+            }
+            case "folder": {
+                if (!entity.spaceId && activeWorkspace) {
+                    const spaces = await import("../api/spaceApi").then(m => m.getSpacesByWorkspace(activeWorkspace.id));
+                    if (spaces.length > 0) {
+                        entity.spaceId = spaces[0].id;
+                    } else {
+                        throw new Error("Veuillez d'abord créer un Space pour pouvoir y ajouter cet élément.");
+                    }
+                }
+                const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+                    body: JSON.stringify(entity),
+                });
+                const data = await resp.json();
+                return { type: "folder", id: data.id, name: data.name };
+            }
+            case "sprint":
+            case "liste": {
+                if (!entity.folderId) {
+                    const folders = await import("../api/folderApi").then(m => m.getAllFolders());
+                    if (folders.length > 0) {
+                        entity.folderId = folders[0].id || folders[0].folderId;
+                    } else {
+                        throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
+                    }
+                }
+                const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+                    body: JSON.stringify(entity),
+                });
+                const data = await resp.json();
+                return { type: generated.intent === "liste" ? "list" : "sprint", id: data.id, name: data.name };
+            }
+        }
+    };
+
+    const handleSend = async (actionType: "chat" | "generate" = "chat") => {
+        if (!input.trim() || isTyping) return;
+
+        const userInput = input.trim();
         const isFirstMessageInConversation = messages.length === 0;
         const nextConversationTitle = buildConversationTitleFromMessage(userInput);
 
-        const userMsg: ChatMessage = { role: "user", content: userInput, timestamp: new Date() };
-        setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
+        setActionTypeState(actionType);
+        setStatusText("Initialisation...");
+
+        const userMsg: ChatMessage = { role: "user", content: userInput, timestamp: new Date() };
+        setMessages(prev => [...prev, userMsg]);
 
         try {
             let currentConversationId = conversationId;
+
             if (!currentConversationId) {
+                setStatusText("Création de la session...");
                 const createdConversation = await createConversation({ title: "Nouvelle conversation" });
                 currentConversationId = createdConversation.id;
                 setConversationId(createdConversation.id);
-                setMessageFetchLimit(INITIAL_VISIBLE_MESSAGES);
-                setHasMoreMessages(false);
             }
 
             if (isFirstMessageInConversation) {
-                const updatedConversation = await updateConversationTitle(currentConversationId, {
-                    title: nextConversationTitle,
-                });
-
-                setConversations((prev) => prev.map((conv) => (
-                    conv.id === updatedConversation.id ? updatedConversation : conv
-                )));
+                await updateConversationTitle(currentConversationId, { title: nextConversationTitle })
+                    .catch(e => console.error("Erreur titre:", e));
             }
 
-            await addConversationMessage(currentConversationId, {
-                role: "user",
-                content: userInput,
-            });
+            await addConversationMessage(currentConversationId, { role: "user", content: userInput })
+                .catch(e => console.error("Erreur addMessage:", e));
 
-            const res = await analyzeRepo({
-                repositories: repoList,
-                user_query: userInput
-            });
+            // --- ROUTE GENERATE ---
+            if (actionType === "generate") {
+                setStatusText("Analyse de l'intention...");
+                const generated = await generateEntity({
+                    user_query: userInput,
+                    context: {
+                        workspaceId: activeWorkspace?.id,
+                        members: activeWorkspace?.id ? await getWorkspaceMembers(activeWorkspace.id).then(m => m.map(mem => ({ id: mem.userId, name: mem.userName }))) : []
+                    },
+                    repositories: repoList.length > 0 ? repoList : undefined,
+                });
 
+                let assistantContent = generated.explanation;
+                if (generated.intent === "unknown") {
+                    assistantContent = generated.explanation;
+                }
+
+                const assistantMsg: ChatMessage = {
+                    role: "assistant",
+                    content: assistantContent,
+                    timestamp: new Date(),
+                    generated: generated.intent !== "unknown" ? generated : undefined,
+                };
+                setMessages(prev => [...prev, assistantMsg]);
+
+                await addConversationMessage(currentConversationId, { role: "assistant", content: assistantContent })
+                    .catch(() => { });
+                await refreshConversations();
+                return;
+            }
+
+            // --- ROUTE RAG (analyse repo) ---
+            if (repoList.length === 0) {
+                const noRepoMsg: ChatMessage = {
+                    role: "assistant",
+                    content: "Veuillez ajouter au moins un dépôt GitHub pour utiliser l'analyse de code.",
+                    timestamp: new Date(),
+                };
+                setMessages(prev => [...prev, noRepoMsg]);
+                return;
+            }
+
+            setStatusText("Synchronisation du code GitHub...");
+            const res = await analyzeRepo({ repositories: repoList, user_query: userInput });
+
+            setStatusText("Génération de la réponse...");
             const assistantMsg: ChatMessage = { role: "assistant", content: res.response, timestamp: new Date() };
             setMessages(prev => [...prev, assistantMsg]);
 
-            await addConversationMessage(currentConversationId, {
-                role: "assistant",
-                content: res.response,
-            });
-
+            await addConversationMessage(currentConversationId, { role: "assistant", content: res.response });
             await refreshConversations();
+
         } catch (err) {
-            console.error(err);
+            console.error("ERREUR CRITIQUE handleSend:", err);
+            setStatusText("Erreur lors de l'analyse.");
         } finally {
             setIsTyping(false);
+            setStatusText("");
         }
     };
+
+    const sidebarNavItems = navItems.map((item) => {
+        if (item.label === "Dashboard") {
+            return {
+                ...item,
+                active: location.pathname === "/workspace",
+                onClick: () => navigate("/workspace"),
+            };
+        }
+        if (item.label === "Ask AI") {
+            return {
+                ...item,
+                active: location.pathname === "/ai" || location.pathname === "/ai-chat",
+                onClick: () => navigate("/ai"),
+                subItems: [
+                    { label: "New Chat", icon: Plus, onClick: handleCreateConversation },
+                    { label: "History", icon: History, onClick: () => setIsConversationPanelOpen(!isConversationPanelOpen), active: isConversationPanelOpen },
+                ]
+            };
+        }
+        return item;
+    });
 
     return (
         <Layout
@@ -823,19 +1658,61 @@ export default function AIPage() {
                             onDeleteClick={(ws) => setDeletingWorkspace(ws)}
                         />
                     }
-                    resourcesPanel={<WorkspaceResourcesPanel workspaceId={activeWorkspace?.id} />}
                     userName={user.name}
                     userAvatar={user.avatar}
+                    resourcesPanel={
+                        <WorkspaceResourcesPanel
+                            workspaceId={activeWorkspace?.id}
+                            onSelectHierarchy={(hierarchy) => {
+                                if (hierarchy) {
+                                    setSelectedHierarchy(hierarchy as SelectedHierarchy);
+                                }
+                            }}
+                        />
+                    }
+                    onNewChat={handleCreateConversation}
+                    onOpenHistory={() => setIsConversationPanelOpen(prev => !prev)}
+                    isHistoryActive={isConversationPanelOpen}
                 />
             }
         >
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap');
+                
+                .generate-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 18px;
+                    border-radius: 12px;
+                    border: 1px solid rgba(168,158,245,0.3);
+                    background: linear-gradient(135deg, rgba(83,74,183,0.15) 0%, rgba(124,58,237,0.15) 100%);
+                    color: #a89ef5;
+                    font-size: 13px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    backdrop-filter: blur(10px);
+                }
+                .generate-btn:hover:not(:disabled) {
+                    background: linear-gradient(135deg, rgba(83,74,183,0.3) 0%, rgba(124,58,237,0.3) 100%);
+                    border-color: rgba(168,158,245,0.5);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(83,74,183,0.2);
+                    color: #fff;
+                }
+                .generate-btn:active:not(:disabled) {
+                    transform: translateY(0);
+                }
+                .generate-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 ::-webkit-scrollbar { width: 4px; }
                 ::-webkit-scrollbar-track { background: transparent; }
                 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-                .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer; transition: background 0.18s, color 0.18s; color: rgba(255,255,255,0.45); font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; }
+                .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.18s, color 0.18s; color: rgba(255,255,255,0.45); font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; }
                 .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
                 .nav-item.active { background: rgba(83,74,183,0.18); color: #a89ef5; }
                 .ws-selector { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); cursor: pointer; transition: background 0.18s; font-size: 13px; color: rgba(255,255,255,0.7); }
@@ -867,43 +1744,90 @@ export default function AIPage() {
                 .markdown-content hr { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 24px 0; }
 
                 /* AI Page Layout */
-                .ai-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: #0d0d0f; }
-                .ai-top-bar { display: flex; align-items: center; gap: 10px; padding: 0 20px; height: 52px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; background: rgba(13,13,15,0.95); backdrop-filter: blur(12px); }
+                .ai-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: #0d0d0f; position: relative; }
+                .ai-top-bar { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 40px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; background: rgba(13,13,15,0.4); backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+                .ai-top-bar.collapsed { height: 30px; border-bottom: none; background: transparent; padding-top: 8px; }
                 .ai-main-layout { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
-                .repo-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.18s; border: 1px solid rgba(255,255,255,0.08); background: transparent; color: rgba(255,255,255,0.5); }
-                .repo-chip.active { background: rgba(83,74,183,0.2); border-color: rgba(83,74,183,0.5); color: #c4beff; }
-                .repo-chip:hover:not(.active) { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
-                .repo-chip-icon { opacity: 0.7; display: flex; align-items: center; }
+                .repo-chip { 
+                    display: inline-flex; 
+                    align-items: center; 
+                    gap: 6px; 
+                    padding: 4px 10px; 
+                    border-radius: 8px; 
+                    font-size: 11px; 
+                    cursor: default; 
+                    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+                    border: 1px solid rgba(255,255,255,0.06); 
+                    background: rgba(255,255,255,0.02); 
+                    color: rgba(255,255,255,0.4); 
+                    position: relative; 
+                    overflow: hidden; 
+                    flex-shrink: 0;
+                }
+                .repo-chip:hover { 
+                    background: rgba(83,74,183,0.08); 
+                    border-color: rgba(83,74,183,0.4); 
+                    transform: translateY(-1px) scale(1.02);
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(83,74,183,0.1);
+                }
+                .repo-name { color: rgba(255,255,255,0.9); font-weight: 600; font-size: 11px; }
+                .repo-owner { opacity: 0.6; font-weight: 300; font-size: 10px; }
+                .repo-chip-icon { color: #a89ef5; font-size: 12px; display: flex; align-items: center; }
+                
+                .repo-actions { 
+                    display: flex; 
+                    gap: 8px; 
+                    margin-left: 4px;
+                    padding-left: 8px;
+                    border-left: 1px solid rgba(255,255,255,0.1);
+                    transform: translateX(40px);
+                    opacity: 0;
+                    transition: all 0.25s ease;
+                }
+                .repo-chip:hover .repo-actions { transform: translateX(0); opacity: 1; }
+                
+                .action-btn-sm {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 6px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s;
+                    background: rgba(255,255,255,0.05);
+                }
+                .action-btn-sm:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
+                
                 .messages-scroll { flex: 1; overflow-y: auto; padding: 0; transition: padding-right 0.25s ease; }
                 .messages-scroll.with-panel { padding-right: 320px; }
-                .messages-inner { max-width: 820px; margin: 0 auto; padding: 40px 24px 24px; display: flex; flex-direction: column; gap: 0; }
-                .msg-row { display: flex; gap: 14px; padding: 20px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); align-items: flex-start; }
+                .messages-inner { max-width: 760px; margin: 0 auto; padding: 28px 20px 20px; display: flex; flex-direction: column; gap: 0; }
+                .msg-row { display: flex; gap: 10px; padding: 14px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); align-items: flex-start; }
                 .msg-row:last-child { border-bottom: none; }
                 .msg-row.user { flex-direction: row-reverse; }
-                .msg-avatar { width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; font-weight: 700; }
+                .msg-avatar { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; font-weight: 700; }
                 .msg-avatar.ai { background: linear-gradient(135deg, #534AB7, #8b5cf6); }
-                .msg-avatar.user-av { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); font-size: 13px; }
+                .msg-avatar.user-av { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); font-size: 11px; }
                 .msg-body { flex: 1; min-width: 0; }
                 .msg-row.user .msg-body { display: flex; flex-direction: column; align-items: flex-end; }
-                .msg-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.3); margin-bottom: 6px; letter-spacing: 0.3px; }
-                .msg-user-bubble { background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.35); border-radius: 18px 18px 4px 18px; padding: 12px 18px; max-width: 580px; font-size: 15px; line-height: 1.6; color: rgba(255,255,255,0.92); }
-                .msg-ai-content { font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.88); padding-top: 2px; }
-                .msg-meta { font-size: 11px; color: rgba(255,255,255,0.18); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+                .msg-name { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.3); margin-bottom: 4px; letter-spacing: 0.3px; }
+                .msg-user-bubble { background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.35); border-radius: 14px 14px 4px 14px; padding: 9px 14px; max-width: 560px; font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.92); }
+                .msg-ai-content { font-size: 13px; line-height: 1.65; color: rgba(255,255,255,0.88); padding-top: 2px; }
+                .msg-meta { font-size: 10px; color: rgba(255,255,255,0.18); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
                 .msg-row.user .msg-meta { justify-content: flex-end; }
-                .input-dock { flex-shrink: 0; padding: 16px 24px 20px; background: #0d0d0f; }
-                .input-dock.with-panel { padding-right: 344px; }
-                .input-dock-inner { max-width: 820px; margin: 0 auto; }
-                .input-box { display: flex; align-items: flex-end; gap: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 8px 8px 8px 20px; transition: border-color 0.2s, box-shadow 0.2s; }
-                .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 3px rgba(83,74,183,0.08), 0 8px 32px rgba(0,0,0,0.2); }
-                .input-textarea { flex: 1; background: none; border: none; color: rgba(255,255,255,0.9); outline: none; font-size: 15px; font-family: 'DM Sans', sans-serif; resize: none; line-height: 1.5; min-height: 24px; max-height: 180px; padding-top: 6px; }
+                .input-dock { flex-shrink: 0; padding: 12px 20px 16px; background: #0d0d0f; }
+                .input-dock.with-panel { padding-right: 340px; }
+                .input-dock-inner { max-width: 760px; margin: 0 auto; }
+                .input-box { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 6px 6px 6px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+                .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 2px rgba(83,74,183,0.08), 0 6px 24px rgba(0,0,0,0.2); }
+                .input-textarea { flex: 1; background: none; border: none; color: rgba(255,255,255,0.9); outline: none; font-size: 13px; font-family: 'DM Sans', sans-serif; resize: none; line-height: 1.5; min-height: 22px; max-height: 140px; overflow-y: auto; }
                 .input-textarea::placeholder { color: rgba(255,255,255,0.2); }
-                .send-btn { width: 42px; height: 42px; border-radius: 14px; border: none; background: linear-gradient(135deg, #534AB7, #7c3aed); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
-                .send-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 16px rgba(83,74,183,0.4); }
+                .send-btn { width: 34px; height: 34px; border-radius: 10px; border: none; background: linear-gradient(135deg, #534AB7, #7c3aed); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+                .send-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 12px rgba(83,74,183,0.4); }
                 .send-btn:active { transform: scale(0.96); }
                 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-                .send-hint { text-align: center; font-size: 11px; color: rgba(255,255,255,0.15); margin-top: 10px; }
-                .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 28px; }
-                .sugg-chip { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); padding: 8px 16px; border-radius: 99px; font-size: 13px; cursor: pointer; transition: all 0.18s; }
+                .send-hint { text-align: center; font-size: 10px; color: rgba(255,255,255,0.15); margin-top: 7px; }
+                .suggestion-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 20px; }
+                .sugg-chip { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); padding: 6px 13px; border-radius: 99px; font-size: 12px; cursor: pointer; transition: all 0.18s; }
                 .sugg-chip:hover { background: rgba(83,74,183,0.12); border-color: rgba(83,74,183,0.3); color: #c4beff; }
                 .typing-dots { display: flex; gap: 4px; align-items: center; padding: 6px 0; }
                 .typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: #a89ef5; animation: typing-pulse 1.4s ease-in-out infinite; }
@@ -936,273 +1860,406 @@ export default function AIPage() {
                     .conversation-panel { width: min(92vw, 320px); }
                 }
             `}</style>
-            
+
             <Content>
                 <WorkspaceTopBar userName={user.name} userAvatar={user.avatar} />
 
                 <div className="ai-page-wrapper">
-
-                    {/* ── Top Repo Bar ── */}
-                    <div className="ai-top-bar">
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.25)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px", marginRight: 4 }}>
-                            <FolderGit2 size={11} /> Repos
-                        </div>
-                        <div style={{ display: "flex", gap: 6, flex: 1, overflowX: "auto" }}>
-                            {repoList.map((r, i) => (
-                                <button
-                                    key={i}
-                                    className={`repo-chip${activeRepoIndex === i ? " active" : ""}`}
-                                    onClick={() => setActiveRepoIndex(i)}
+                    {selectedHierarchy ? (
+                        <InlineHierarchyView
+                            hierarchy={selectedHierarchy}
+                            workspaceId={activeWorkspace?.id}
+                            onNavigate={(h) => setSelectedHierarchy(h)}
+                            onBack={() => setSelectedHierarchy(null)}
+                        />
+                    ) : (
+                        <>
+                            <div className={`ai-top-bar${!isReposExpanded ? ' collapsed' : ''}`}>
+                                <div
+                                    onClick={() => setIsReposExpanded(!isReposExpanded)}
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        cursor: "pointer",
+                                        userSelect: "none",
+                                        background: isReposExpanded ? "rgba(255,255,255,0.03)" : "rgba(83,74,183,0.1)",
+                                        padding: isReposExpanded ? "6px 12px" : "4px 10px",
+                                        borderRadius: isReposExpanded ? "8px" : "20px",
+                                        border: isReposExpanded ? "none" : "1px solid rgba(83,74,183,0.3)",
+                                        transition: "all 0.3s ease"
+                                    }}
                                 >
-                                    <span className="repo-chip-icon">⬡</span>
-                                    {r.owner}/{r.repo}
-                                    {activeRepoIndex === i && (
-                                        <>
-                                            <Pencil size={10} onClick={(e) => { e.stopPropagation(); setEditingRepoIndex(i); }} style={{ cursor: "pointer", opacity: 0.7 }} />
-                                            <Trash2 size={10} onClick={(e) => { e.stopPropagation(); setDeletingRepoIndex(i); }} style={{ cursor: "pointer", color: "#f87171", opacity: 0.8 }} />
-                                        </>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                        <button onClick={() => setShowRepoModal(true)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px dashed rgba(29,158,117,0.4)", background: "rgba(29,158,117,0.06)", color: "#34d399", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
-                            <Plus size={12} /> Add repo
-                        </button>
-                        <button onClick={handleCreateConversation} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px solid rgba(83,74,183,0.35)", background: "rgba(83,74,183,0.15)", color: "#d6d2ff", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
-                            <Plus size={12} /> New chat
-                        </button>
-                        <button onClick={() => setIsConversationPanelOpen((prev) => !prev)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.75)", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
-                            {isConversationPanelOpen ? "Hide Chat history" : "Chat History"}
-                        </button>
-                    </div>
-
-                    <div className="ai-main-layout">
-                        {/* ── Messages Scroll Area ── */}
-                        <div className={`messages-scroll${isConversationPanelOpen ? " with-panel" : ""}`}>
-                            <div className="messages-inner">
-                                {hasMoreMessages && (
-                                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                                        <button className="show-more-btn" onClick={handleShowMoreMessages}>
-                                            Show more
-                                        </button>
+                                    <div style={{ display: "flex", alignItems: "center", justifyCenter: "center", color: isReposExpanded ? "#a89ef5" : "#7c3aed" }}>
+                                        {isReposExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                     </div>
-                                )}
-
-                                {messages.length === 0 ? (
-                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 80, textAlign: "center" }}>
-                                        <div style={{ width: 72, height: 72, borderRadius: 20, background: "linear-gradient(135deg, #534AB7, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24, boxShadow: "0 12px 40px rgba(83,74,183,0.3)" }}>
-                                            <Sparkles size={32} color="white" />
-                                        </div>
-                                        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 700, color: "#fff", marginBottom: 10, letterSpacing: "-0.5px" }}>
-                                            Bonjour, que puis-je analyser ?
-                                        </h2>
-                                        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.35)", maxWidth: 400, lineHeight: 1.6 }}>
-                                            Je peux analyser votre code, suggérer des améliorations, détecter des bugs ou générer des tickets techniques.
-                                        </p>
-                                        <div className="suggestion-chips">
-                                            {["Explique l'architecture du projet", "Quels bugs potentiels vois-tu ?", "Génère des tickets techniques", "Revue du code en profondeur"].map(s => (
-                                                <button key={s} className="sugg-chip" onClick={() => { setInput(s); }}>
-                                                    {s}
-                                                </button>
-                                            ))}
-                                        </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: isReposExpanded ? "rgba(255,255,255,0.8)" : "#a89ef5", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
+                                        <FolderGit2 size={12} /> {isReposExpanded ? "Repositories" : "Manage Repos"}
                                     </div>
-                                ) : (
-                                    messages.map((m, i) => (
-                                        <div key={`${m.timestamp}-${i}`} className={`msg-row${m.role === "user" ? " user" : ""}`}>
-                                            <div className={`msg-avatar${m.role === "user" ? " user-av" : " ai"}`}>
-                                                {m.role === "user"
-                                                    ? <span style={{ fontSize: 16 }}>👤</span>
-                                                    : <Sparkles size={16} color="white" />}
-                                            </div>
-                                            <div className="msg-body">
-                                                <div className="msg-name">
-                                                    {m.role === "user" ? "Vous" : "Orbyte AI"}
+                                </div>
+
+                                {isReposExpanded && (
+                                    <div style={{ display: "flex", gap: 6, flex: 1, overflowX: "auto", paddingLeft: 10, alignItems: "center" }}>
+                                        {repoList.map((r, i) => (
+                                            <div key={i} className="repo-chip">
+                                                <div className="repo-chip-icon"><FolderGit2 size={14} /></div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                                    <span className="repo-owner">{r.owner}</span>
+                                                    <span style={{ opacity: 0.3 }}>/</span>
+                                                    <span className="repo-name">{r.repo}</span>
                                                 </div>
-                                                {m.role === "user" ? (
-                                                    <div className="msg-user-bubble">{m.content}</div>
-                                                ) : (
-                                                    <div className="msg-ai-content markdown-content">
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                                <div className="repo-actions">
+                                                    <div className="action-btn-sm" onClick={(e) => { e.stopPropagation(); setEditingRepoIndex(i); }}>
+                                                        <Pencil size={11} style={{ color: "rgba(255,255,255,0.7)" }} />
                                                     </div>
-                                                )}
-                                                <div className="msg-meta">
-                                                    <span>🕐</span>
-                                                    {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    <div className="action-btn-sm" onClick={(e) => { e.stopPropagation(); setDeletingRepoIndex(i); }} style={{ color: "#f87171" }}>
+                                                        <Trash2 size={11} />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))
-                                )}
+                                        ))}
+                                        <button onClick={() => setShowRepoModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 12, border: "1px dashed rgba(52,211,153,0.3)", background: "rgba(52,211,153,0.03)", color: "#34d399", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
+                                            <Plus size={13} /> Add Repo
+                                        </button>
 
-                                {isConversationLoading && (
-                                    <div className="msg-row">
-                                        <div className="msg-avatar ai"><Loader2 size={16} color="white" className="animate-spin" /></div>
-                                        <div className="msg-body">
-                                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Chargement de la conversation...</div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {isTyping && (
-                                    <div className="msg-row">
-                                        <div className="msg-avatar ai"><Sparkles size={16} color="white" /></div>
-                                        <div className="msg-body">
-                                            <div className="typing-dots">
-                                                <span /><span /><span />
-                                            </div>
-                                            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>Analyse en cours...</div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className={`conversation-panel${isConversationPanelOpen ? " open" : ""}`}>
-                            <div className="conversation-panel-head">
-                                <h3 style={{ margin: 0, fontSize: 14, color: "#fff", fontFamily: "'Syne', sans-serif" }}>Historique</h3>
-                                <button
-                                    onClick={() => setIsConversationPanelOpen(false)}
-                                    style={{ background: "none", border: "none", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex" }}
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
-
-                            <button className="conversation-new-btn" onClick={handleCreateConversation}>
-                                <Plus size={14} /> Nouvelle conversation
-                            </button>
-
-                            <div className="conversation-list">
-                                {conversations.length === 0 ? (
-                                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, padding: "10px 6px" }}>Aucune conversation.</p>
-                                ) : (
-                                    conversations.map((conv) => (
-                                        <button
-                                            key={conv.id}
-                                            className={`conversation-item${conversationId === conv.id ? " active" : ""}`}
-                                            onClick={() => handleSelectConversation(conv.id)}
-                                        >
-                                            <div className="conversation-item-main">
-                                                <div className="conversation-item-title">{conv.title || "Nouvelle conversation"}</div>
-                                                <div className="conversation-item-time">
-                                                    {new Date(conv.updatedAt).toLocaleString([], {
-                                                        day: "2-digit",
-                                                        month: "2-digit",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })}
-                                                </div>
-                                            </div>
-                                            <span
-                                                className="conversation-delete-btn"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    promptDeleteConversation(conv.id);
+                                        {/* Bouton GitHub Connect / Disconnect */}
+                                        {githubConnected ? (
+                                            <button
+                                                onClick={disconnectGitHub}
+                                                title="Déconnecter GitHub"
+                                                style={{
+                                                    display: "flex", alignItems: "center", gap: 6,
+                                                    padding: "6px 14px", borderRadius: 12, flexShrink: 0,
+                                                    border: "1px solid rgba(34,197,94,0.3)",
+                                                    background: "rgba(34,197,94,0.08)",
+                                                    color: "#22C55E", fontSize: 12, fontWeight: 600, cursor: "pointer",
                                                 }}
                                             >
-                                                <Trash2 size={13} />
-                                            </span>
-                                        </button>
-                                    ))
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
+                                                Connecté ✓
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={connectGitHub}
+                                                title="Connecter GitHub pour accéder aux repos privés"
+                                                style={{
+                                                    display: "flex", alignItems: "center", gap: 6,
+                                                    padding: "6px 14px", borderRadius: 12, flexShrink: 0,
+                                                    border: "1px dashed rgba(168,158,245,0.4)",
+                                                    background: "rgba(83,74,183,0.06)",
+                                                    color: "#a89ef5", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                                }}
+                                            >
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
+                                                Connecter GitHub
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
 
-                    {/* ── Sticky Input Dock ── */}
-                    <div className={`input-dock${isConversationPanelOpen ? " with-panel" : ""}`}>
-                        <div className="input-dock-inner">
-                            <div className="input-box">
-                                <textarea
-                                    className="input-textarea"
-                                    value={input}
-                                    onChange={e => setInput(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                    placeholder="Posez une question sur votre codebase..."
-                                    rows={1}
-                                />
-                                <button className="send-btn" onClick={handleSend} disabled={isTyping || !input.trim()}>
-                                    {isTyping ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                                </button>
+                            <div className="ai-main-layout">
+                                {/* ── Messages Scroll Area ── */}
+                                <div className={`messages-scroll${isConversationPanelOpen ? " with-panel" : ""}`}>
+                                    <div className="messages-inner">
+                                        {hasMoreMessages && (
+                                            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                                                <button className="show-more-btn" onClick={handleShowMoreMessages}>
+                                                    Show more
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {messages.length === 0 ? (
+                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 56, textAlign: "center" }}>
+                                                <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, #534AB7, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 10px 32px rgba(83,74,183,0.3)" }}>
+                                                    <Sparkles size={22} color="white" />
+                                                </div>
+                                                <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 8, letterSpacing: "-0.3px" }}>
+                                                    Bonjour, que puis-je analyser ?
+                                                </h2>
+                                                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", maxWidth: 360, lineHeight: 1.6 }}>
+                                                    Je peux analyser votre code, suggérer des améliorations, détecter des bugs ou générer des tickets techniques.
+                                                </p>
+                                                <div className="suggestion-chips">
+                                                    {["Explique l'architecture du projet", "Quels bugs potentiels vois-tu ?", "Génère des tickets techniques", "Revue du code en profondeur"].map(s => (
+                                                        <button key={s} className="sugg-chip" onClick={() => { setInput(s); }}>
+                                                            {s}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            messages.map((m, i) => (
+                                                <div key={`${m.timestamp}-${i}`} className={`msg-row${m.role === "user" ? " user" : ""}`}>
+                                                    <div className={`msg-avatar${m.role === "user" ? " user-av" : " ai"}`}>
+                                                        {m.role === "user"
+                                                            ? <span style={{ fontSize: 16 }}>👤</span>
+                                                            : <Sparkles size={16} color="white" />}
+                                                    </div>
+                                                    <div className="msg-body">
+                                                        <div className="msg-name">
+                                                            {m.role === "user" ? "Vous" : "Orbyte AI"}
+                                                        </div>
+                                                        {m.role === "user" ? (
+                                                            <div className="msg-user-bubble">{m.content}</div>
+                                                        ) : (
+                                                            <div className="msg-ai-content markdown-content">
+                                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                                                {m.generated && m.generated.intent !== "unknown" && (
+                                                                    <div style={{ marginTop: 14 }}>
+                                                                        <AIConfirmCard
+                                                                            generated={m.generated}
+                                                                            workspaceId={activeWorkspace?.id}
+                                                                            onAccept={async (localEntity) => {
+                                                                                const res = await handleConfirmEntity({ ...m.generated!, entity: localEntity });
+                                                                                setAcceptedCards(prev => new Set(prev).add(i));
+                                                                                return res;
+                                                                            }}
+                                                                            onReject={() => {
+                                                                                setMessages(prev => prev.map((msg, idx) =>
+                                                                                    idx === i ? { ...msg, generated: undefined } : msg
+                                                                                ));
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        <div className="msg-meta">
+                                                            <span>🕐</span>
+                                                            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+
+                                        {isConversationLoading && (
+                                            <div className="msg-row">
+                                                <div className="msg-avatar ai"><Loader2 size={16} color="white" className="animate-spin" /></div>
+                                                <div className="msg-body">
+                                                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Chargement de la conversation...</div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {isTyping && (
+                                            <div className="msg-row">
+                                                <div className="msg-avatar ai"><Sparkles size={16} color="white" /></div>
+                                                <div className="msg-body">
+                                                    <div className="typing-dots">
+                                                        <span /><span /><span />
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                                                        <Loader2 size={10} className="animate-spin" />
+                                                        {statusText || "Analyse en cours..."}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className={`conversation-panel${isConversationPanelOpen ? " open" : ""}`}>
+                                    <div className="conversation-panel-head">
+                                        <h3 style={{ margin: 0, fontSize: 14, color: "#fff", fontFamily: "'Syne', sans-serif" }}>Historique</h3>
+                                        <button
+                                            onClick={() => setIsConversationPanelOpen(false)}
+                                            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex" }}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+
+                                    <button className="conversation-new-btn" onClick={handleCreateConversation}>
+                                        <Plus size={14} /> Nouvelle conversation
+                                    </button>
+
+                                    <div className="conversation-list">
+                                        {conversations.length === 0 ? (
+                                            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, padding: "10px 6px" }}>Aucune conversation.</p>
+                                        ) : (
+                                            conversations.map((conv) => (
+                                                <button
+                                                    key={conv.id}
+                                                    className={`conversation-item${conversationId === conv.id ? " active" : ""}`}
+                                                    onClick={() => handleSelectConversation(conv.id)}
+                                                >
+                                                    <div className="conversation-item-main">
+                                                        <div className="conversation-item-title">{conv.title || "Nouvelle conversation"}</div>
+                                                        <div className="conversation-item-time">
+                                                            {new Date(conv.updatedAt).toLocaleString([], {
+                                                                day: "2-digit",
+                                                                month: "2-digit",
+                                                                hour: "2-digit",
+                                                                minute: "2-digit",
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                    <span
+                                                        className="conversation-delete-btn"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            promptDeleteConversation(conv.id);
+                                                        }}
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            <p className="send-hint">Entrée pour envoyer · Shift+Entrée pour nouvelle ligne</p>
-                        </div>
-                    </div>
+
+                            {/* ── Sticky Input Dock ── */}
+                            <div className={`input-dock${isConversationPanelOpen ? " with-panel" : ""}`}>
+                                <div className="input-dock-inner">
+                                    <div className="input-box">
+                                        <textarea
+                                            ref={textareaRef}
+                                            className="input-textarea"
+                                            value={input}
+                                            onChange={e => setInput(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend("chat"); } }}
+                                            placeholder="Posez une question sur votre codebase ou décrivez un élément à générer..."
+                                            rows={1}
+                                        />
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                            <button
+                                                className="generate-btn"
+                                                onClick={() => handleSend("generate")}
+                                                disabled={isTyping || !input.trim()}
+                                                title="Générer une entité"
+                                            >
+                                                {isTyping && actionTypeState === "generate" ? (
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                ) : (
+                                                    <>
+                                                        <img src="/generate_icon.png" alt="" style={{ width: 16, height: 16, filter: "drop-shadow(0 0 6px rgba(168,158,245,0.6))" }} />
+                                                        Générer
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button className="send-btn" onClick={() => handleSend("chat")} disabled={isTyping || !input.trim()} title="Discuter avec le code">
+                                                {isTyping && actionTypeState === "chat" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="send-hint">Entrée pour envoyer dans le chat · Shift+Entrée pour nouvelle ligne</p>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </Content>
 
             {/* Modales de Workspace (Synchronisées avec le Dashboard) */}
-            {showCreateModal && (
-                <WorkspaceFormModal
-                    mode="create"
-                    onSubmit={handleCreateWorkspace}
-                    onClose={() => setShowCreateModal(false)}
-                />
-            )}
-            {editingWorkspace && (
-                <WorkspaceFormModal
-                    mode="edit"
-                    initialName={editingWorkspace.name}
-                    initialSlug={editingWorkspace.slug}
-                    onSubmit={handleUpdateWorkspace}
-                    onClose={() => setEditingWorkspace(null)}
-                />
-            )}
-            {deletingWorkspace && (
-                <DeleteConfirmModal
-                    workspaceName={deletingWorkspace.name}
-                    onConfirm={handleDeleteWorkspace}
-                    onClose={() => setDeletingWorkspace(null)}
-                />
-            )}
-            {showRepoModal && (
-                <RepoFormModal
-                    mode="add"
-                    onSubmit={(owner, repo, branch) => {
-                        setRepoList([...repoList, { owner, repo, branch }]);
-                        setActiveRepoIndex(repoList.length);
-                    }}
-                    onClose={() => setShowRepoModal(false)}
-                />
-            )}
-            {editingRepoIndex !== null && (
-                <RepoFormModal
-                    mode="edit"
-                    initialData={repoList[editingRepoIndex]}
-                    onSubmit={(owner, repo, branch) => {
-                        const newList = [...repoList];
-                        newList[editingRepoIndex] = { owner, repo, branch };
-                        setRepoList(newList);
-                        setEditingRepoIndex(null);
-                    }}
-                    onClose={() => setEditingRepoIndex(null)}
-                />
-            )}
-            {deletingRepoIndex !== null && (
-                <DeleteConfirmModal
-                    workspaceName={repoList[deletingRepoIndex].repo}
-                    onConfirm={async () => {
-                        const newList = repoList.filter((_, i) => i !== deletingRepoIndex);
-                        setRepoList(newList);
-                        if (activeRepoIndex >= newList.length) {
-                            setActiveRepoIndex(Math.max(0, newList.length - 1));
-                        }
-                        setDeletingRepoIndex(null);
-                    }}
-                    onClose={() => setDeletingRepoIndex(null)}
-                />
-            )}
-            {deletingConversation && (
-                <ConversationDeleteConfirmModal
-                    conversationTitle={deletingConversation.title || "Nouvelle conversation"}
-                    onConfirm={async () => {
-                        await handleDeleteConversation(deletingConversation.id);
-                        setDeletingConversation(null);
-                    }}
-                    onClose={() => setDeletingConversation(null)}
-                />
-            )}
-        </Layout>
+            {
+                showCreateModal && (
+                    <WorkspaceFormModal
+                        mode="create"
+                        onSubmit={handleCreateWorkspace}
+                        onClose={() => setShowCreateModal(false)}
+                    />
+                )
+            }
+            {
+                editingWorkspace && (
+                    <WorkspaceFormModal
+                        mode="edit"
+                        initialName={editingWorkspace.name}
+                        initialSlug={editingWorkspace.slug}
+                        onSubmit={handleUpdateWorkspace}
+                        onClose={() => setEditingWorkspace(null)}
+                    />
+                )
+            }
+            {
+                deletingWorkspace && (
+                    <DeleteConfirmModal
+                        workspaceName={deletingWorkspace.name}
+                        onConfirm={handleDeleteWorkspace}
+                        onClose={() => setDeletingWorkspace(null)}
+                    />
+                )
+            }
+            {
+                showRepoModal && (
+                    <RepoFormModal
+                        mode="add"
+                        onSubmit={async (owner, repo, branch) => {
+                            try {
+                                // 1. Validation de l'existence GitHub
+                                await validateRepo({ owner, repo, branch });
+
+                                const newRepo = { owner, repo, branch };
+                                setRepoList([...repoList, newRepo]);
+
+                                // 2. Lancement automatique de l'indexation
+                                indexRepositories({ repositories: [newRepo] }).catch(console.error);
+
+                            } catch (err: any) {
+                                alert(err.message || "Erreur lors de l'ajout du dépôt");
+                            }
+                        }}
+                        onClose={() => setShowRepoModal(false)}
+                    />
+                )
+            }
+            {
+                editingRepoIndex !== null && (
+                    <RepoFormModal
+                        mode="edit"
+                        initialData={repoList[editingRepoIndex]}
+                        onSubmit={async (owner, repo, branch) => {
+                            try {
+                                await validateRepo({ owner, repo, branch });
+                                const newList = [...repoList];
+                                const updatedRepo = { owner, repo, branch };
+                                newList[editingRepoIndex] = updatedRepo;
+                                setRepoList(newList);
+                                setEditingRepoIndex(null);
+
+                                // Ré-indexer après modification
+                                indexRepositories({ repositories: [updatedRepo] }).catch(console.error);
+                            } catch (err: any) {
+                                alert(err.message || "Erreur lors de la modification");
+                            }
+                        }}
+                        onClose={() => setEditingRepoIndex(null)}
+                    />
+                )
+            }
+            {
+                deletingRepoIndex !== null && (
+                    <DeleteConfirmModal
+                        workspaceName={repoList[deletingRepoIndex].repo}
+                        onConfirm={async () => {
+                            const newList = repoList.filter((_, i) => i !== deletingRepoIndex);
+                            setRepoList(newList);
+                            if (activeRepoIndex >= newList.length) {
+                                setActiveRepoIndex(Math.max(0, newList.length - 1));
+                            }
+                            setDeletingRepoIndex(null);
+                        }}
+                        onClose={() => setDeletingRepoIndex(null)}
+                    />
+                )
+            }
+            {
+                deletingConversation && (
+                    <ConversationDeleteConfirmModal
+                        conversationTitle={deletingConversation.title || "Nouvelle conversation"}
+                        onConfirm={async () => {
+                            await handleDeleteConversation(deletingConversation.id);
+                            setDeletingConversation(null);
+                        }}
+                        onClose={() => setDeletingConversation(null)}
+                    />
+                )
+            }
+        </Layout >
     );
 }

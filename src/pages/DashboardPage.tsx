@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+    LayoutGrid, ChevronRight, ChevronDown, Plus, TrendingUp, Clock,
+    Folder, Target, Circle, Zap, Star, Loader2, Trash2, X, Check,
+    CalendarDays, Sparkles, Users, UserPlus, List, Kanban, Home,
+    Hash, MoreVertical, Settings, Bell, Search, LogOut,
+    FolderOpen, Layers, Activity, CheckCircle2, AlertCircle,
+    ArrowRight, Filter, SortAsc, Eye, EyeOff, SquarePen, History,
     LayoutGrid, Plus, Clock,
     Folder, Target, Zap, Loader2, Trash2, X, Check,
     CalendarDays, Sparkles, Users, UserPlus, List, Kanban,
@@ -46,22 +52,22 @@ import {
 
 // ─── Palette & tokens ────────────────────────────────────────────────────────
 const C = {
-    bg:        "#0a0a0f",
-    surface:   "#111118",
+    bg: "#0a0a0f",
+    surface: "#111118",
     surfaceEl: "#18181f",
-    border:    "rgba(255,255,255,0.06)",
+    border: "rgba(255,255,255,0.06)",
     borderHov: "rgba(255,255,255,0.12)",
-    text:      "#f0f0f8",
+    text: "#f0f0f8",
     textMuted: "rgba(240,240,248,0.45)",
     textFaint: "rgba(240,240,248,0.22)",
-    accent:    "#6c63ff",
-    accentSoft:"rgba(108,99,255,0.14)",
-    accentGlow:"rgba(108,99,255,0.35)",
-    green:     "#22d3a0",
-    orange:    "#f59e0b",
-    red:       "#f43f5e",
-    pink:      "#ec4899",
-    blue:      "#3b82f6",
+    accent: "#6c63ff",
+    accentSoft: "rgba(108,99,255,0.14)",
+    accentGlow: "rgba(108,99,255,0.35)",
+    green: "#22d3a0",
+    orange: "#f59e0b",
+    red: "#f43f5e",
+    pink: "#ec4899",
+    blue: "#3b82f6",
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -69,11 +75,11 @@ const PRIORITY_COLOR: Record<string, string> = {
 };
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-    TO_DO:      { label: "To Do",      color: "#818cf8",     bg: "rgba(129,140,248,0.15)" },
-    IN_DEV:    { label: "In Dev",     color: C.blue,       bg: "rgba(59,130,246,0.12)"  },
-    IN_TEST:   { label: "In Test",    color: C.orange,     bg: "rgba(245,158,11,0.12)"  },
-    IN_REVIEW: { label: "In Review",  color: C.pink,       bg: "rgba(236,72,153,0.12)"  },
-    DONE:      { label: "Done",       color: C.green,      bg: "rgba(34,211,160,0.12)"  },
+    TO_DO: { label: "To Do", color: "#818cf8", bg: "rgba(129,140,248,0.15)" },
+    IN_DEV: { label: "In Dev", color: C.blue, bg: "rgba(59,130,246,0.12)" },
+    IN_TEST: { label: "In Test", color: C.orange, bg: "rgba(245,158,11,0.12)" },
+    IN_REVIEW: { label: "In Review", color: C.pink, bg: "rgba(236,72,153,0.12)" },
+    DONE: { label: "Done", color: C.green, bg: "rgba(34,211,160,0.12)" },
 };
 
 // ─── Small utilities ─────────────────────────────────────────────────────────
@@ -146,9 +152,9 @@ type ViewMode = "overview" | "list" | "board" | "members";
 function ViewTabs({ active, onChange }: { active: ViewMode; onChange: (v: ViewMode) => void }) {
     const tabs: { id: ViewMode; icon: any; label: string }[] = [
         { id: "overview", icon: LayoutGrid, label: "Overview" },
-        { id: "list",     icon: List,        label: "List"     },
-        { id: "board",    icon: Kanban,       label: "Board"   },
-        { id: "members",  icon: Users,        label: "Members" },
+        { id: "list", icon: List, label: "List" },
+        { id: "board", icon: Kanban, label: "Board" },
+        { id: "members", icon: Users, label: "Members" },
     ];
     return (
         <div style={{ display: "flex", gap: 4, padding: "0 20px", marginBottom: 16, borderBottom: `1px solid ${"rgba(255,255,255,0.05)"}`, paddingBottom: 0 }}>
@@ -180,9 +186,9 @@ function ViewTabs({ active, onChange }: { active: ViewMode; onChange: (v: ViewMo
 
 // ─── MEMBERS VIEW ───────────────────────────────────────────────────────────────
 const ROLE_COLORS: Record<string, { c: string; bg: string }> = {
-    ADMIN:  { c: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
-    MEMBER: { c: "#22d3a0", bg: "rgba(34,211,160,0.1)"  },
-    VIEWER: { c: "#f59e0b", bg: "rgba(245,158,11,0.1)"  },
+    ADMIN: { c: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
+    MEMBER: { c: "#22d3a0", bg: "rgba(34,211,160,0.1)" },
+    VIEWER: { c: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
 };
 function MembersView({
     members,
@@ -269,9 +275,9 @@ function MembersView({
 }
 
 // ─── OVERVIEW panels ─────────────────────────────────────────────────────────
-function WorkspaceOverview({ tasks, spaces, members, listes, folders, onSelect }: any) {
-    const done    = tasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
-    const active  = tasks.filter((t: TaskResponseDto) => ["IN_DEV","IN_TEST","IN_REVIEW"].includes(t.status)).length;
+function WorkspaceOverview({ tasks, spaces, members, sprints, listes, folders, onSelect }: any) {
+    const done = tasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const active = tasks.filter((t: TaskResponseDto) => ["IN_DEV", "IN_TEST", "IN_REVIEW"].includes(t.status)).length;
     const compPct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
     const deadlines = tasks.filter((t: TaskResponseDto) => t.dueDate && t.status !== "DONE")
         .sort((a: TaskResponseDto, b: TaskResponseDto) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
@@ -281,10 +287,10 @@ function WorkspaceOverview({ tasks, spaces, members, listes, folders, onSelect }
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Stats row */}
             <div style={{ display: "flex", gap: 12 }}>
-                <StatChip value={spaces.length}  label="Spaces"       color={C.accent} icon={Folder} />
-                <StatChip value={active}          label="In Progress"  color={C.blue}   icon={Activity} />
-                <StatChip value={`${compPct}%`}   label="Completion"   color={C.green}  icon={Target} />
-                <StatChip value={members.length}  label="Members"      color={C.pink}   icon={Users} />
+                <StatChip value={spaces.length} label="Spaces" color={C.accent} icon={Folder} />
+                <StatChip value={active} label="In Progress" color={C.blue} icon={Activity} />
+                <StatChip value={`${compPct}%`} label="Completion" color={C.green} icon={Target} />
+                <StatChip value={members.length} label="Members" color={C.pink} icon={Users} />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
@@ -328,13 +334,13 @@ function WorkspaceOverview({ tasks, spaces, members, listes, folders, onSelect }
 
 function SpaceOverview({ space, folders, listes, tasks, onSelect }: any) {
     const spFolders = folders.filter((f: FolderResponseDto) => f.spaceId === space.id);
-    const spTasks   = tasks.filter((t: TaskResponseDto) => {
+    const spTasks = tasks.filter((t: TaskResponseDto) => {
         const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
         const f = folders.find((fo: FolderResponseDto) => fo.id === l?.folderId);
         return f?.spaceId === space.id;
     });
-    const done    = spTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
-    const active  = spTasks.filter((t: TaskResponseDto) => ["IN_DEV","IN_TEST","IN_REVIEW"].includes(t.status)).length;
+    const done = spTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const active = spTasks.filter((t: TaskResponseDto) => ["IN_DEV", "IN_TEST", "IN_REVIEW"].includes(t.status)).length;
     const compPct = spTasks.length > 0 ? Math.round((done / spTasks.length) * 100) : 0;
     const deadlines = spTasks.filter((t: TaskResponseDto) => t.dueDate && t.status !== "DONE")
         .sort((a: TaskResponseDto, b: TaskResponseDto) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 5);
@@ -342,10 +348,10 @@ function SpaceOverview({ space, folders, listes, tasks, onSelect }: any) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", gap: 12 }}>
-                <StatChip value={spFolders.length} label="Folders"     color={C.accent} icon={FolderOpen} />
-                <StatChip value={active}            label="In Progress" color={C.blue}   icon={Activity} />
-                <StatChip value={`${compPct}%`}     label="Completion"  color={C.green}  icon={Target} />
-                <StatChip value={done}              label="Done"        color={C.green}  icon={CheckCircle2} />
+                <StatChip value={spFolders.length} label="Folders" color={C.accent} icon={FolderOpen} />
+                <StatChip value={active} label="In Progress" color={C.blue} icon={Activity} />
+                <StatChip value={`${compPct}%`} label="Completion" color={C.green} icon={Target} />
+                <StatChip value={done} label="Done" color={C.green} icon={CheckCircle2} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
                 <div>
@@ -378,24 +384,24 @@ function SpaceOverview({ space, folders, listes, tasks, onSelect }: any) {
 }
 
 function FolderOverview({ folder, listes, tasks, sprints, onSelect }: any) {
-    const fLists   = listes.filter((l: ListeResponseDto) => l.folderId === folder.id);
+    const fLists = listes.filter((l: ListeResponseDto) => l.folderId === folder.id);
     const fSprints = sprints.filter((s: SprintResponseDto) => s.folderId === folder.id);
-    const fTasks   = tasks.filter((t: TaskResponseDto) => {
+    const fTasks = tasks.filter((t: TaskResponseDto) => {
         const l = listes.find((li: ListeResponseDto) => li.id === t.listeId);
         return l?.folderId === folder.id;
     });
-    const done    = fTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const done = fTasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
     const compPct = fTasks.length > 0 ? Math.round((done / fTasks.length) * 100) : 0;
     const activeSprint = fSprints.find((s: SprintResponseDto) => s.isActive) ?? fSprints[fSprints.length - 1] ?? null;
-    const sprintPct2   = sprintPct(activeSprint);
+    const sprintPct2 = sprintPct(activeSprint);
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", gap: 12 }}>
-                <StatChip value={fLists.length}   label="Lists"      color={C.blue}   icon={List} />
-                <StatChip value={fSprints.length} label="Sprints"    color={C.orange} icon={Zap} />
-                <StatChip value={`${compPct}%`}   label="Completion" color={C.green}  icon={Target} />
-                <StatChip value={fTasks.length}   label="Total Tasks" color={C.accent} icon={CheckCircle2} />
+                <StatChip value={fLists.length} label="Lists" color={C.blue} icon={List} />
+                <StatChip value={fSprints.length} label="Sprints" color={C.orange} icon={Zap} />
+                <StatChip value={`${compPct}%`} label="Completion" color={C.green} icon={Target} />
+                <StatChip value={fTasks.length} label="Total Tasks" color={C.accent} icon={CheckCircle2} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -465,8 +471,8 @@ function FolderOverview({ folder, listes, tasks, sprints, onSelect }: any) {
 }
 
 function ListOverview({ liste, tasks }: any) {
-    const lt    = tasks.filter((t: TaskResponseDto) => t.listeId === liste.id);
-    const done  = lt.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const lt = tasks.filter((t: TaskResponseDto) => t.listeId === liste.id);
+    const done = lt.filter((t: TaskResponseDto) => t.status === "DONE").length;
     const compPct = lt.length > 0 ? Math.round((done / lt.length) * 100) : 0;
     const byStatus: Record<string, TaskResponseDto[]> = {};
     lt.forEach((t: TaskResponseDto) => { byStatus[t.status] = [...(byStatus[t.status] || []), t]; });
@@ -474,9 +480,9 @@ function ListOverview({ liste, tasks }: any) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", gap: 12 }}>
-                <StatChip value={lt.length}     label="Total"       color={C.accent} icon={List} />
-                <StatChip value={`${compPct}%`} label="Completion"  color={C.green}  icon={Target} />
-                <StatChip value={done}          label="Done"        color={C.green}  icon={CheckCircle2} />
+                <StatChip value={lt.length} label="Total" color={C.accent} icon={List} />
+                <StatChip value={`${compPct}%`} label="Completion" color={C.green} icon={Target} />
+                <StatChip value={done} label="Done" color={C.green} icon={CheckCircle2} />
                 <StatChip value={lt.length - done} label="Remaining" color={C.orange} icon={Clock} />
             </div>
             {/* Status breakdown */}
@@ -485,7 +491,7 @@ function ListOverview({ liste, tasks }: any) {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {Object.entries(STATUS_META).map(([key, meta]) => {
                         const count = byStatus[key]?.length || 0;
-                        const pct   = lt.length > 0 ? Math.round((count / lt.length) * 100) : 0;
+                        const pct = lt.length > 0 ? Math.round((count / lt.length) * 100) : 0;
                         return (
                             <div key={key}>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
@@ -503,18 +509,18 @@ function ListOverview({ liste, tasks }: any) {
 }
 
 function SprintOverview({ sprint, tasks }: any) {
-    const st    = tasks.filter((t: TaskResponseDto) => t.sprintId === sprint.id);
-    const done  = st.filter((t: TaskResponseDto) => t.status === "DONE").length;
-    const pct   = sprintPct(sprint);
+    const st = tasks.filter((t: TaskResponseDto) => t.sprintId === sprint.id);
+    const done = st.filter((t: TaskResponseDto) => t.status === "DONE").length;
+    const pct = sprintPct(sprint);
     const compPct = st.length > 0 ? Math.round((done / st.length) * 100) : 0;
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", gap: 12 }}>
-                <StatChip value={st.length}    label="Total Tasks"  color={C.accent} icon={List} />
-                <StatChip value={`${compPct}%`} label="Tasks Done"  color={C.green}  icon={Target} />
-                <StatChip value={`${pct}%`}    label="Time Elapsed" color={C.orange} icon={Clock} />
-                <StatChip value={done}         label="Completed"    color={C.green}  icon={CheckCircle2} />
+                <StatChip value={st.length} label="Total Tasks" color={C.accent} icon={List} />
+                <StatChip value={`${compPct}%`} label="Tasks Done" color={C.green} icon={Target} />
+                <StatChip value={`${pct}%`} label="Time Elapsed" color={C.orange} icon={Clock} />
+                <StatChip value={done} label="Completed" color={C.green} icon={CheckCircle2} />
             </div>
             <div style={{ background: `linear-gradient(135deg, ${C.accent}10, ${C.green}08)`, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -716,7 +722,7 @@ function WorkspaceFormModal({ mode, initialName = "", initialSlug = "", onSubmit
 
 function DeleteModal({ name, onConfirm, onClose }: any) {
     const [busy, setBusy] = useState(false);
-    const [err, setErr]   = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
     const go = async () => { setBusy(true); setErr(null); try { await onConfirm(); onClose(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
     return (
         <Modal title="Delete Workspace" onClose={onClose}>
@@ -739,33 +745,31 @@ export default function WorkspacePage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [isLoading, setIsLoading]   = useState(true);
-    const [viewMode, setViewMode]     = useState<ViewMode>("overview");
+    const [isLoading, setIsLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<ViewMode>("overview");
     const [workspaces, setWorkspaces] = useState<WorkspaceResponseDto[]>([]);
     const [teamWorkspaces, setTeamWorkspaces] = useState<WorkspaceResponseDto[]>([]);
     const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceResponseDto | null>(null);
-    const [spaces, setSpaces]   = useState<SpaceResponseDto[]>([]);
+    const [spaces, setSpaces] = useState<SpaceResponseDto[]>([]);
     const [folders, setFolders] = useState<FolderResponseDto[]>([]);
     const [sprints, setSprints] = useState<SprintResponseDto[]>([]);
-    const [listes, setListes]   = useState<ListeResponseDto[]>([]);
-    const [tasks, setTasks]     = useState<TaskResponseDto[]>([]);
+    const [listes, setListes] = useState<ListeResponseDto[]>([]);
+    const [tasks, setTasks] = useState<TaskResponseDto[]>([]);
     const [members, setMembers] = useState<WorkspaceMemberResponseDto[]>([]);
     const [selectedHierarchy, setSelectedHierarchy] = useState<SelectedHierarchy | null>(null);
     const [user, setUser] = useState({ name: "User", avatar: "US" });
     const [collapsed, setCollapsed] = useState(false);
 
-    const [showCreateWs, setShowCreateWs]   = useState(false);
-    const [editingWs, setEditingWs]         = useState<WorkspaceResponseDto | null>(null);
-    const [deletingWs, setDeletingWs]       = useState<WorkspaceResponseDto | null>(null);
-    const [showTaskForm, setShowTaskForm]   = useState(false);
-    const [taskCreateDefaults, setTaskCreateDefaults] = useState<Partial<TaskRequestDto> | undefined>(undefined);
-    const [editingTask, setEditingTask]     = useState<TaskResponseDto | null>(null);
-    const [deletingTask, setDeletingTask]   = useState<TaskResponseDto | null>(null);
-    const [showListForm, setShowListForm]   = useState(false);
-    const [editingList, setEditingList]     = useState<ListeResponseDto | null>(null);
-    const [deletingList, setDeletingList]   = useState<ListeResponseDto | null>(null);
-    const [showInviteModal, setShowInviteModal]       = useState(false);
-    const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+    const [showCreateWs, setShowCreateWs] = useState(false);
+    const [editingWs, setEditingWs] = useState<WorkspaceResponseDto | null>(null);
+    const [deletingWs, setDeletingWs] = useState<WorkspaceResponseDto | null>(null);
+    const [showTaskForm, setShowTaskForm] = useState(false);
+    const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
+    const [deletingTask, setDeletingTask] = useState<TaskResponseDto | null>(null);
+    const [showListForm, setShowListForm] = useState(false);
+    const [editingList, setEditingList] = useState<ListeResponseDto | null>(null);
+    const [deletingList, setDeletingList] = useState<ListeResponseDto | null>(null);
+    const [showInviteModal, setShowInviteModal] = useState(false);
 
     // ── Filtered data by hierarchy ──
     const filteredTasks = (() => {
@@ -779,7 +783,7 @@ export default function WorkspacePage() {
             const l = listes.find(li => li.id === t.listeId);
             return l?.folderId === selectedHierarchy.id;
         });
-        if (selectedHierarchy.type === "list")   return tasks.filter(t => t.listeId === selectedHierarchy.id);
+        if (selectedHierarchy.type === "list") return tasks.filter(t => t.listeId === selectedHierarchy.id);
         if (selectedHierarchy.type === "sprint") return tasks.filter(t => t.sprintId === selectedHierarchy.id);
         return tasks;
     })();
@@ -791,7 +795,7 @@ export default function WorkspacePage() {
             return f?.spaceId === selectedHierarchy.id;
         });
         if (selectedHierarchy.type === "folder") return listes.filter(l => l.folderId === selectedHierarchy.id);
-        if (selectedHierarchy.type === "list")   return listes.filter(l => l.id === selectedHierarchy.id);
+        if (selectedHierarchy.type === "list") return listes.filter(l => l.id === selectedHierarchy.id);
         return listes;
     })();
 
@@ -848,7 +852,19 @@ export default function WorkspacePage() {
     }, []);
 
     useEffect(() => {
-        if (activeWorkspace) { localStorage.setItem("activeWorkspaceId", activeWorkspace.id); setSelectedHierarchy(null); }
+        if (activeWorkspace) { 
+            localStorage.setItem("activeWorkspaceId", activeWorkspace.id); 
+            
+            const pending = localStorage.getItem("pendingSelectedHierarchy");
+            if (pending) {
+                try {
+                    setSelectedHierarchy(JSON.parse(pending));
+                } catch(e) {}
+                localStorage.removeItem("pendingSelectedHierarchy");
+            } else {
+                setSelectedHierarchy(null); 
+            }
+        }
     }, [activeWorkspace]);
 
     // ── Reload dashboard data ──
@@ -909,8 +925,8 @@ export default function WorkspacePage() {
         else { await createListe(data); setShowListForm(false); }
         reloadData();
     };
-    const handleTaskDelete  = async (id: string) => { await deleteTask(id); setDeletingTask(null); reloadData(); };
-    const handleListDelete  = async (id: string) => { await deleteListe(id); setDeletingList(null); setSelectedHierarchy(null); reloadData(); };
+    const handleTaskDelete = async (id: string) => { await deleteTask(id); setDeletingTask(null); reloadData(); };
+    const handleListDelete = async (id: string) => { await deleteListe(id); setDeletingList(null); setSelectedHierarchy(null); reloadData(); };
     const handleStatusChange = async (task: TaskResponseDto, status: TaskStatus) => {
         setTasks(p => p.map(t => t.id === task.id ? { ...t, status } : t));
         try { await updateTask(task.id, { ...task, status }); } catch { reloadData(); }
@@ -957,6 +973,18 @@ export default function WorkspacePage() {
                 ...item,
                 active: location.pathname === "/ai",
                 onClick: () => navigate("/ai"),
+                subItems: [
+                    {
+                        label: "New Chat",
+                        icon: SquarePen,
+                        onClick: () => navigate("/ai?new=1"),
+                    },
+                    {
+                        label: "History",
+                        icon: History,
+                        onClick: () => navigate("/ai?history=1"),
+                    },
+                ],
             };
         }
         return item;
@@ -964,12 +992,12 @@ export default function WorkspacePage() {
 
     // ── Title of current level ──
     const levelTitle = selectedHierarchy ? selectedHierarchy.name : (activeWorkspace?.name ?? "Workspace");
-    const levelType  = selectedHierarchy?.type ?? "workspace";
+    const levelType = selectedHierarchy?.type ?? "workspace";
 
     // ── Overview rendering ──
     const renderOverview = () => {
         if (!selectedHierarchy) return <WorkspaceOverview tasks={tasks} spaces={spaces} members={members} sprints={sprints} listes={listes} folders={folders} onSelect={setSelectedHierarchy} />;
-        if (selectedHierarchy.type === "space")  return <SpaceOverview  space={selectedHierarchy}  folders={folders} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} />;
+        if (selectedHierarchy.type === "space") return <SpaceOverview space={selectedHierarchy} folders={folders} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} />;
         if (selectedHierarchy.type === "folder") {
             const folder = folders.find(f => f.id === selectedHierarchy.id);
             return folder ? <FolderOverview folder={folder} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} /> : null;
@@ -1088,10 +1116,10 @@ export default function WorkspacePage() {
                                 <div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                                         {levelType === "workspace" && <Hash size={13} style={{ color: C.accent }} />}
-                                        {levelType === "space"     && <Folder size={13} style={{ color: C.accent }} />}
-                                        {levelType === "folder"    && <FolderOpen size={13} style={{ color: C.orange }} />}
-                                        {levelType === "list"      && <List size={13} style={{ color: C.blue }} />}
-                                        {levelType === "sprint"    && <Zap size={13} style={{ color: C.orange }} />}
+                                        {levelType === "space" && <Folder size={13} style={{ color: C.accent }} />}
+                                        {levelType === "folder" && <FolderOpen size={13} style={{ color: C.orange }} />}
+                                        {levelType === "list" && <List size={13} style={{ color: C.blue }} />}
+                                        {levelType === "sprint" && <Zap size={13} style={{ color: C.orange }} />}
                                         <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: "-0.1px", margin: 0 }}>{levelTitle}</h1>
                                     </div>
                                     <p style={{ fontSize: 11, color: C.textFaint, margin: 0 }}>
@@ -1119,19 +1147,22 @@ export default function WorkspacePage() {
                                         </button>
                                     )}
                                     {viewMode !== 'members' && (
-                                    <button
-                                        onClick={() => { void openTaskCreateModal(); }}
-                                        style={{
-                                            display: "flex", alignItems: "center", gap: 6,
-                                            background: C.accent, border: "none",
-                                            borderRadius: 8, padding: "6px 14px", color: "#fff",
-                                            fontSize: 12, fontWeight: 600, cursor: "pointer",
-                                            fontFamily: "'DM Sans', sans-serif",
-                                            boxShadow: `0 4px 12px ${C.accentGlow}`,
-                                        }}
-                                    >
-                                        <Plus size={13} /> Task
-                                    </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (folders.length === 0) await reloadData();
+                                                setShowTaskForm(true);
+                                            }}
+                                            style={{
+                                                display: "flex", alignItems: "center", gap: 6,
+                                                background: C.accent, border: "none",
+                                                borderRadius: 8, padding: "6px 14px", color: "#fff",
+                                                fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                                fontFamily: "'DM Sans', sans-serif",
+                                                boxShadow: `0 4px 12px ${C.accentGlow}`,
+                                            }}
+                                        >
+                                            <Plus size={13} /> Task
+                                        </button>
                                     )}
                                 </div>
                             </div>
@@ -1172,15 +1203,15 @@ export default function WorkspacePage() {
 
             {/* MODALS */}
             {showCreateWs && <WorkspaceFormModal mode="create" onSubmit={handleCreateWs} onClose={() => setShowCreateWs(false)} />}
-            {editingWs    && <WorkspaceFormModal mode="edit" initialName={editingWs.name} initialSlug={editingWs.slug} onSubmit={handleUpdateWs} onClose={() => setEditingWs(null)} />}
-            {deletingWs   && <DeleteModal name={deletingWs.name} onConfirm={handleDeleteWs} onClose={() => setDeletingWs(null)} />}
+            {editingWs && <WorkspaceFormModal mode="edit" initialName={editingWs.name} initialSlug={editingWs.slug} onSubmit={handleUpdateWs} onClose={() => setEditingWs(null)} />}
+            {deletingWs && <DeleteModal name={deletingWs.name} onConfirm={handleDeleteWs} onClose={() => setDeletingWs(null)} />}
 
-            {showTaskForm && <TaskAdd defaults={taskCreateDefaults} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => { setShowTaskForm(false); setTaskCreateDefaults(undefined); }} />}
-            {editingTask  && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} />}
+            {showTaskForm && <TaskAdd listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} />}
+            {editingTask && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} />}
             {deletingTask && <TaskDelete task={deletingTask} onDelete={handleTaskDelete} onClose={() => setDeletingTask(null)} />}
 
             {showListForm && <ListeAdd folders={folders.map(f => ({ value: f.id!, label: f.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} onSubmit={handleListSubmit} onClose={() => setShowListForm(false)} />}
-            {editingList  && <ListeUpdate listeId={editingList.id} defaults={editingList} folders={folders.map(f => ({ value: f.id!, label: f.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} onSubmit={handleListSubmit} onClose={() => setEditingList(null)} />}
+            {editingList && <ListeUpdate listeId={editingList.id} defaults={editingList} folders={folders.map(f => ({ value: f.id!, label: f.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} onSubmit={handleListSubmit} onClose={() => setEditingList(null)} />}
             {deletingList && <ListeDelete liste={deletingList} onDelete={handleListDelete} onClose={() => setDeletingList(null)} />}
 
             {showInviteModal && activeWorkspace && (
