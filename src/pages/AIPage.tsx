@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutDashboard, FolderGit2,
+    FolderGit2,
     Sparkles, Send, Loader2, Plus,
     X, Check, Trash2, Pencil,
     ChevronRight, ChevronDown,
-    SquarePen, History, Bell,
+    SquarePen, History,
     Folder, FolderOpen, List, Zap, Target, Activity, Users, CheckCircle2,
     Clock, CalendarDays, ArrowLeft, LayoutGrid
 } from "lucide-react";
@@ -755,7 +755,7 @@ interface AIConfirmCardProps {
 function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirmCardProps) {
     const navigate = useNavigate();
     const [localEntity, setLocalEntity] = useState<any>(() => {
-        const base = generated.entity ?? {};
+        const base = Array.isArray(generated.entity) ? (generated.entity[0] ?? {}) : (generated.entity ?? {});
         if (generated.intent === "task") return { spaceId: "", folderId: "", listeId: "", sprintId: "", ...base };
         if (generated.intent === "liste") return { spaceId: "", folderId: "", type: "SPRINT", ...base };
         if (generated.intent === "sprint") return { spaceId: "", folderId: "", ...base };
@@ -1106,9 +1106,8 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
 // ============================================================================
 
 const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard" },
+    { icon: LayoutGrid, label: "Dashboard" },
     { icon: Sparkles, label: "Ask AI" },
-    { icon: Bell, label: "Notifications" },
 ];
 
 type ChatRole = "user" | "assistant" | "system";
@@ -1448,8 +1447,9 @@ export default function AIPage() {
     };
 
     const handleConfirmEntity = async (generated: GenerateEntityResponse): Promise<any> => {
-        if (!generated.entity) throw new Error("Aucune entité à créer.");
-        const entity = { ...generated.entity };
+        const baseEntity = Array.isArray(generated.entity) ? generated.entity[0] : generated.entity;
+        if (!baseEntity) throw new Error("Aucune entité à créer.");
+        const entity = { ...baseEntity };
 
         // Nettoyer les chaînes vides pour éviter les erreurs "not found" côté backend
         if (entity.spaceId === "") delete entity.spaceId;
@@ -1623,19 +1623,18 @@ export default function AIPage() {
         if (item.label === "Dashboard") {
             return {
                 ...item,
-                active: location.pathname === "/workspace",
-                onClick: () => navigate("/workspace"),
+                active: location.pathname === "/workspace" && !selectedHierarchy,
+                onClick: () => {
+                    navigate("/workspace");
+                    setSelectedHierarchy(null);
+                },
             };
         }
         if (item.label === "Ask AI") {
             return {
                 ...item,
-                active: location.pathname === "/ai" || location.pathname === "/ai-chat",
+                active: location.pathname === "/ai",
                 onClick: () => navigate("/ai"),
-                subItems: [
-                    { label: "New Chat", icon: Plus, onClick: handleCreateConversation },
-                    { label: "History", icon: History, onClick: () => setIsConversationPanelOpen(!isConversationPanelOpen), active: isConversationPanelOpen },
-                ]
             };
         }
         return item;
@@ -1670,9 +1669,6 @@ export default function AIPage() {
                             }}
                         />
                     }
-                    onNewChat={handleCreateConversation}
-                    onOpenHistory={() => setIsConversationPanelOpen(prev => !prev)}
-                    isHistoryActive={isConversationPanelOpen}
                 />
             }
         >
@@ -1722,6 +1718,10 @@ export default function AIPage() {
                 .search-input::placeholder { color: rgba(255,255,255,0.25); }
                 .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.18s, border-color 0.18s; }
                 .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+                .ai-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+                .ai-action-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+                .ai-action-btn.primary { background: rgba(83,74,183,0.22); border-color: rgba(83,74,183,0.45); color: #d9d4ff; }
+                .ai-action-btn.primary:hover { background: rgba(83,74,183,0.32); }
                 
                 /* Markdown Styles */
                 .markdown-content { font-size: 14px; line-height: 1.6; }
@@ -1745,8 +1745,12 @@ export default function AIPage() {
 
                 /* AI Page Layout */
                 .ai-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: #0d0d0f; position: relative; }
-                .ai-top-bar { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 40px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; background: rgba(13,13,15,0.4); backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-                .ai-top-bar.collapsed { height: 30px; border-bottom: none; background: transparent; padding-top: 8px; }
+                .ai-top-bar { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; background: rgba(13,13,15,0.4); backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+                .ai-top-bar.collapsed { border-bottom: none; background: transparent; padding-top: 8px; }
+                .ai-top-row { display: flex; align-items: center; gap: 8px; }
+                .ai-top-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+                .ai-top-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+                .ai-top-repos { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; align-items: center; }
                 .ai-main-layout { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
                 .repo-chip { 
                     display: inline-flex; 
@@ -1875,31 +1879,44 @@ export default function AIPage() {
                     ) : (
                         <>
                             <div className={`ai-top-bar${!isReposExpanded ? ' collapsed' : ''}`}>
-                                <div
-                                    onClick={() => setIsReposExpanded(!isReposExpanded)}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                        cursor: "pointer",
-                                        userSelect: "none",
-                                        background: isReposExpanded ? "rgba(255,255,255,0.03)" : "rgba(83,74,183,0.1)",
-                                        padding: isReposExpanded ? "6px 12px" : "4px 10px",
-                                        borderRadius: isReposExpanded ? "8px" : "20px",
-                                        border: isReposExpanded ? "none" : "1px solid rgba(83,74,183,0.3)",
-                                        transition: "all 0.3s ease"
-                                    }}
-                                >
-                                    <div style={{ display: "flex", alignItems: "center", justifyCenter: "center", color: isReposExpanded ? "#a89ef5" : "#7c3aed" }}>
-                                        {isReposExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                <div className="ai-top-row">
+                                    <div className="ai-top-left">
+                                    <div
+                                        onClick={() => setIsReposExpanded(!isReposExpanded)}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 8,
+                                            cursor: "pointer",
+                                            userSelect: "none",
+                                            background: isReposExpanded ? "rgba(255,255,255,0.03)" : "rgba(83,74,183,0.1)",
+                                            padding: isReposExpanded ? "6px 12px" : "4px 10px",
+                                            borderRadius: isReposExpanded ? "8px" : "20px",
+                                            border: isReposExpanded ? "none" : "1px solid rgba(83,74,183,0.3)",
+                                            transition: "all 0.3s ease"
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", justifyCenter: "center", color: isReposExpanded ? "#a89ef5" : "#7c3aed" }}>
+                                            {isReposExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: isReposExpanded ? "rgba(255,255,255,0.8)" : "#a89ef5", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
+                                            <FolderGit2 size={12} /> {isReposExpanded ? "Repositories" : "Manage Repos"}
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: isReposExpanded ? "rgba(255,255,255,0.8)" : "#a89ef5", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
-                                        <FolderGit2 size={12} /> {isReposExpanded ? "Repositories" : "Manage Repos"}
+                                    </div>
+
+                                    <div className="ai-top-actions">
+                                        <button className="ai-action-btn" onClick={() => navigate("/ai?history=1")}> 
+                                            <History size={13} /> History
+                                        </button>
+                                        <button className="ai-action-btn primary" onClick={() => navigate("/ai?new=1")}>
+                                            <SquarePen size={13} /> New Chat
+                                        </button>
                                     </div>
                                 </div>
 
                                 {isReposExpanded && (
-                                    <div style={{ display: "flex", gap: 6, flex: 1, overflowX: "auto", paddingLeft: 10, alignItems: "center" }}>
+                                    <div className="ai-top-repos">
                                         {repoList.map((r, i) => (
                                             <div key={i} className="repo-chip">
                                                 <div className="repo-chip-icon"><FolderGit2 size={14} /></div>
@@ -1922,7 +1939,6 @@ export default function AIPage() {
                                             <Plus size={13} /> Add Repo
                                         </button>
 
-                                        {/* Bouton GitHub Connect / Disconnect */}
                                         {githubConnected ? (
                                             <button
                                                 onClick={disconnectGitHub}
@@ -2007,21 +2023,44 @@ export default function AIPage() {
                                                             <div className="msg-ai-content markdown-content">
                                                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                                                                 {m.generated && m.generated.intent !== "unknown" && (
-                                                                    <div style={{ marginTop: 14 }}>
-                                                                        <AIConfirmCard
-                                                                            generated={m.generated}
-                                                                            workspaceId={activeWorkspace?.id}
-                                                                            onAccept={async (localEntity) => {
-                                                                                const res = await handleConfirmEntity({ ...m.generated!, entity: localEntity });
-                                                                                setAcceptedCards(prev => new Set(prev).add(i));
-                                                                                return res;
-                                                                            }}
-                                                                            onReject={() => {
-                                                                                setMessages(prev => prev.map((msg, idx) =>
-                                                                                    idx === i ? { ...msg, generated: undefined } : msg
-                                                                                ));
-                                                                            }}
-                                                                        />
+                                                                    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+                                                                        {(() => {
+                                                                            const entities = Array.isArray(m.generated.entity)
+                                                                                ? m.generated.entity
+                                                                                : (m.generated.entity ? [m.generated.entity] : []);
+                                                                            return entities.map((entityItem, entityIndex) => {
+                                                                                const total = entities.length;
+                                                                                const explanation = total > 1
+                                                                                    ? `${m.generated!.explanation} (${entityIndex + 1}/${total})`
+                                                                                    : m.generated!.explanation;
+                                                                                const generatedItem = { ...m.generated!, entity: entityItem, explanation };
+                                                                                return (
+                                                                                    <AIConfirmCard
+                                                                                        key={`${i}-${entityIndex}`}
+                                                                                        generated={generatedItem}
+                                                                                        workspaceId={activeWorkspace?.id}
+                                                                                        onAccept={async (localEntity) => {
+                                                                                            const res = await handleConfirmEntity({ ...generatedItem, entity: localEntity });
+                                                                                            setAcceptedCards(prev => new Set(prev).add(i));
+                                                                                            return res;
+                                                                                        }}
+                                                                                        onReject={() => {
+                                                                                            setMessages(prev => prev.map((msg, msgIndex) => {
+                                                                                                if (msgIndex !== i || !msg.generated) return msg;
+                                                                                                const current = Array.isArray(msg.generated.entity)
+                                                                                                    ? msg.generated.entity
+                                                                                                    : (msg.generated.entity ? [msg.generated.entity] : []);
+                                                                                                if (current.length <= 1) {
+                                                                                                    return { ...msg, generated: undefined };
+                                                                                                }
+                                                                                                const nextEntities = current.filter((_, idx) => idx !== entityIndex);
+                                                                                                return { ...msg, generated: { ...msg.generated, entity: nextEntities } };
+                                                                                            }));
+                                                                                        }}
+                                                                                    />
+                                                                                );
+                                                                            });
+                                                                        })()}
                                                                     </div>
                                                                 )}
                                                             </div>

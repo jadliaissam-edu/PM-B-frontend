@@ -1,16 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutGrid, ChevronRight, ChevronDown, Plus, TrendingUp, Clock,
-    Folder, Target, Circle, Zap, Star, Loader2, Trash2, X, Check,
-    CalendarDays, Sparkles, Users, UserPlus, List, Kanban, Home,
-    Hash, MoreVertical, Settings, Bell, Search, LogOut,
-    FolderOpen, Layers, Activity, CheckCircle2, AlertCircle,
-    ArrowRight, Filter, SortAsc, Eye, EyeOff, SquarePen, History,
     LayoutGrid, Plus, Clock,
     Folder, Target, Zap, Loader2, Trash2, X, Check,
     CalendarDays, Sparkles, Users, UserPlus, List, Kanban,
-    Hash, Bell, FolderOpen, Activity, CheckCircle2,
+    Hash,
+    FolderOpen, Activity, CheckCircle2,
+    SquarePen, History,
 } from "lucide-react";
 
 import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";
@@ -275,7 +271,7 @@ function MembersView({
 }
 
 // ─── OVERVIEW panels ─────────────────────────────────────────────────────────
-function WorkspaceOverview({ tasks, spaces, members, sprints, listes, folders, onSelect }: any) {
+function WorkspaceOverview({ tasks, spaces, members, listes, folders, onSelect }: any) {
     const done = tasks.filter((t: TaskResponseDto) => t.status === "DONE").length;
     const active = tasks.filter((t: TaskResponseDto) => ["IN_DEV", "IN_TEST", "IN_REVIEW"].includes(t.status)).length;
     const compPct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
@@ -766,10 +762,12 @@ export default function WorkspacePage() {
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
     const [deletingTask, setDeletingTask] = useState<TaskResponseDto | null>(null);
+    const [taskCreateDefaults, setTaskCreateDefaults] = useState<Partial<TaskRequestDto> | undefined>(undefined);
     const [showListForm, setShowListForm] = useState(false);
     const [editingList, setEditingList] = useState<ListeResponseDto | null>(null);
     const [deletingList, setDeletingList] = useState<ListeResponseDto | null>(null);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
 
     // ── Filtered data by hierarchy ──
     const filteredTasks = (() => {
@@ -954,7 +952,6 @@ export default function WorkspacePage() {
     const navItems = [
         { icon: LayoutGrid, label: "Dashboard" },
         { icon: Sparkles, label: "Ask AI" },
-        { icon: Bell, label: "Notifications" },
     ];
 
     const sidebarNavItems = navItems.map((item) => {
@@ -996,7 +993,7 @@ export default function WorkspacePage() {
 
     // ── Overview rendering ──
     const renderOverview = () => {
-        if (!selectedHierarchy) return <WorkspaceOverview tasks={tasks} spaces={spaces} members={members} sprints={sprints} listes={listes} folders={folders} onSelect={setSelectedHierarchy} />;
+        if (!selectedHierarchy) return <WorkspaceOverview tasks={tasks} spaces={spaces} members={members} listes={listes} folders={folders} onSelect={setSelectedHierarchy} />;
         if (selectedHierarchy.type === "space") return <SpaceOverview space={selectedHierarchy} folders={folders} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} />;
         if (selectedHierarchy.type === "folder") {
             const folder = folders.find(f => f.id === selectedHierarchy.id);
@@ -1150,6 +1147,7 @@ export default function WorkspacePage() {
                                         <button
                                             onClick={async () => {
                                                 if (folders.length === 0) await reloadData();
+                                                setTaskCreateDefaults(undefined);
                                                 setShowTaskForm(true);
                                             }}
                                             style={{
@@ -1206,7 +1204,7 @@ export default function WorkspacePage() {
             {editingWs && <WorkspaceFormModal mode="edit" initialName={editingWs.name} initialSlug={editingWs.slug} onSubmit={handleUpdateWs} onClose={() => setEditingWs(null)} />}
             {deletingWs && <DeleteModal name={deletingWs.name} onConfirm={handleDeleteWs} onClose={() => setDeletingWs(null)} />}
 
-            {showTaskForm && <TaskAdd listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} />}
+            {showTaskForm && <TaskAdd defaults={taskCreateDefaults} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} />}
             {editingTask && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} />}
             {deletingTask && <TaskDelete task={deletingTask} onDelete={handleTaskDelete} onClose={() => setDeletingTask(null)} />}
 

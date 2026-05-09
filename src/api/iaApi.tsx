@@ -82,7 +82,7 @@ export async function analyzeRepo(payload: RepoAnalysisRequest): Promise<RepoAna
 // Generate Entity (intent detection + structured JSON)
 // ---------------------------------------------------------------
 
-export type EntityIntent = "task" | "workspace" | "space" | "sprint" | "liste" | "unknown";
+export type EntityIntent = "task" | "workspace" | "space" | "sprint" | "liste" | "folder" | "unknown";
 
 export interface GenerateEntityRequest {
     user_query: string;
@@ -91,13 +91,14 @@ export interface GenerateEntityRequest {
         spaceId?: string;
         listeId?: string;
         sprintId?: string;
+        members?: Array<{ id: string; name: string }>;
     };
     repositories?: RepoInfo[];
 }
 
 export interface GenerateEntityResponse {
     intent: EntityIntent;
-    entity: Record<string, any> | null;
+    entity: Record<string, any> | Array<Record<string, any>> | null;
     endpoint: string | null;
     explanation: string;
 }
