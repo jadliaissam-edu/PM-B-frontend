@@ -822,7 +822,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
         setError(null);
         try {
             const data = await onAccept(localEntity);
-            if (data) {
+            if (data !== undefined) {
                 setAcceptedData(data);
             }
             setAccepted(true);
@@ -1509,7 +1509,7 @@ export default function AIPage() {
                 if (!entity.folderId) {
                     const folders = await import("../api/folderApi").then(m => m.getAllFolders());
                     if (folders.length > 0) {
-                        entity.folderId = folders[0].id || folders[0].folderId;
+                        (entity as any).folderId = folders[0].id;
                     } else {
                         throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
                     }
@@ -1896,7 +1896,7 @@ export default function AIPage() {
                                             transition: "all 0.3s ease"
                                         }}
                                     >
-                                        <div style={{ display: "flex", alignItems: "center", justifyCenter: "center", color: isReposExpanded ? "#a89ef5" : "#7c3aed" }}>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: isReposExpanded ? "#a89ef5" : "#7c3aed" }}>
                                             {isReposExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                         </div>
                                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: isReposExpanded ? "rgba(255,255,255,0.8)" : "#a89ef5", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
