@@ -109,7 +109,7 @@ export interface GenerateEntityResponse {
 export async function generateEntity(
     payload: GenerateEntityRequest
 ): Promise<GenerateEntityResponse> {
-    const res = await fetch(`${IA_BASE_URL}/api/ia/generate`, {
+    const res = await fetch(`${IA_BASE_URL}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
