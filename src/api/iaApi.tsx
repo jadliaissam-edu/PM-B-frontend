@@ -10,7 +10,7 @@
  *     Personal Access Token (PAT) fourni par l'utilisateur.
  */
 
-import { IA_REPO_BASE_URL, IA_BASE_URL } from "../config/baseURL";
+import { IA_REPO_BASE_URL, IA_BASE_URL, API_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -70,6 +70,33 @@ export async function addRepository(payload: AddRepoPayload): Promise<{ status: 
     return res.json();
 }
 
+export interface GithubRepositoryResponseDto {
+    id: string;
+    userId: string;
+    repoOwner: string;
+    repoName: string;
+    branch: string;
+    isPrivate: boolean;
+    tokenStored: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+/**
+ * Récupère tous les dépôts configurés pour un utilisateur depuis le backend (sans PAT).
+ */
+export async function getRepositories(userId: string): Promise<GithubRepositoryResponseDto[]> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE_URL}/repos/${userId}`, {
+        method:  "GET",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? "Erreur lors de la récupération des dépôts");
+    }
+    return res.json();
+}
 /**
  * Vérifie si un dépôt GitHub existe et est accessible.
  * Pour les dépôts privés, le token est envoyé une seule fois pour validation.

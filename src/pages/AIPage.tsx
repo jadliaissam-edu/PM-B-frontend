@@ -18,7 +18,7 @@ import {
     deleteWorkspace
 } from "../api/workspaceApi";
 import type { WorkspaceResponseDto } from "../api/workspaceApi";
-import { analyzeRepo, validateRepo, addRepository, indexRepositories, generateEntity } from "../api/iaApi";
+import { analyzeRepo, validateRepo, addRepository, indexRepositories, generateEntity, getRepositories } from "../api/iaApi";
 import type { GenerateEntityResponse } from "../api/iaApi";
 import { IA_REPO_BASE_URL } from "../config/baseURL";
 import { createTask, getTasksByListe } from "../api/taskApi";
@@ -1341,11 +1341,7 @@ export default function AIPage() {
     const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceResponseDto | null>(null);
 
-    // State pour l'IA — is_private indique si le dépôt est privé (PAT stocké côté backend)
-    const [repoList, setRepoList] = useState<{ owner: string; repo: string; branch: string; is_private: boolean }[]>(() => {
-        const saved = localStorage.getItem("ai_repo_list");
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [repoList, setRepoList] = useState<{ owner: string; repo: string; branch: string; is_private: boolean }[]>([]);
     const [activeRepoIndex, setActiveRepoIndex] = useState(0);
     const [conversations, setConversations] = useState<ConversationResponseDto[]>([]);
     const [conversationId, setConversationId] = useState<string | null>(null);
@@ -1409,6 +1405,26 @@ export default function AIPage() {
                 const savedConversationId = localStorage.getItem("activeConversationId");
                 const existingConversations = await getMyConversations();
 
+                // Charger les dépôts depuis le backend
+                try {
+                    const storedUserStr = localStorage.getItem("user");
+                    if (storedUserStr) {
+                        const parsedUser = JSON.parse(storedUserStr);
+                        if (parsedUser.id) {
+                            const userRepos = await getRepositories(parsedUser.id);
+                            setRepoList(userRepos.map(r => ({
+                                owner: r.repoOwner,
+                                repo: r.repoName,
+                                branch: r.branch,
+                                is_private: r.isPrivate
+                            })));
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to load repositories", e);
+                }
+
+
                 let selectedConversation = existingConversations.find((conv) => conv.id === savedConversationId)
                     ?? existingConversations[0];
 
@@ -1460,10 +1476,6 @@ export default function AIPage() {
         }
     }, [conversationId]);
 
-    // Persistance des données IA
-    useEffect(() => {
-        localStorage.setItem("ai_repo_list", JSON.stringify(repoList));
-    }, [repoList]);
 
     // Workspace CRUD handlers
     const handleCreateWorkspace = async (name: string, slug: string) => {
