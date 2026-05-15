@@ -1,49 +1,107 @@
+/**
+ * iaApi.tsx
+ * ---------
+ * Client API pour le service IA Python (PM-B-ia).
+ *
+ * Nettoyage effectué :
+ *   - Toute logique liée à la "GitHub App" (OAuth, client_id, token exchange)
+ *     a été supprimée.
+ *   - L'accès aux dépôts privés se fait désormais exclusivement via un
+ *     Personal Access Token (PAT) fourni par l'utilisateur.
+ */
+
 import { IA_REPO_BASE_URL, IA_BASE_URL } from "../config/baseURL";
 import { getAuthHeaders } from "./jwtService";
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 export interface RepoInfo {
-    owner: string;
-    repo: string;
-    branch: string;
+    owner:        string;
+    repo:         string;
+    branch:       string;
+    /** true si le dépôt est privé — déclenche l'utilisation du PAT en backend */
+    is_private:   boolean;
+    /**
+     * PAT GitHub en clair, transmis uniquement lors de l'ajout/modification
+     * d'un dépôt privé. N'est JAMAIS stocké côté frontend (pas de localStorage).
+     */
+    github_token?: string;
 }
 
 export interface RepoAnalysisRequest {
-    repositories: RepoInfo[];
-    user_query: string;
+    repositories: Omit<RepoInfo, "github_token">[];
+    user_query:   string;
+    user_id:      string;
 }
 
 export interface RepoAnalysisResponse {
-    response: string;
-    model: string;
+    response:   string;
+    model:      string;
     files_used: string[];
 }
 
+export interface AddRepoPayload {
+    owner:         string;
+    repo:          string;
+    branch:        string;
+    is_private:    boolean;
+    github_token?: string;   // Requis si is_private=true
+    user_id:       string;
+}
+
+// ─── Endpoints ──────────────────────────────────────────────────────────────
+
 /**
- * Vérifie si un dépôt existe
+ * Ajoute un dépôt GitHub pour l'utilisateur courant.
+ * Si le dépôt est privé, le PAT est transmis et chiffré côté backend.
+ * Le PAT n'est JAMAIS stocké en localStorage ni en état React après soumission.
  */
-export async function validateRepo(repo: RepoInfo): Promise<{ status: string }> {
+export async function addRepository(payload: AddRepoPayload): Promise<{ status: string; full_name: string; is_private: boolean }> {
     const authHeaders = await getAuthHeaders();
-    const res = await fetch(`${IA_REPO_BASE_URL}/validate`, {
-        method: "POST",
+    const res = await fetch(`${IA_BASE_URL}/api/ia/repos/add`, {
+        method:  "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify(repo),
+        body:    JSON.stringify(payload),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Dépôt invalide");
+        throw new Error(err.detail ?? "Erreur lors de l'ajout du dépôt");
     }
     return res.json();
 }
 
 /**
- * Lance l'indexation manuelle des dépôts
+ * Vérifie si un dépôt GitHub existe et est accessible.
+ * Pour les dépôts privés, le token est envoyé une seule fois pour validation.
  */
-export async function indexRepositories(payload: { repositories: RepoInfo[] }): Promise<{ message: string }> {
+export async function validateRepo(
+    repo: Pick<RepoInfo, "owner" | "repo" | "branch" | "is_private" | "github_token">
+): Promise<{ status: string; private?: boolean }> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${IA_REPO_BASE_URL}/validate`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body:    JSON.stringify(repo),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Dépôt invalide ou inaccessible");
+    }
+    return res.json();
+}
+
+/**
+ * Lance l'indexation manuelle des dépôts (sans PAT — uniquement dépôts publics
+ * ou dépôts dont le token est déjà en BDD côté backend).
+ */
+export async function indexRepositories(
+    payload: { repositories: Omit<RepoInfo, "github_token">[] }
+): Promise<{ message: string }> {
     const authHeaders = await getAuthHeaders();
     const res = await fetch(`${IA_REPO_BASE_URL}/index`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify(payload),
+        body:    JSON.stringify(payload),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -53,65 +111,58 @@ export async function indexRepositories(payload: { repositories: RepoInfo[] }): 
 }
 
 /**
- * Appelle l'IA pour analyser un dépôt spécifique
+ * Appelle l'IA pour analyser un ou plusieurs dépôts GitHub et
+ * répondre à la question de l'utilisateur.
+ * Les PAT des dépôts privés sont récupérés et déchiffrés côté backend.
  */
 export async function analyzeRepo(payload: RepoAnalysisRequest): Promise<RepoAnalysisResponse> {
-    console.log("iaApi: Récupération des headers d'authentification...");
     const authHeaders = await getAuthHeaders();
-    console.log("iaApi: Headers récupérés, lancement du fetch sur", `${IA_REPO_BASE_URL}/repo`);
-
     const res = await fetch(`${IA_REPO_BASE_URL}/repo`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-        },
-        body: JSON.stringify(payload),
+        method:  "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body:    JSON.stringify(payload),
     });
-    console.log("iaApi: Réponse du fetch reçue, statut:", res.status);
-
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail ?? `Erreur IA : ${res.status}`);
     }
-
     return res.json();
 }
 
-// ---------------------------------------------------------------
-// Generate Entity (intent detection + structured JSON)
-// ---------------------------------------------------------------
+// ─── Generate Entity ─────────────────────────────────────────────────────────
 
 export type EntityIntent = "task" | "workspace" | "space" | "sprint" | "liste" | "unknown";
 
 export interface GenerateEntityRequest {
-    user_query: string;
-    context?: {
+    user_query:   string;
+    context?:     {
         workspaceId?: string;
-        spaceId?: string;
-        listeId?: string;
-        sprintId?: string;
+        spaceId?:     string;
+        listeId?:     string;
+        sprintId?:    string;
+        [key: string]: any;
     };
-    repositories?: RepoInfo[];
+    repositories?: Omit<RepoInfo, "github_token">[];
+    user_id?:      string;
 }
 
 export interface GenerateEntityResponse {
-    intent: EntityIntent;
-    entity: Record<string, any> | null;
-    endpoint: string | null;
+    intent:      EntityIntent;
+    entity:      Record<string, any> | null;
+    endpoint:    string | null;
     explanation: string;
 }
 
 /**
- * Demande à l'IA de détecter l'intention et générer les données d'une entité
+ * Demande à l'IA de détecter l'intention et de générer les données d'une entité.
  */
 export async function generateEntity(
     payload: GenerateEntityRequest
 ): Promise<GenerateEntityResponse> {
     const res = await fetch(`${IA_BASE_URL}/api/ia/generate`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body:    JSON.stringify(payload),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));

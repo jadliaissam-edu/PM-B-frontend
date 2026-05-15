@@ -7,10 +7,6 @@ import {
     Hash, MoreVertical, Settings, Bell, Search, LogOut,
     FolderOpen, Layers, Activity, CheckCircle2, AlertCircle,
     ArrowRight, Filter, SortAsc, Eye, EyeOff, SquarePen, History,
-    LayoutGrid, Plus, Clock,
-    Folder, Target, Zap, Loader2, Trash2, X, Check,
-    CalendarDays, Sparkles, Users, UserPlus, List, Kanban,
-    Hash, Bell, FolderOpen, Activity, CheckCircle2,
 } from "lucide-react";
 
 import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";

@@ -6,8 +6,8 @@ import {
     X, Check, Trash2, Pencil,
     ChevronRight, ChevronDown,
     SquarePen, History, Bell,
-    Folder, FolderOpen, List, Zap, Target, Activity, Users, CheckCircle2,
-    Clock, CalendarDays, ArrowLeft, LayoutGrid
+    Folder, FolderOpen, List, Zap, Target, Activity, Users, User, CheckCircle2,
+    Clock, CalendarDays, ArrowLeft, LayoutGrid, Eye, EyeOff, Lock
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,7 +18,7 @@ import {
     deleteWorkspace
 } from "../api/workspaceApi";
 import type { WorkspaceResponseDto } from "../api/workspaceApi";
-import { analyzeRepo, validateRepo, indexRepositories, generateEntity } from "../api/iaApi";
+import { analyzeRepo, validateRepo, addRepository, indexRepositories, generateEntity } from "../api/iaApi";
 import type { GenerateEntityResponse } from "../api/iaApi";
 import { IA_REPO_BASE_URL } from "../config/baseURL";
 import { createTask, getTasksByListe } from "../api/taskApi";
@@ -632,8 +632,8 @@ function ConversationDeleteConfirmModal({ conversationTitle, onConfirm, onClose 
 
 interface RepoFormModalProps {
     mode: "add" | "edit";
-    initialData?: { owner: string; repo: string; branch: string };
-    onSubmit: (owner: string, repo: string, branch: string) => void;
+    initialData?: { owner: string; repo: string; branch: string; is_private?: boolean };
+    onSubmit: (owner: string, repo: string, branch: string, isPrivate: boolean, githubToken?: string) => void;
     onClose: () => void;
 }
 
@@ -641,11 +641,25 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
     const [owner, setOwner] = useState(initialData?.owner || "");
     const [repo, setRepo] = useState(initialData?.repo || "");
     const [branch, setBranch] = useState(initialData?.branch || "main");
+    const [isPrivate, setIsPrivate] = useState(initialData?.is_private ?? false);
+    // Le PAT n'est JAMAIS persisté : il vit uniquement dans cet état local le temps de la soumission
+    const [githubToken, setGithubToken] = useState("");
+    const [showToken, setShowToken] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const inputStyle: React.CSSProperties = {
+        width: "100%", background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
+        padding: 10, color: "white", outline: "none", boxSizing: "border-box",
+        fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!owner.trim() || !repo.trim()) return;
-        onSubmit(owner.trim(), repo.trim(), branch.trim());
+        setError(null);
+        if (!owner.trim() || !repo.trim()) { setError("Owner et nom du dépôt sont requis."); return; }
+        if (isPrivate && !githubToken.trim()) { setError("Un Personal Access Token est requis pour les dépôts privés."); return; }
+        onSubmit(owner.trim(), repo.trim(), branch.trim(), isPrivate, isPrivate ? githubToken.trim() : undefined);
         onClose();
     };
 
@@ -655,17 +669,15 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
             display: "flex", alignItems: "center", justifyContent: "center",
             background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)",
         }} onClick={onClose}>
-            <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                    background: "#16161a", border: "0.5px solid rgba(255,255,255,0.1)",
-                    borderRadius: 18, padding: "28px 32px", width: 400,
-                    boxShadow: "0 24px 64px rgba(0,0,0,0.6)", fontFamily: "'DM Sans', sans-serif",
-                }}
-            >
+            <div onClick={(e) => e.stopPropagation()} style={{
+                background: "#16161a", border: "0.5px solid rgba(255,255,255,0.1)",
+                borderRadius: 18, padding: "28px 32px", width: 440, maxWidth: "calc(100vw - 32px)",
+                maxHeight: "90vh", overflowY: "auto",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.6)", fontFamily: "'DM Sans', sans-serif",
+            }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
                     <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 17, fontWeight: 700, color: "#fff", margin: 0 }}>
-                        {mode === "add" ? "Add Repository" : "Edit Repository"}
+                        {mode === "add" ? "Ajouter un dépôt" : "Modifier le dépôt"}
                     </h2>
                     <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)" }}>
                         <X size={18} />
@@ -673,20 +685,90 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
                 </div>
 
                 <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: 15 }}>
+                    {/* Owner */}
+                    <div style={{ marginBottom: 14 }}>
                         <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase" }}>GitHub Owner</label>
-                        <input value={owner} onChange={e => setOwner(e.target.value)} placeholder="e.g. facebook" style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 10, color: "white", outline: "none" }} />
+                        <input value={owner} onChange={e => setOwner(e.target.value)} placeholder="ex : facebook" style={inputStyle} />
                     </div>
-                    <div style={{ marginBottom: 15 }}>
-                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase" }}>Repository Name</label>
-                        <input value={repo} onChange={e => setRepo(e.target.value)} placeholder="e.g. react" style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 10, color: "white", outline: "none" }} />
+                    {/* Repo */}
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase" }}>Nom du dépôt</label>
+                        <input value={repo} onChange={e => setRepo(e.target.value)} placeholder="ex : react" style={inputStyle} />
                     </div>
-                    <div style={{ marginBottom: 20 }}>
-                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase" }}>Branch</label>
-                        <input value={branch} onChange={e => setBranch(e.target.value)} placeholder="main" style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 10, color: "white", outline: "none" }} />
+                    {/* Branch */}
+                    <div style={{ marginBottom: 18 }}>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase" }}>Branche</label>
+                        <input value={branch} onChange={e => setBranch(e.target.value)} placeholder="main" style={inputStyle} />
                     </div>
-                    <button type="submit" style={{ width: "100%", background: "#534AB7", border: "none", borderRadius: 10, padding: 12, color: "white", fontWeight: 700, cursor: "pointer" }}>
-                        Add to List
+
+                    {/* Visibilité Public / Privé */}
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase" }}>Visibilité</label>
+                        <div style={{ display: "flex", gap: 10 }}>
+                            {[{ label: "Public", value: false }, { label: "Privé", value: true }].map(opt => (
+                                <button
+                                    key={String(opt.value)} type="button"
+                                    onClick={() => { setIsPrivate(opt.value); if (!opt.value) setGithubToken(""); }}
+                                    style={{
+                                        flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                                        border: isPrivate === opt.value ? "1.5px solid #a89ef5" : "1px solid rgba(255,255,255,0.1)",
+                                        background: isPrivate === opt.value ? "rgba(108,99,255,0.18)" : "rgba(255,255,255,0.03)",
+                                        color: isPrivate === opt.value ? "#a89ef5" : "rgba(255,255,255,0.5)",
+                                        transition: "all 0.2s",
+                                    }}
+                                >{opt.label}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Champ PAT — affiché uniquement si dépôt privé */}
+                    {isPrivate && (
+                        <div style={{
+                            marginBottom: 18, padding: "14px 16px",
+                            background: "rgba(108,99,255,0.06)", border: "1px solid rgba(108,99,255,0.2)",
+                            borderRadius: 12,
+                        }}>
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(168,158,245,0.8)", marginBottom: 6, textTransform: "uppercase" }}>
+                                GitHub Personal Access Token
+                            </label>
+                            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 10, lineHeight: 1.5 }}>
+                                Requis pour accéder aux dépôts privés. Le token sera chiffré avant stockage — il ne sera jamais visible après soumission.
+                            </p>
+                            <div style={{ position: "relative" }}>
+                                <input
+                                    type={showToken ? "text" : "password"}
+                                    value={githubToken}
+                                    onChange={e => setGithubToken(e.target.value)}
+                                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                                    autoComplete="off"
+                                    style={{ ...inputStyle, paddingRight: 40 }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowToken(v => !v)}
+                                    style={{
+                                        position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                                        background: "none", border: "none", color: "rgba(255,255,255,0.45)", cursor: "pointer",
+                                        display: "flex", alignItems: "center", justifyContent: "center"
+                                    }}
+                                    title={showToken ? "Masquer" : "Afficher"}
+                                >{showToken ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {error && (
+                        <p style={{ fontSize: 12, color: "#E24B4A", marginBottom: 14, background: "rgba(226,75,74,0.1)", padding: "8px 12px", borderRadius: 8 }}>
+                            {error}
+                        </p>
+                    )}
+
+                    <button type="submit" style={{
+                        width: "100%", background: "linear-gradient(135deg, #534AB7, #3C3489)",
+                        border: "none", borderRadius: 10, padding: 12, color: "white",
+                        fontWeight: 700, cursor: "pointer", fontSize: 14,
+                    }}>
+                        {mode === "add" ? "Ajouter le dépôt" : "Enregistrer les modifications"}
                     </button>
                 </form>
             </div>
@@ -698,12 +780,13 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
 // AI CONFIRM CARD — carte de confirmation d'entité générée par l'IA
 // ============================================================================
 
-const ENTITY_ICONS: Record<string, string> = {
-    task: "✅",
-    workspace: "🏢",
-    space: "📁",
-    sprint: "🚀",
-    liste: "📋",
+const ENTITY_ICONS: Record<string, JSX.Element> = {
+    task: <CheckCircle2 size={24} color="#a89ef5" />,
+    workspace: <LayoutGrid size={24} color="#a89ef5" />,
+    space: <Folder size={24} color="#a89ef5" />,
+    sprint: <Zap size={24} color="#a89ef5" />,
+    liste: <List size={24} color="#a89ef5" />,
+    folder: <FolderOpen size={24} color="#a89ef5" />,
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -754,18 +837,28 @@ interface AIConfirmCardProps {
 
 function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirmCardProps) {
     const navigate = useNavigate();
+    const isArray = Array.isArray(generated.entity);
     const [localEntity, setLocalEntity] = useState<any>(() => {
-        const base = generated.entity ?? {};
-        if (generated.intent === "task") return { spaceId: "", folderId: "", listeId: "", sprintId: "", ...base };
-        if (generated.intent === "liste") return { spaceId: "", folderId: "", type: "SPRINT", ...base };
-        if (generated.intent === "sprint") return { spaceId: "", folderId: "", ...base };
-        if (generated.intent === "folder") return { spaceId: "", ...base };
-        return base;
+        const initItem = (base: any) => {
+            if (generated.intent === "task") return { spaceId: "", folderId: "", listeId: "", sprintId: "", ...base };
+            if (generated.intent === "liste") return { spaceId: "", folderId: "", type: "SPRINT", ...base };
+            if (generated.intent === "sprint") return { spaceId: "", folderId: "", ...base };
+            if (generated.intent === "folder") return { spaceId: "", ...base };
+            return base;
+        };
+
+        if (isArray) {
+            return (generated.entity as any[]).map(item => initItem(item || {}));
+        }
+        return initItem(generated.entity ?? {});
     });
     const [isAccepting, setIsAccepting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [accepted, setAccepted] = useState(false);
     const [acceptedData, setAcceptedData] = useState<any>(null);
+    const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+
+    const currentItem = isArray && editingItemIndex !== null ? localEntity[editingItemIndex] : localEntity;
 
     const [listesOptions, setListesOptions] = useState<any[]>([]);
     const [sprintsOptions, setSprintsOptions] = useState<any[]>([]);
@@ -784,36 +877,52 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
     }, [workspaceId]);
 
     useEffect(() => {
-        if (!localEntity.spaceId) {
+        if (!currentItem || !currentItem.spaceId) {
             setFoldersOptions([]);
             return;
         }
-        import("../api/folderApi").then(api => api.getFoldersBySpace(localEntity.spaceId).then(res => setFoldersOptions(res || []))).catch(() => { });
-    }, [localEntity.spaceId]);
+        import("../api/folderApi").then(api => api.getFoldersBySpace(currentItem.spaceId).then(res => setFoldersOptions(res || []))).catch(() => { });
+    }, [currentItem?.spaceId]);
 
     useEffect(() => {
-        if (!localEntity.folderId) {
+        if (!currentItem || !currentItem.folderId) {
             setListesOptions([]);
             setSprintsOptions([]);
             return;
         }
-        import("../api/listeApi").then(api => api.getListesByFolder(localEntity.folderId).then(res => setListesOptions(res || []))).catch(() => { });
-        import("../api/sprintApi").then(api => api.getSprintsByFolder(localEntity.folderId).then(res => setSprintsOptions(res || []))).catch(() => { });
-    }, [localEntity.folderId]);
+        import("../api/listeApi").then(api => api.getListesByFolder(currentItem.folderId).then(res => setListesOptions(res || []))).catch(() => { });
+        import("../api/sprintApi").then(api => api.getSprintsByFolder(currentItem.folderId).then(res => setSprintsOptions(res || []))).catch(() => { });
+    }, [currentItem?.folderId]);
 
     const handleChange = (key: string, value: any) => {
         setLocalEntity((prev: any) => {
-            const next = { ...prev, [key]: value };
-            if (key === "spaceId") {
-                next.folderId = "";
-                next.listeId = "";
-                next.sprintId = "";
+            if (isArray && editingItemIndex !== null) {
+                const nextArr = [...prev];
+                const nextItem = { ...nextArr[editingItemIndex], [key]: value };
+                if (key === "spaceId") {
+                    nextItem.folderId = "";
+                    nextItem.listeId = "";
+                    nextItem.sprintId = "";
+                }
+                if (key === "folderId") {
+                    nextItem.listeId = "";
+                    nextItem.sprintId = "";
+                }
+                nextArr[editingItemIndex] = nextItem;
+                return nextArr;
+            } else {
+                const next = { ...prev, [key]: value };
+                if (key === "spaceId") {
+                    next.folderId = "";
+                    next.listeId = "";
+                    next.sprintId = "";
+                }
+                if (key === "folderId") {
+                    next.listeId = "";
+                    next.sprintId = "";
+                }
+                return next;
             }
-            if (key === "folderId") {
-                next.listeId = "";
-                next.sprintId = "";
-            }
-            return next;
         });
     };
 
@@ -833,10 +942,33 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
         }
     };
 
-    const icon = ENTITY_ICONS[generated.intent] ?? "⚡";
+    const icon = ENTITY_ICONS[generated.intent] ?? <Zap size={24} color="#a89ef5" />;
     const label = ENTITY_LABELS[generated.intent] ?? generated.intent;
 
     if (accepted) {
+        // Cas batch
+        if (acceptedData?.type === "batch") {
+            return (
+                <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 14, padding: "16px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                        <CheckCircle2 size={18} color="#22C55E" />
+                        <span style={{ color: "#22C55E", fontSize: 14, fontWeight: 600 }}>
+                            {acceptedData.count} {label}(s) créé(e)(s) avec succès !
+                        </span>
+                    </div>
+                    {acceptedData.results.map((r: any, i: number) => (
+                        <div key={i} style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", paddingLeft: 8, marginBottom: 2 }}>
+                            • {r.name || r.id}
+                        </div>
+                    ))}
+                    {acceptedData.errors.length > 0 && (
+                        <div style={{ marginTop: 8, fontSize: 12, color: "#E24B4A" }}>
+                            {acceptedData.errors.length} erreur(s) : {acceptedData.errors.join(", ")}
+                        </div>
+                    )}
+                </div>
+            );
+        }
         return (
             <div style={{
                 background: "rgba(34,197,94,0.08)",
@@ -845,7 +977,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
             }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 20 }}>✅</span>
+                    <span style={{ fontSize: 20, display: "flex", alignItems: "center" }}><CheckCircle2 size={20} color="#22C55E" /></span>
                     <span style={{ color: "#22C55E", fontSize: 14, fontWeight: 600 }}>
                         {label} créé(e) avec succès !
                     </span>
@@ -929,13 +1061,62 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                 </div>
             </div>
 
-            {/* Editable Fields */}
-            <div style={{
-                background: "rgba(0,0,0,0.25)", borderRadius: 10,
-                padding: "16px", marginBottom: 14,
-                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14,
-            }}>
-                {Object.entries(localEntity)
+            {/* Editable Fields — or batch summary */}
+            {/* Editable Fields — or batch summary */}
+            {isArray && editingItemIndex === null ? (
+                <div style={{
+                    background: "rgba(0,0,0,0.25)", borderRadius: 10,
+                    padding: "14px 16px", marginBottom: 14,
+                }}>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 10 }}>
+                        {(localEntity as any[]).length} {label}(s) à créer (cliquez pour modifier) :
+                    </div>
+                    {(localEntity as any[]).map((item: any, i: number) => (
+                        <div key={i} onClick={() => setEditingItemIndex(i)} style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "7px 10px", marginBottom: 6,
+                            background: "rgba(83,74,183,0.1)", borderRadius: 8,
+                            fontSize: 13, color: "rgba(255,255,255,0.85)",
+                            cursor: "pointer", transition: "background 0.2s"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(83,74,183,0.2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "rgba(83,74,183,0.1)"}
+                        >
+                            <span style={{ color: "#a89ef5", fontWeight: 700, minWidth: 20 }}>{i + 1}.</span>
+                            <span>{item.title || item.name || JSON.stringify(item)}</span>
+                            {item.priority && (
+                                <span style={{
+                                    marginLeft: "auto", fontSize: 11, padding: "2px 8px", borderRadius: 6,
+                                    background: "rgba(83,74,183,0.2)", color: "#a89ef5",
+                                }}>{item.priority}</span>
+                            )}
+                            <span style={{ display: "flex", alignItems: "center", marginLeft: 4 }}><Pencil size={14} color="rgba(255,255,255,0.4)" /></span>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={{
+                    background: "rgba(0,0,0,0.25)", borderRadius: 10,
+                    padding: "16px", marginBottom: 14,
+                }}>
+                    {isArray && editingItemIndex !== null && (
+                        <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            <button
+                                onClick={() => setEditingItemIndex(null)}
+                                style={{
+                                    background: "transparent", border: "none", color: "#a89ef5",
+                                    fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, padding: 0
+                                }}
+                            >
+                                ← Retour à la liste
+                            </button>
+                            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+                                Édition de l'élément #{editingItemIndex + 1}
+                            </div>
+                        </div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                        {Object.entries(currentItem)
                     .filter(([key]) => {
                         if (key === "workspaceId") return false;
 
@@ -1057,7 +1238,8 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                         );
                     })}
             </div>
-
+                </div>
+            )}
             {error && (
                 <div style={{
                     fontSize: 12, color: "#E24B4A", marginBottom: 10,
@@ -1147,7 +1329,7 @@ export default function AIPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(false);
-    const [user, setUser] = useState({ name: "User", avatar: "US" });
+    const [user, setUser] = useState({ id: "", name: "User", avatar: "US" });
     const [workspaces, setWorkspaces] = useState<WorkspaceResponseDto[]>([]);
     // ── Inline hierarchy view ──
     const [selectedHierarchy, setSelectedHierarchy] = useState<SelectedHierarchy | null>(null);
@@ -1159,35 +1341,10 @@ export default function AIPage() {
     const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceResponseDto | null>(null);
     const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceResponseDto | null>(null);
 
-    // GitHub OAuth
-    const [githubConnected, setGithubConnected] = useState<boolean>(
-        () => !!localStorage.getItem("github_access_token")
-    );
-
-    const connectGitHub = async () => {
-        // Récupérer le client_id depuis le backend (ne jamais l'exposer en dur)
-        try {
-            const res = await fetch("/api/github/oauth/client-id");
-            const data = await res.json();
-            const clientId = data.client_id;
-            const redirectUri = encodeURIComponent(`${window.location.origin}/github/callback`);
-            const scope = encodeURIComponent("repo read:user");
-            window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
-        } catch {
-            alert("Impossible de contacter le backend pour l'OAuth GitHub.");
-        }
-    };
-
-    const disconnectGitHub = () => {
-        localStorage.removeItem("github_access_token");
-        localStorage.removeItem("github_scope");
-        setGithubConnected(false);
-    };
-
-    // State pour l'IA
-    const [repoList, setRepoList] = useState<{ owner: string; repo: string; branch: string }[]>(() => {
+    // State pour l'IA — is_private indique si le dépôt est privé (PAT stocké côté backend)
+    const [repoList, setRepoList] = useState<{ owner: string; repo: string; branch: string; is_private: boolean }[]>(() => {
         const saved = localStorage.getItem("ai_repo_list");
-        return saved ? JSON.parse(saved) : [{ owner: "ilyass-hm-04", repo: "Medical-chatbot", branch: "main" }];
+        return saved ? JSON.parse(saved) : [];
     });
     const [activeRepoIndex, setActiveRepoIndex] = useState(0);
     const [conversations, setConversations] = useState<ConversationResponseDto[]>([]);
@@ -1230,7 +1387,8 @@ export default function AIPage() {
             if (storedUser) {
                 const parsed = JSON.parse(storedUser);
                 setUser({
-                    name: parsed.firstName || "User",
+                    id:     parsed.id || "",
+                    name:   parsed.firstName || "User",
                     avatar: ((parsed.firstName?.[0] || "") + (parsed.lastName?.[0] || "")).toUpperCase() || "US",
                 });
             }
@@ -1449,80 +1607,101 @@ export default function AIPage() {
 
     const handleConfirmEntity = async (generated: GenerateEntityResponse): Promise<any> => {
         if (!generated.entity) throw new Error("Aucune entité à créer.");
-        const entity = { ...generated.entity };
 
-        // Nettoyer les chaînes vides pour éviter les erreurs "not found" côté backend
-        if (entity.spaceId === "") delete entity.spaceId;
-        if (entity.folderId === "") delete entity.folderId;
-        if (entity.listeId === "") delete entity.listeId;
-        if (entity.sprintId === "") delete entity.sprintId;
+        // ── Helpers ──────────────────────────────────────────────────────────
+        const cleanEntity = (raw: any) => {
+            const e = { ...raw };
+            if (e.spaceId === "") delete e.spaceId;
+            if (e.folderId === "") delete e.folderId;
+            if (e.listeId === "") delete e.listeId;
+            if (e.sprintId === "") delete e.sprintId;
+            return e;
+        };
 
-        switch (generated.intent) {
-            case "task": {
-                if (!entity.listeId) {
-                    const page = await getAllListes(0, 1);
-                    if (page.content && page.content.length > 0) {
-                        entity.listeId = page.content[0].id;
-                    } else {
-                        throw new Error("Veuillez d'abord créer une Liste pour pouvoir y ajouter des tâches.");
+        const callEndpoint = async (endpoint: string, body: any) => {
+            const url = endpoint.replace("POST ", "").replace(/^\/api/, "/api");
+            const backendBase = (window as any).BACKEND_API_BASE || "http://localhost:8080";
+            const resp = await fetch(`${backendBase}${url}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+                },
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || `Erreur ${resp.status}`);
+            }
+            return resp.json();
+        };
+
+        const createSingleEntity = async (entity: any): Promise<any> => {
+            entity = cleanEntity(entity);
+            switch (generated.intent) {
+                case "task": {
+                    if (!entity.listeId) {
+                        const page = await getAllListes(0, 1);
+                        if (page.content && page.content.length > 0) {
+                            entity.listeId = page.content[0].id;
+                        } else {
+                            throw new Error("Veuillez d'abord créer une Liste pour pouvoir y ajouter des tâches.");
+                        }
                     }
+                    const res = await createTask(entity);
+                    return { type: "task", id: res.id, name: res.title, listOrSprintId: entity.listeId || entity.sprintId };
                 }
-                const res = await createTask(entity);
-                return { type: "task", id: res.id, name: res.title, listOrSprintId: entity.listeId || entity.sprintId, listOrSprintType: entity.listeId ? "list" : "sprint", listOrSprintName: "la liste" };
-            }
-            case "workspace": {
-                const ws = await createWorkspace(entity);
-                setWorkspaces(prev => [...prev, ws]);
-                return { type: "workspace", id: ws.id, name: ws.name };
-            }
-            case "space": {
-                if (!entity.workspaceId && activeWorkspace) {
-                    entity.workspaceId = activeWorkspace.id;
+                case "workspace": {
+                    const ws = await createWorkspace(entity);
+                    setWorkspaces(prev => [...prev, ws]);
+                    return { type: "workspace", id: ws.id, name: ws.name };
                 }
-                const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-                    body: JSON.stringify(entity),
-                });
-                const data = await resp.json();
-                return { type: "space", id: data.id, name: data.spaceName || data.name };
-            }
-            case "folder": {
-                if (!entity.spaceId && activeWorkspace) {
-                    const spaces = await import("../api/spaceApi").then(m => m.getSpacesByWorkspace(activeWorkspace.id));
-                    if (spaces.length > 0) {
-                        entity.spaceId = spaces[0].id;
-                    } else {
-                        throw new Error("Veuillez d'abord créer un Space pour pouvoir y ajouter cet élément.");
+                case "space": {
+                    if (!entity.workspaceId && activeWorkspace) entity.workspaceId = activeWorkspace.id;
+                    const data = await callEndpoint(generated.endpoint!, entity);
+                    return { type: "space", id: data.id, name: data.spaceName || data.name };
+                }
+                case "folder": {
+                    if (!entity.spaceId && activeWorkspace) {
+                        const spaces = await import("../api/spaceApi").then(m => m.getSpacesByWorkspace(activeWorkspace.id));
+                        if (spaces.length > 0) entity.spaceId = spaces[0].id;
+                        else throw new Error("Veuillez d'abord créer un Space pour pouvoir y ajouter cet élément.");
                     }
+                    const data = await callEndpoint(generated.endpoint!, entity);
+                    return { type: "folder", id: data.id, name: data.name };
                 }
-                const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-                    body: JSON.stringify(entity),
-                });
-                const data = await resp.json();
-                return { type: "folder", id: data.id, name: data.name };
-            }
-            case "sprint":
-            case "liste": {
-                if (!entity.folderId) {
-                    const folders = await import("../api/folderApi").then(m => m.getAllFolders());
-                    if (folders.length > 0) {
-                        entity.folderId = folders[0].id || folders[0].folderId;
-                    } else {
-                        throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
+                case "sprint":
+                case "liste": {
+                    if (!entity.folderId) {
+                        const folders = await import("../api/folderApi").then(m => m.getAllFolders());
+                        if (folders.length > 0) entity.folderId = folders[0].id || folders[0].folderId;
+                        else throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
                     }
+                    const data = await callEndpoint(generated.endpoint!, entity);
+                    return { type: generated.intent === "liste" ? "list" : "sprint", id: data.id, name: data.name };
                 }
-                const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-                    body: JSON.stringify(entity),
-                });
-                const data = await resp.json();
-                return { type: generated.intent === "liste" ? "list" : "sprint", id: data.id, name: data.name };
+                default:
+                    throw new Error(`Intent inconnu : ${generated.intent}`);
             }
+        };
+
+        // ── Batch (tableau) ───────────────────────────────────────────────────
+        if (Array.isArray(generated.entity)) {
+            const results: any[] = [];
+            const errors: string[] = [];
+            for (const item of generated.entity) {
+                try {
+                    const r = await createSingleEntity(item);
+                    results.push(r);
+                } catch (e: any) {
+                    errors.push(e.message || "Erreur inconnue");
+                }
+            }
+            return { type: "batch", results, errors, count: results.length };
         }
+
+        // ── Entité unique ────────────────────────────────────────────────────
+        return createSingleEntity(generated.entity);
     };
 
     const handleSend = async (actionType: "chat" | "generate" = "chat") => {
@@ -1568,6 +1747,7 @@ export default function AIPage() {
                         members: activeWorkspace?.id ? await getWorkspaceMembers(activeWorkspace.id).then(m => m.map(mem => ({ id: mem.userId, name: mem.userName }))) : []
                     },
                     repositories: repoList.length > 0 ? repoList : undefined,
+                    user_id: user.id || "anonymous",
                 });
 
                 let assistantContent = generated.explanation;
@@ -1601,7 +1781,11 @@ export default function AIPage() {
             }
 
             setStatusText("Synchronisation du code GitHub...");
-            const res = await analyzeRepo({ repositories: repoList, user_query: userInput });
+            const res = await analyzeRepo({
+                repositories: repoList,
+                user_query:   userInput,
+                user_id:      user.id || "anonymous",
+            });
 
             setStatusText("Génération de la réponse...");
             const assistantMsg: ChatMessage = { role: "assistant", content: res.response, timestamp: new Date() };
@@ -1902,7 +2086,9 @@ export default function AIPage() {
                                     <div style={{ display: "flex", gap: 6, flex: 1, overflowX: "auto", paddingLeft: 10, alignItems: "center" }}>
                                         {repoList.map((r, i) => (
                                             <div key={i} className="repo-chip">
-                                                <div className="repo-chip-icon"><FolderGit2 size={14} /></div>
+                                                <div className="repo-chip-icon">
+                                                    {r.is_private ? <Lock size={12} color="rgba(255,255,255,0.7)" /> : <FolderGit2 size={14} />}
+                                                </div>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                                                     <span className="repo-owner">{r.owner}</span>
                                                     <span style={{ opacity: 0.3 }}>/</span>
@@ -1921,39 +2107,6 @@ export default function AIPage() {
                                         <button onClick={() => setShowRepoModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 12, border: "1px dashed rgba(52,211,153,0.3)", background: "rgba(52,211,153,0.03)", color: "#34d399", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
                                             <Plus size={13} /> Add Repo
                                         </button>
-
-                                        {/* Bouton GitHub Connect / Disconnect */}
-                                        {githubConnected ? (
-                                            <button
-                                                onClick={disconnectGitHub}
-                                                title="Déconnecter GitHub"
-                                                style={{
-                                                    display: "flex", alignItems: "center", gap: 6,
-                                                    padding: "6px 14px", borderRadius: 12, flexShrink: 0,
-                                                    border: "1px solid rgba(34,197,94,0.3)",
-                                                    background: "rgba(34,197,94,0.08)",
-                                                    color: "#22C55E", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                                                }}
-                                            >
-                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
-                                                Connecté ✓
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={connectGitHub}
-                                                title="Connecter GitHub pour accéder aux repos privés"
-                                                style={{
-                                                    display: "flex", alignItems: "center", gap: 6,
-                                                    padding: "6px 14px", borderRadius: 12, flexShrink: 0,
-                                                    border: "1px dashed rgba(168,158,245,0.4)",
-                                                    background: "rgba(83,74,183,0.06)",
-                                                    color: "#a89ef5", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                                                }}
-                                            >
-                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
-                                                Connecter GitHub
-                                            </button>
-                                        )}
                                     </div>
                                 )}
                             </div>
@@ -1994,7 +2147,7 @@ export default function AIPage() {
                                                 <div key={`${m.timestamp}-${i}`} className={`msg-row${m.role === "user" ? " user" : ""}`}>
                                                     <div className={`msg-avatar${m.role === "user" ? " user-av" : " ai"}`}>
                                                         {m.role === "user"
-                                                            ? <span style={{ fontSize: 16 }}>👤</span>
+                                                            ? <User size={16} color="white" />
                                                             : <Sparkles size={16} color="white" />}
                                                     </div>
                                                     <div className="msg-body">
@@ -2027,7 +2180,7 @@ export default function AIPage() {
                                                             </div>
                                                         )}
                                                         <div className="msg-meta">
-                                                            <span>🕐</span>
+                                                            <Clock size={12} color="rgba(255,255,255,0.4)" style={{ marginRight: 4 }} />
                                                             {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                         </div>
                                                     </div>
@@ -2189,17 +2342,16 @@ export default function AIPage() {
                 showRepoModal && (
                     <RepoFormModal
                         mode="add"
-                        onSubmit={async (owner, repo, branch) => {
+                        onSubmit={async (owner, repo, branch, isPrivate, githubToken) => {
                             try {
-                                // 1. Validation de l'existence GitHub
-                                await validateRepo({ owner, repo, branch });
-
-                                const newRepo = { owner, repo, branch };
+                                await addRepository({
+                                    owner, repo, branch,
+                                    is_private: isPrivate,
+                                    github_token: githubToken,
+                                    user_id: user.id || "anonymous",
+                                });
+                                const newRepo = { owner, repo, branch, is_private: isPrivate };
                                 setRepoList([...repoList, newRepo]);
-
-                                // 2. Lancement automatique de l'indexation
-                                indexRepositories({ repositories: [newRepo] }).catch(console.error);
-
                             } catch (err: any) {
                                 alert(err.message || "Erreur lors de l'ajout du dépôt");
                             }
@@ -2213,17 +2365,18 @@ export default function AIPage() {
                     <RepoFormModal
                         mode="edit"
                         initialData={repoList[editingRepoIndex]}
-                        onSubmit={async (owner, repo, branch) => {
+                        onSubmit={async (owner, repo, branch, isPrivate, githubToken) => {
                             try {
-                                await validateRepo({ owner, repo, branch });
+                                await addRepository({
+                                    owner, repo, branch,
+                                    is_private: isPrivate,
+                                    github_token: githubToken,
+                                    user_id: user.id || "anonymous",
+                                });
                                 const newList = [...repoList];
-                                const updatedRepo = { owner, repo, branch };
-                                newList[editingRepoIndex] = updatedRepo;
+                                newList[editingRepoIndex] = { owner, repo, branch, is_private: isPrivate };
                                 setRepoList(newList);
                                 setEditingRepoIndex(null);
-
-                                // Ré-indexer après modification
-                                indexRepositories({ repositories: [updatedRepo] }).catch(console.error);
                             } catch (err: any) {
                                 alert(err.message || "Erreur lors de la modification");
                             }
