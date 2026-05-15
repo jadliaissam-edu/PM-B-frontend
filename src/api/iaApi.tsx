@@ -21,12 +21,13 @@ export interface RepoAnalysisResponse {
 /**
  * Vérifie si un dépôt existe
  */
-export async function validateRepo(repo: RepoInfo): Promise<{ status: string }> {
+export async function validateRepo(repo: RepoInfo, signal?: AbortSignal): Promise<{ status: string }> {
     const authHeaders = await getAuthHeaders();
     const res = await fetch(`${IA_REPO_BASE_URL}/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(repo),
+        signal,
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -38,12 +39,13 @@ export async function validateRepo(repo: RepoInfo): Promise<{ status: string }> 
 /**
  * Lance l'indexation manuelle des dépôts
  */
-export async function indexRepositories(payload: { repositories: RepoInfo[] }): Promise<{ message: string }> {
+export async function indexRepositories(payload: { repositories: RepoInfo[] }, signal?: AbortSignal): Promise<{ message: string }> {
     const authHeaders = await getAuthHeaders();
     const res = await fetch(`${IA_REPO_BASE_URL}/index`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(payload),
+        signal,
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -55,7 +57,7 @@ export async function indexRepositories(payload: { repositories: RepoInfo[] }): 
 /**
  * Appelle l'IA pour analyser un dépôt spécifique
  */
-export async function analyzeRepo(payload: RepoAnalysisRequest): Promise<RepoAnalysisResponse> {
+export async function analyzeRepo(payload: RepoAnalysisRequest, signal?: AbortSignal): Promise<RepoAnalysisResponse> {
     console.log("iaApi: Récupération des headers d'authentification...");
     const authHeaders = await getAuthHeaders();
     console.log("iaApi: Headers récupérés, lancement du fetch sur", `${IA_REPO_BASE_URL}/repo`);
@@ -67,6 +69,7 @@ export async function analyzeRepo(payload: RepoAnalysisRequest): Promise<RepoAna
             ...authHeaders,
         },
         body: JSON.stringify(payload),
+        signal,
     });
     console.log("iaApi: Réponse du fetch reçue, statut:", res.status);
 
@@ -107,12 +110,14 @@ export interface GenerateEntityResponse {
  * Demande à l'IA de détecter l'intention et générer les données d'une entité
  */
 export async function generateEntity(
-    payload: GenerateEntityRequest
+    payload: GenerateEntityRequest,
+    signal?: AbortSignal
 ): Promise<GenerateEntityResponse> {
     const res = await fetch(`${IA_BASE_URL}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal,
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));

@@ -5,7 +5,7 @@ import {
     Sparkles, Send, Loader2, Plus,
     X, Check, Trash2, Pencil,
     ChevronRight, ChevronDown,
-    SquarePen, History,
+    Square, SquarePen, History,
     Folder, FolderOpen, List, Zap, Target, Activity, Users, CheckCircle2,
     Clock, CalendarDays, ArrowLeft, LayoutGrid
 } from "lucide-react";
@@ -1204,7 +1204,32 @@ export default function AIPage() {
     const [isReposExpanded, setIsReposExpanded] = useState(true);
     const [deletingConversation, setDeletingConversation] = useState<ConversationResponseDto | null>(null);
     const [acceptedCards, setAcceptedCards] = useState<Set<number>>(new Set());
+    const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const lastRequestRef = useRef<{ input: string; actionType: "chat" | "generate" } | null>(null);
+    const wasAbortedRef = useRef(false);
+    const messagesScrollRef = useRef<HTMLDivElement>(null);
+    const [showScrollDownBtn, setShowScrollDownBtn] = useState(false);
+
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+        const el = messagesScrollRef.current;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior });
+    }, []);
+
+    useEffect(() => {
+        const el = messagesScrollRef.current;
+        if (!el) return;
+        const onScroll = () => {
+            const atTop = el.scrollTop <= 30;
+            const canScroll = el.scrollHeight > el.clientHeight + 20;
+            setShowScrollDownBtn(atTop && canScroll);
+        };
+        el.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+        return () => el.removeEventListener("scroll", onScroll);
+    }, [messages.length]);
 
     // Ajustement dynamique de la hauteur du textarea
     useEffect(() => {
@@ -1439,6 +1464,26 @@ export default function AIPage() {
 
     const [statusText, setStatusText] = useState("");
 
+    const handleStop = () => {
+        if (!isTyping) return;
+        wasAbortedRef.current = true;
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        setIsTyping(false);
+        setStatusText("");
+        setErrorFeedback(null);
+        setMessages(prev => ([
+            ...prev,
+            { role: "assistant", content: "Orbyte IA a ete interrompu.", timestamp: new Date() },
+        ]));
+    };
+
+    const handleRetry = () => {
+        if (isTyping || !lastRequestRef.current) return;
+        setErrorFeedback(null);
+        handleSend(lastRequestRef.current.actionType, lastRequestRef.current.input);
+    };
+
     // Detect if user wants to generate an entity
     const isGenerateIntent = (query: string): boolean => {
         const lower = query.toLowerCase();
@@ -1514,6 +1559,23 @@ export default function AIPage() {
                         throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
                     }
                 }
+                // Normalize date fields: backend expects LocalDateTime (YYYY-MM-DDTHH:mm:ss)
+                try {
+                    const e: any = entity;
+                    if (e.startDate && typeof e.startDate === "string") {
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(e.startDate)) {
+                            e.startDate = `${e.startDate}T00:00:00`;
+                        }
+                    }
+                    if (e.endDate && typeof e.endDate === "string") {
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(e.endDate)) {
+                            e.endDate = `${e.endDate}T23:59:59`;
+                        }
+                    }
+                } catch (normErr) {
+                    // ignore normalization errors and proceed; backend will validate
+                    console.warn("date normalization failed:", normErr);
+                }
                 const resp = await fetch(generated.endpoint!.replace("POST ", "").replace("/api", "/api"), {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
@@ -1525,17 +1587,24 @@ export default function AIPage() {
         }
     };
 
-    const handleSend = async (actionType: "chat" | "generate" = "chat") => {
-        if (!input.trim() || isTyping) return;
+    const handleSend = async (actionType: "chat" | "generate" = "chat", forcedInput?: string) => {
+        const rawInput = forcedInput ?? input;
+        if (!rawInput.trim() || isTyping) return;
 
-        const userInput = input.trim();
+        const userInput = rawInput.trim();
         const isFirstMessageInConversation = messages.length === 0;
         const nextConversationTitle = buildConversationTitleFromMessage(userInput);
 
-        setInput("");
+        if (!forcedInput) setInput("");
         setIsTyping(true);
         setActionTypeState(actionType);
         setStatusText("Initialisation...");
+        setErrorFeedback(null);
+        lastRequestRef.current = { input: userInput, actionType };
+        wasAbortedRef.current = false;
+        abortControllerRef.current?.abort();
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
 
         const userMsg: ChatMessage = { role: "user", content: userInput, timestamp: new Date() };
         setMessages(prev => [...prev, userMsg]);
@@ -1568,7 +1637,7 @@ export default function AIPage() {
                         members: activeWorkspace?.id ? await getWorkspaceMembers(activeWorkspace.id).then(m => m.map(mem => ({ id: mem.userId, name: mem.userName }))) : []
                     },
                     repositories: repoList.length > 0 ? repoList : undefined,
-                });
+                }, controller.signal);
 
                 let assistantContent = generated.explanation;
                 if (generated.intent === "unknown") {
@@ -1601,7 +1670,7 @@ export default function AIPage() {
             }
 
             setStatusText("Synchronisation du code GitHub...");
-            const res = await analyzeRepo({ repositories: repoList, user_query: userInput });
+            const res = await analyzeRepo({ repositories: repoList, user_query: userInput }, controller.signal);
 
             setStatusText("Génération de la réponse...");
             const assistantMsg: ChatMessage = { role: "assistant", content: res.response, timestamp: new Date() };
@@ -1610,12 +1679,22 @@ export default function AIPage() {
             await addConversationMessage(currentConversationId, { role: "assistant", content: res.response });
             await refreshConversations();
 
-        } catch (err) {
+        } catch (err: any) {
+            if (wasAbortedRef.current || err?.name === "AbortError") {
+                wasAbortedRef.current = false;
+                return;
+            }
             console.error("ERREUR CRITIQUE handleSend:", err);
             setStatusText("Erreur lors de l'analyse.");
+            setErrorFeedback("Une erreur s'est produite. Veuillez reessayer plus tard.");
+            setMessages(prev => ([
+                ...prev,
+                { role: "assistant", content: "Une erreur s'est produite. Veuillez reessayer plus tard.", timestamp: new Date() },
+            ]));
         } finally {
             setIsTyping(false);
             setStatusText("");
+            abortControllerRef.current = null;
         }
     };
 
@@ -1858,6 +1937,27 @@ export default function AIPage() {
                 .msg-row { animation: msg-in 0.25s ease-out; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
                 .animate-spin { animation: spin 1s linear infinite; }
+                .scroll-to-bottom-btn {
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    bottom: 70px;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: 999px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(135deg, #534AB7, #7c3aed);
+                    color: white;
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+                    border: none;
+                    cursor: pointer;
+                    transition: transform 0.15s ease, opacity 0.2s;
+                    z-index: 60;
+                    opacity: 0.98;
+                }
+                .scroll-to-bottom-btn:hover { transform: translateX(-50%) translateY(-3px); }
                 @media (max-width: 900px) {
                     .messages-scroll.with-panel { padding-right: 0; }
                     .input-dock.with-panel { padding-right: 24px; }
@@ -1976,7 +2076,7 @@ export default function AIPage() {
 
                             <div className="ai-main-layout">
                                 {/* ── Messages Scroll Area ── */}
-                                <div className={`messages-scroll${isConversationPanelOpen ? " with-panel" : ""}`}>
+                                <div ref={messagesScrollRef} className={`messages-scroll${isConversationPanelOpen ? " with-panel" : ""}`}>
                                     <div className="messages-inner">
                                         {hasMoreMessages && (
                                             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
@@ -2100,6 +2200,17 @@ export default function AIPage() {
                                     </div>
                                 </div>
 
+                                {showScrollDownBtn && (
+                                    <button
+                                        className="scroll-to-bottom-btn"
+                                        onClick={() => scrollToBottom()}
+                                        title="Descendre au bas"
+                                        aria-label="Descendre au bas du chat"
+                                    >
+                                        <ChevronDown size={18} />
+                                    </button>
+                                )}
+
                                 <div className={`conversation-panel${isConversationPanelOpen ? " open" : ""}`}>
                                     <div className="conversation-panel-head">
                                         <h3 style={{ margin: 0, fontSize: 14, color: "#fff", fontFamily: "'Syne', sans-serif" }}>Historique</h3>
@@ -2155,6 +2266,38 @@ export default function AIPage() {
                             {/* ── Sticky Input Dock ── */}
                             <div className={`input-dock${isConversationPanelOpen ? " with-panel" : ""}`}>
                                 <div className="input-dock-inner">
+                                    {errorFeedback && (
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 10,
+                                            background: "rgba(226,75,74,0.08)",
+                                            border: "1px solid rgba(226,75,74,0.35)",
+                                            color: "#fca5a5",
+                                            borderRadius: 10,
+                                            padding: "8px 12px",
+                                            marginBottom: 10,
+                                            fontSize: 12,
+                                        }}>
+                                            <span>Une erreur s'est produite. Veuillez reessayer plus tard.</span>
+                                            <button
+                                                onClick={handleRetry}
+                                                style={{
+                                                    background: "rgba(226,75,74,0.2)",
+                                                    border: "1px solid rgba(226,75,74,0.5)",
+                                                    color: "#fecaca",
+                                                    borderRadius: 8,
+                                                    padding: "6px 10px",
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Reessayer
+                                            </button>
+                                        </div>
+                                    )}
                                     <div className="input-box">
                                         <textarea
                                             ref={textareaRef}
@@ -2181,8 +2324,13 @@ export default function AIPage() {
                                                     </>
                                                 )}
                                             </button>
-                                            <button className="send-btn" onClick={() => handleSend("chat")} disabled={isTyping || !input.trim()} title="Discuter avec le code">
-                                                {isTyping && actionTypeState === "chat" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                            <button
+                                                className="send-btn"
+                                                onClick={() => (isTyping ? handleStop() : handleSend("chat"))}
+                                                disabled={!isTyping && !input.trim()}
+                                                title={isTyping ? "Interrompre" : "Discuter avec le code"}
+                                            >
+                                                {isTyping ? <Square size={14} /> : <Send size={14} />}
                                             </button>
                                         </div>
                                     </div>
