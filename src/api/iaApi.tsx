@@ -158,7 +158,7 @@ export async function analyzeRepo(payload: RepoAnalysisRequest): Promise<RepoAna
 
 // ─── Generate Entity ─────────────────────────────────────────────────────────
 
-export type EntityIntent = "task" | "workspace" | "space" | "sprint" | "liste" | "unknown";
+export type EntityIntent = "task" | "workspace" | "space" | "sprint" | "liste" | "folder" | "unknown";
 
 export interface GenerateEntityRequest {
     user_query:   string;
@@ -184,7 +184,8 @@ export interface GenerateEntityResponse {
  * Demande à l'IA de détecter l'intention et de générer les données d'une entité.
  */
 export async function generateEntity(
-    payload: GenerateEntityRequest
+    payload: GenerateEntityRequest,
+    signal?: AbortSignal
 ): Promise<GenerateEntityResponse> {
     const res = await fetch(`${IA_BASE_URL}/api/ia/generate`, {
         method:  "POST",
