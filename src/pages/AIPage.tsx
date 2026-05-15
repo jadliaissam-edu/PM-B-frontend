@@ -633,7 +633,7 @@ function ConversationDeleteConfirmModal({ conversationTitle, onConfirm, onClose 
 interface RepoFormModalProps {
     mode: "add" | "edit";
     initialData?: { owner: string; repo: string; branch: string; is_private?: boolean };
-    onSubmit: (owner: string, repo: string, branch: string, isPrivate: boolean, githubToken?: string) => void;
+    onSubmit: (owner: string, repo: string, branch: string, isPrivate: boolean, githubToken?: string) => Promise<void>;
     onClose: () => void;
 }
 
@@ -646,6 +646,8 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
     const [githubToken, setGithubToken] = useState("");
     const [showToken, setShowToken] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
     const inputStyle: React.CSSProperties = {
         width: "100%", background: "rgba(255,255,255,0.03)",
@@ -654,13 +656,18 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
         fontFamily: "'DM Sans', sans-serif", fontSize: 13,
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         if (!owner.trim() || !repo.trim()) { setError("Owner et nom du dépôt sont requis."); return; }
         if (isPrivate && !githubToken.trim()) { setError("Un Personal Access Token est requis pour les dépôts privés."); return; }
-        onSubmit(owner.trim(), repo.trim(), branch.trim(), isPrivate, isPrivate ? githubToken.trim() : undefined);
-        onClose();
+        
+        setIsSubmitting(true);
+        try {
+            await onSubmit(owner.trim(), repo.trim(), branch.trim(), isPrivate, isPrivate ? githubToken.trim() : undefined);
+        } finally {
+            if (isSubmitting) setIsSubmitting(false); // In case it wasn't unmounted
+        }
     };
 
     return (
@@ -763,11 +770,13 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
                         </p>
                     )}
 
-                    <button type="submit" style={{
+                    <button type="submit" disabled={isSubmitting} style={{
                         width: "100%", background: "linear-gradient(135deg, #534AB7, #3C3489)",
                         border: "none", borderRadius: 10, padding: 12, color: "white",
-                        fontWeight: 700, cursor: "pointer", fontSize: 14,
+                        fontWeight: 700, cursor: isSubmitting ? "not-allowed" : "pointer", fontSize: 14,
+                        opacity: isSubmitting ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
                     }}>
+                        {isSubmitting && <Loader2 size={16} className="animate-spin" />}
                         {mode === "add" ? "Ajouter le dépôt" : "Enregistrer les modifications"}
                     </button>
                 </form>
@@ -1359,6 +1368,13 @@ export default function AIPage() {
     const [deletingConversation, setDeletingConversation] = useState<ConversationResponseDto | null>(null);
     const [acceptedCards, setAcceptedCards] = useState<Set<number>>(new Set());
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+    const showToast = (message: string, type: "success" | "error") => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
 
     // Ajustement dynamique de la hauteur du textarea
     useEffect(() => {
@@ -2364,8 +2380,11 @@ export default function AIPage() {
                                 });
                                 const newRepo = { owner, repo, branch, is_private: isPrivate };
                                 setRepoList([...repoList, newRepo]);
+                                setShowRepoModal(false);
+                                showToast("Dépôt ajouté avec succès !", "success");
                             } catch (err: any) {
-                                alert(err.message || "Erreur lors de l'ajout du dépôt");
+                                setShowRepoModal(false);
+                                showToast("Erreur lors de l'ajout. Vérifiez vos accès.", "error");
                             }
                         }}
                         onClose={() => setShowRepoModal(false)}
@@ -2389,8 +2408,10 @@ export default function AIPage() {
                                 newList[editingRepoIndex] = { owner, repo, branch, is_private: isPrivate };
                                 setRepoList(newList);
                                 setEditingRepoIndex(null);
+                                showToast("Dépôt modifié avec succès !", "success");
                             } catch (err: any) {
-                                alert(err.message || "Erreur lors de la modification");
+                                setEditingRepoIndex(null);
+                                showToast("Erreur lors de la modification. Vérifiez vos accès.", "error");
                             }
                         }}
                         onClose={() => setEditingRepoIndex(null)}
@@ -2425,6 +2446,21 @@ export default function AIPage() {
                     />
                 )
             }
+            
+            {toast && (
+                <div style={{
+                    position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+                    background: toast.type === "success" ? "rgba(52,211,153,0.9)" : "rgba(226,75,74,0.9)",
+                    color: "white", padding: "12px 20px", borderRadius: 10,
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                    display: "flex", alignItems: "center", gap: 8,
+                    animation: "fade-in 0.3s ease-out"
+                }}>
+                    {toast.type === "success" ? <CheckCircle2 size={16} /> : <X size={16} />}
+                    {toast.message}
+                </div>
+            )}
         </Layout >
     );
 }
