@@ -15,13 +15,16 @@ interface SprintFormProps {
 }
 
 const theme = {
-    primary: "#534AB7",
-    destructive: "#E24B4A",
-    textMain: "rgba(255,255,255,0.95)",
-    textMuted: "rgba(255,255,255,0.45)",
-    bgModal: "#111114",
-    border: "rgba(255,255,255,0.06)",
-    inputBg: "rgba(255,255,255,0.03)",
+    primary: "var(--accent)",
+    destructive: "var(--error)",
+    textMain: "var(--text-main)",
+    textSub: "var(--text-sub)",
+    textFaint: "var(--text-faint)",
+    bgCard: "var(--bg-card)",
+    bgHover: "var(--bg-hover)",
+    border: "var(--border)",
+    inputBg: "var(--bg-main)",
+    textMuted: "var(--text-sub)",
 };
 
 const overlayStyle: React.CSSProperties = {
@@ -33,7 +36,7 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-    background: theme.bgModal,
+    background: theme.bgCard,
     border: `1px solid ${theme.border}`,
     borderRadius: 24,
     width: 500,
@@ -63,7 +66,7 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
     fontSize: 12,
     fontWeight: 700,
-    color: theme.textMuted,
+    color: theme.textFaint,
     marginBottom: 10,
     display: "block",
     textTransform: "uppercase",
@@ -100,30 +103,35 @@ function Select({ options, value, onChange, label }: {
                     cursor: "pointer", borderColor: open ? theme.primary : theme.border
                 }}
             >
-                <span style={{ color: selected ? theme.textMain : theme.textMuted }}>{selected ? selected.label : "Select parent folder"}</span>
+                <span style={{ color: selected ? theme.textMain : theme.textFaint }}>{selected ? selected.label : "Select parent folder"}</span>
                 <ChevronDown size={18} style={{ opacity: 0.5, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.25s" }} />
             </button>
             {open && (
                 <div style={{
                     position: "absolute", top: "100%", left: 0, right: 0, marginTop: 8,
-                    background: "#16161a", border: `1px solid ${theme.border}`,
+                    background: theme.bgCard, border: `1px solid ${theme.border}`,
                     borderRadius: 16, zIndex: 100, overflow: "hidden",
-                    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+                    boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
                 }}>
                     <div style={{ maxHeight: 200, overflowY: "auto" }}>
-                        {options.map(o => (
-                            <div
-                                key={o.value}
-                                onClick={() => { onChange(o.value); setOpen(false); }}
-                                style={{
-                                    padding: "12px 16px", fontSize: 14, cursor: "pointer",
-                                    color: o.value === value ? "#fff" : "rgba(255,255,255,0.7)",
-                                    background: o.value === value ? theme.primary : "transparent"
-                                }}
-                            >
-                                {o.label}
-                            </div>
-                        ))}
+                        {options.map((o, idx) => {
+                            const uniqueKey = o.value ? `${o.value}-${idx}` : `opt-${idx}`;
+                            return (
+                                <div
+                                    key={uniqueKey}
+                                    onClick={() => { onChange(o.value); setOpen(false); }}
+                                    style={{
+                                        padding: "12px 16px", fontSize: 14, cursor: "pointer",
+                                        color: o.value === value ? "#fff" : theme.textSub,
+                                        background: o.value === value ? theme.primary : "transparent"
+                                    }}
+                                    onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = theme.bgHover; }}
+                                    onMouseLeave={e => { if (o.value !== value) e.currentTarget.style.background = "transparent"; }}
+                                >
+                                    {o.label}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -164,11 +172,11 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
     return (
         <div style={overlayStyle} onClick={onClose}>
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} style={{ position: "absolute", top: 24, right: 24, background: "rgba(255,255,255,0.05)", border: "none", color: theme.textMuted, cursor: "pointer", padding: 8, borderRadius: "50%" }}><X size={20} /></button>
+                <button onClick={onClose} style={{ position: "absolute", top: 24, right: 24, background: theme.bgHover, border: "none", color: theme.textFaint, cursor: "pointer", padding: 8, borderRadius: "50%" }}><X size={20} /></button>
 
                 <div>
-                    <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>New Sprint</h2>
-                    <p style={{ margin: 0, fontSize: 14, color: theme.textMuted, lineHeight: 1.5 }}>
+                    <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: theme.textMain, fontFamily: "'Syne', sans-serif" }}>New Sprint</h2>
+                    <p style={{ margin: 0, fontSize: 14, color: theme.textSub, lineHeight: 1.5 }}>
                         Sprints help your team focus on a set of tasks to deliver within a specific timeframe.
                     </p>
                 </div>
@@ -196,7 +204,7 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
                             />
                         </div>
                         <div style={{ position: "relative" }}>
-                            <Target size={18} style={{ position: "absolute", top: 16, left: 18, color: theme.textMuted }} />
+                            <Target size={18} style={{ position: "absolute", top: 16, left: 18, color: theme.textFaint }} />
                             <textarea
                                 style={{ ...inputStyle, paddingLeft: 48, minHeight: 80, resize: "none" }}
                                 value={goal}
@@ -284,11 +292,11 @@ export function SprintUpdate(props: SprintFormProps & { sprintId: string }) {
     return (
         <div style={overlayStyle} onClick={onClose}>
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} style={{ position: "absolute", top: 24, right: 24, background: "rgba(255,255,255,0.05)", border: "none", color: theme.textMuted, cursor: "pointer", padding: 8, borderRadius: "50%" }}><X size={20} /></button>
+                <button onClick={onClose} style={{ position: "absolute", top: 24, right: 24, background: theme.bgHover, border: "none", color: theme.textFaint, cursor: "pointer", padding: 8, borderRadius: "50%" }}><X size={20} /></button>
 
                 <div>
-                    <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>Edit Sprint</h2>
-                    <p style={{ margin: 0, fontSize: 14, color: theme.textMuted }}>Update sprint details, goals, or timeframes.</p>
+                    <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: theme.textMain, fontFamily: "'Syne', sans-serif" }}>Edit Sprint</h2>
+                    <p style={{ margin: 0, fontSize: 14, color: theme.textSub }}>Update sprint details, goals, or timeframes.</p>
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -313,7 +321,7 @@ export function SprintUpdate(props: SprintFormProps & { sprintId: string }) {
                             />
                         </div>
                         <div style={{ position: "relative" }}>
-                            <Target size={18} style={{ position: "absolute", top: 16, left: 18, color: theme.textMuted }} />
+                            <Target size={18} style={{ position: "absolute", top: 16, left: 18, color: theme.textFaint }} />
                             <textarea
                                 style={{ ...inputStyle, paddingLeft: 48, minHeight: 80, resize: "none" }}
                                 value={goal}
@@ -377,15 +385,15 @@ export function SprintDelete({ sprint, onDelete, onClose }: { sprint: { id: stri
                         <Trash2 size={28} style={{ color: theme.destructive }} />
                     </div>
                     <div>
-                        <h3 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 10px", color: "#fff", fontFamily: "'Syne', sans-serif" }}>Delete Sprint</h3>
-                        <p style={{ fontSize: 15, color: theme.textMuted, lineHeight: "1.6", margin: 0 }}>
-                            Permanently delete <strong style={{ color: "white" }}>{sprint.name}</strong>? This will remove all associated lists and tasks. This action is irreversible.
+                        <h3 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 10px", color: theme.textMain, fontFamily: "'Syne', sans-serif" }}>Delete Sprint</h3>
+                        <p style={{ fontSize: 15, color: theme.textSub, lineHeight: "1.6", margin: 0 }}>
+                            Permanently delete <strong style={{ color: "var(--accent)" }}>{sprint.name}</strong>? This will remove all associated lists and tasks. This action is irreversible.
                         </p>
                     </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: "16px", borderRadius: 16, border: `1px solid ${theme.border}`, background: "none", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+                    <button onClick={onClose} style={{ flex: 1, padding: "16px", borderRadius: 16, border: `1px solid ${theme.border}`, background: "none", color: theme.textSub, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
                     <button
                         onClick={async () => {
                             setLoading(true);

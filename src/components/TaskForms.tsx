@@ -32,29 +32,29 @@ interface TaskDeleteProps {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const STATUSES: { value: TaskStatus; label: string; color: string }[] = [
-    { value: "TO_DO", label: "To Do", color: "#6B7280" },
-    { value: "IN_DEV", label: "In Dev", color: "#3B82F6" },
-    { value: "IN_TEST", label: "In Test", color: "#F59E0B" },
+    { value: "TO_DO",     label: "To Do",     color: "#6B7280" },
+    { value: "IN_DEV",    label: "In Dev",    color: "#3B82F6" },
+    { value: "IN_TEST",   label: "In Test",   color: "#F59E0B" },
     { value: "IN_REVIEW", label: "In Review", color: "#A855F7" },
-    { value: "DONE", label: "Done", color: "#22C55E" },
+    { value: "DONE",      label: "Done",      color: "#22C55E" },
 ];
 
 const PRIORITIES: { value: Priority; label: string; color: string; dot: string }[] = [
     { value: "URGENT", label: "Urgent", color: "#E24B4A", dot: "#E24B4A" },
-    { value: "HIGH", label: "High", color: "#F97316", dot: "#F97316" },
+    { value: "HIGH",   label: "High",   color: "#F97316", dot: "#F97316" },
     { value: "MEDIUM", label: "Medium", color: "#F59E0B", dot: "#F59E0B" },
-    { value: "LOW", label: "Low", color: "rgba(255,255,255,0.35)", dot: "#6B7280" },
+    { value: "LOW",    label: "Low",    color: "var(--text-faint)", dot: "#6B7280" },
 ];
 
 // ─── Shared style helpers ─────────────────────────────────────────────────────
 
 const inputStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--bg-main)",
+    border: "1px solid var(--border)",
     borderRadius: 14,
     padding: "14px 18px",
     fontSize: 15,
-    color: "rgba(255,255,255,0.95)",
+    color: "var(--text-main)",
     outline: "none",
     width: "100%",
     boxSizing: "border-box",
@@ -64,7 +64,7 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
     fontSize: 12,
     fontWeight: 700,
-    color: "rgba(255,255,255,0.45)",
+    color: "var(--text-faint)",
     textTransform: "uppercase",
     letterSpacing: "0.8px",
     marginBottom: 10,
@@ -73,7 +73,7 @@ const labelStyle: React.CSSProperties = {
 
 const overlayStyle: React.CSSProperties = {
     position: "fixed", inset: 0,
-    background: "rgba(0,0,0,0.85)",
+    background: "rgba(0,0,0,0.6)",
     backdropFilter: "blur(12px)",
     zIndex: 1300,
     display: "flex",
@@ -82,13 +82,13 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-    background: "#111114",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
     borderRadius: 24,
     width: 520,
     maxWidth: "calc(100vw - 32px)",
     padding: "40px",
-    boxShadow: "0 32px 64px rgba(0,0,0,0.8)",
+    boxShadow: "0 32px 64px rgba(0,0,0,0.25)",
     display: "flex",
     flexDirection: "column",
     gap: 32,
@@ -127,22 +127,31 @@ function Select({ options, value, onChange, placeholder }: {
                     ...inputStyle,
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     cursor: "pointer", textAlign: "left",
+                    borderColor: open ? "var(--accent)" : "var(--border)",
                 }}
             >
-                <span style={{ color: selected ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.25)" }}>
+                <span style={{ color: selected ? "var(--text-main)" : "var(--text-faint)" }}>
                     {selected?.label ?? placeholder ?? "Select…"}
                 </span>
-                <ChevronDown size={18} style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
+                <ChevronDown
+                    size={18}
+                    style={{
+                        color: "var(--text-faint)",
+                        flexShrink: 0,
+                        transform: open ? "rotate(180deg)" : "none",
+                        transition: "transform 0.25s",
+                    }}
+                />
             </button>
 
             {open && (
                 <div style={{
                     position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 60,
-                    background: "#16161a",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
                     borderRadius: 16,
                     overflow: "hidden",
-                    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+                    boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
                 }}>
                     <div style={{ maxHeight: 240, overflowY: "auto" }}>
                         {options.map(o => (
@@ -150,12 +159,17 @@ function Select({ options, value, onChange, placeholder }: {
                                 key={o.value}
                                 onClick={() => { onChange(o.value); setOpen(false); }}
                                 style={{
-                                    width: "100%", background: o.value === value ? "rgba(83,74,183,0.8)" : "none",
-                                    border: "none", padding: "12px 16px", textAlign: "left",
-                                    fontSize: 14, color: o.value === value ? "#fff" : "rgba(255,255,255,0.75)", cursor: "pointer",
+                                    width: "100%",
+                                    background: o.value === value ? "var(--accent)" : "none",
+                                    border: "none",
+                                    padding: "12px 16px",
+                                    textAlign: "left",
+                                    fontSize: 14,
+                                    color: o.value === value ? "#fff" : "var(--text-sub)",
+                                    cursor: "pointer",
                                     transition: "all 0.15s",
                                 }}
-                                onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                                onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = "var(--bg-hover)"; }}
                                 onMouseLeave={e => { if (o.value !== value) e.currentTarget.style.background = "none"; }}
                             >
                                 {o.label}
@@ -168,7 +182,7 @@ function Select({ options, value, onChange, placeholder }: {
     );
 }
 
-// ─── Shared form body (used by both Add and Update) ───────────────────────────
+// ─── Shared form body ─────────────────────────────────────────────────────────
 
 function TaskFormBody({
     title, setTitle,
@@ -196,7 +210,7 @@ function TaskFormBody({
     loading?: boolean;
 }) {
     const currentPriority = PRIORITIES.find(p => p.value === priority)!;
-    const currentStatus = STATUSES.find(s => s.value === status)!;
+    const currentStatus   = STATUSES.find(s => s.value === status)!;
 
     return (
         <>
@@ -210,10 +224,10 @@ function TaskFormBody({
                     placeholder="Task title…"
                     style={{
                         ...inputStyle,
-                        borderColor: error && !title.trim() ? "rgba(226,75,74,0.6)" : "rgba(255,255,255,0.06)",
+                        borderColor: error && !title.trim() ? "var(--error)" : "var(--border)",
                     }}
-                    onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
+                    onFocus={e  => (e.target.style.borderColor = "var(--accent)")}
+                    onBlur={e   => (e.target.style.borderColor = "var(--border)")}
                 />
             </div>
 
@@ -234,48 +248,60 @@ function TaskFormBody({
                     placeholder="Add a description…"
                     rows={3}
                     style={{ ...inputStyle, resize: "vertical", minHeight: 90, lineHeight: 1.5, fontFamily: "inherit" }}
-                    onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
+                    onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+                    onBlur={e  => (e.target.style.borderColor = "var(--border)")}
                 />
             </div>
 
             {/* Status + Priority */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {/* Status */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     <label style={labelStyle}>Status</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                         {STATUSES.map(s => (
-                            <button key={s.value} onClick={() => setStatus(s.value)} style={{
-                                display: "flex", alignItems: "center", gap: 8,
-                                background: status === s.value ? "rgba(255,255,255,0.06)" : "none",
-                                border: `0.5px solid ${status === s.value ? "rgba(255,255,255,0.12)" : "transparent"}`,
-                                borderRadius: 7, padding: "7px 10px", cursor: "pointer", transition: "all 0.13s",
-                            }}
-                                onMouseEnter={e => { if (status !== s.value) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                            <button
+                                key={s.value}
+                                onClick={() => setStatus(s.value)}
+                                style={{
+                                    display: "flex", alignItems: "center", gap: 8,
+                                    background: status === s.value ? "var(--accent-soft)" : "none",
+                                    border: `0.5px solid ${status === s.value ? "var(--border-hov)" : "transparent"}`,
+                                    borderRadius: 7, padding: "7px 10px", cursor: "pointer", transition: "all 0.13s",
+                                }}
+                                onMouseEnter={e => { if (status !== s.value) e.currentTarget.style.background = "var(--bg-hover)"; }}
                                 onMouseLeave={e => { if (status !== s.value) e.currentTarget.style.background = "none"; }}
                             >
                                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: status === s.value ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)" }}>{s.label}</span>
+                                <span style={{ fontSize: 12, color: status === s.value ? "var(--text-main)" : "var(--text-faint)" }}>
+                                    {s.label}
+                                </span>
                             </button>
                         ))}
                     </div>
                 </div>
 
+                {/* Priority */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     <label style={labelStyle}>Priority</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                         {PRIORITIES.map(p => (
-                            <button key={p.value} onClick={() => setPriority(p.value)} style={{
-                                display: "flex", alignItems: "center", gap: 8,
-                                background: priority === p.value ? "rgba(255,255,255,0.06)" : "none",
-                                border: `0.5px solid ${priority === p.value ? "rgba(255,255,255,0.12)" : "transparent"}`,
-                                borderRadius: 7, padding: "7px 10px", cursor: "pointer", transition: "all 0.13s",
-                            }}
-                                onMouseEnter={e => { if (priority !== p.value) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                            <button
+                                key={p.value}
+                                onClick={() => setPriority(p.value)}
+                                style={{
+                                    display: "flex", alignItems: "center", gap: 8,
+                                    background: priority === p.value ? "var(--accent-soft)" : "none",
+                                    border: `0.5px solid ${priority === p.value ? "var(--border-hov)" : "transparent"}`,
+                                    borderRadius: 7, padding: "7px 10px", cursor: "pointer", transition: "all 0.13s",
+                                }}
+                                onMouseEnter={e => { if (priority !== p.value) e.currentTarget.style.background = "var(--bg-hover)"; }}
                                 onMouseLeave={e => { if (priority !== p.value) e.currentTarget.style.background = "none"; }}
                             >
                                 <span style={{ width: 7, height: 7, borderRadius: 2, background: p.dot, flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: priority === p.value ? p.color : "rgba(255,255,255,0.4)" }}>{p.label}</span>
+                                <span style={{ fontSize: 12, color: priority === p.value ? p.color : "var(--text-faint)" }}>
+                                    {p.label}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -284,27 +310,41 @@ function TaskFormBody({
 
             {/* Badges */}
             <div style={{ display: "flex", gap: 6, marginTop: -6 }}>
-                <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.09)", color: currentStatus.color }}>{currentStatus.label}</span>
-                <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.09)", color: currentPriority.color }}>{currentPriority.label}</span>
+                <span style={{
+                    fontSize: 11, padding: "3px 8px", borderRadius: 5,
+                    background: "var(--bg-hover)",
+                    border: "0.5px solid var(--border)",
+                    color: currentStatus.color,
+                }}>
+                    {currentStatus.label}
+                </span>
+                <span style={{
+                    fontSize: 11, padding: "3px 8px", borderRadius: 5,
+                    background: "var(--bg-hover)",
+                    border: "0.5px solid var(--border)",
+                    color: currentPriority.color,
+                }}>
+                    {currentPriority.label}
+                </span>
             </div>
 
             {/* Due Date */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <label style={labelStyle}>Due Date</label>
                 <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <Calendar size={18} style={{ position: "absolute", left: 16, color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                    <Calendar size={18} style={{ position: "absolute", left: 16, color: "var(--text-faint)", pointerEvents: "none" }} />
                     <input
                         type="datetime-local"
                         value={dueDate}
                         onChange={e => setDueDate(e.target.value)}
-                        style={{ ...inputStyle, paddingLeft: 46, colorScheme: "dark" }}
-                        onFocus={e => (e.target.style.borderColor = "rgba(255,255,255,0.22)")}
-                        onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.06)")}
+                        style={{ ...inputStyle, paddingLeft: 46, colorScheme: "inherit" }}
+                        onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+                        onBlur={e  => (e.target.style.borderColor = "var(--border)")}
                     />
                 </div>
             </div>
 
-            <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
+            <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
 
             {/* List + Sprint */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -324,7 +364,7 @@ function TaskFormBody({
                 <Select options={assignees} value={assigneeId} onChange={setAssigneeId} placeholder="Assign to…" />
             </div>
 
-            {error && <span style={{ fontSize: 12, color: "#E24B4A", marginTop: -6 }}>{error}</span>}
+            {error && <span style={{ fontSize: 12, color: "var(--error)", marginTop: -6 }}>{error}</span>}
         </>
     );
 }
@@ -332,31 +372,30 @@ function TaskFormBody({
 // ─── TaskAdd ──────────────────────────────────────────────────────────────────
 
 export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {} }: TaskFormProps) {
-    const [title, setTitle] = useState(defaults.title ?? "");
-    const [description, setDescription] = useState(defaults.description ?? "");
-    const [status, setStatus] = useState<TaskStatus>((defaults.status as TaskStatus) ?? "TO_DO");
-    const [priority, setPriority] = useState<Priority>((defaults.priority as Priority) ?? "MEDIUM");
-    const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
-    const [listeId, setListeId] = useState(defaults.listeId ?? "");
-    const [sprintId, setSprintId] = useState(defaults.sprintId ?? "");
+    const [title,      setTitle]      = useState(defaults.title      ?? "");
+    const [description,setDescription]= useState(defaults.description ?? "");
+    const [status,     setStatus]     = useState<TaskStatus>((defaults.status   as TaskStatus) ?? "TO_DO");
+    const [priority,   setPriority]   = useState<Priority> ((defaults.priority  as Priority)  ?? "MEDIUM");
+    const [dueDate,    setDueDate]    = useState(defaults.dueDate    ?? "");
+    const [listeId,    setListeId]    = useState(defaults.listeId    ?? "");
+    const [sprintId,   setSprintId]   = useState(defaults.sprintId   ?? "");
     const [assigneeId, setAssigneeId] = useState(defaults.assigneeId ?? "");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [loading,    setLoading]    = useState(false);
+    const [error,      setError]      = useState<string | null>(null);
 
     async function handleSubmit() {
         if (!title.trim()) { setError("Title is required"); return; }
-        if (!listeId) { setError("List is required"); return; }
+        if (!listeId)      { setError("List is required");  return; }
         setError(null); setLoading(true);
         try {
             await onSubmit({
                 title: title.trim(),
                 description: description.trim(),
-                status,
-                priority,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                status, priority,
+                dueDate:    dueDate    ? new Date(dueDate).toISOString() : null,
                 listeId,
-                sprintId: sprintId || null,
-                assigneeId: assigneeId || null
+                sprintId:   sprintId   || null,
+                assigneeId: assigneeId || null,
             });
             onClose();
         } catch (e: unknown) {
@@ -368,14 +407,16 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
         <div style={overlayStyle} onClick={onClose}>
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>New Task</span>
+                    <span style={{ color: "var(--text-main)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>
+                        New Task
+                    </span>
                     <CloseButton onClose={onClose} />
                 </div>
 
                 <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error, loading }} />
 
-                <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
-                <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Create Task" loadingLabel="Creating…" submitColor="#534AB7" />
+                <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
+                <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Create Task" loadingLabel="Creating…" />
             </div>
         </div>
     );
@@ -384,31 +425,30 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
 // ─── TaskUpdate ───────────────────────────────────────────────────────────────
 
 export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {} }: TaskUpdateProps) {
-    const [title, setTitle] = useState(defaults.title ?? "");
-    const [description, setDescription] = useState(defaults.description ?? "");
-    const [status, setStatus] = useState<TaskStatus>((defaults.status as TaskStatus) ?? "TO_DO");
-    const [priority, setPriority] = useState<Priority>((defaults.priority as Priority) ?? "MEDIUM");
-    const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
-    const [listeId, setListeId] = useState(defaults.listeId ?? "");
-    const [sprintId, setSprintId] = useState(defaults.sprintId ?? "");
+    const [title,      setTitle]      = useState(defaults.title      ?? "");
+    const [description,setDescription]= useState(defaults.description ?? "");
+    const [status,     setStatus]     = useState<TaskStatus>((defaults.status   as TaskStatus) ?? "TO_DO");
+    const [priority,   setPriority]   = useState<Priority> ((defaults.priority  as Priority)  ?? "MEDIUM");
+    const [dueDate,    setDueDate]    = useState(defaults.dueDate    ?? "");
+    const [listeId,    setListeId]    = useState(defaults.listeId    ?? "");
+    const [sprintId,   setSprintId]   = useState(defaults.sprintId   ?? "");
     const [assigneeId, setAssigneeId] = useState(defaults.assigneeId ?? "");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [loading,    setLoading]    = useState(false);
+    const [error,      setError]      = useState<string | null>(null);
 
     async function handleSubmit() {
         if (!title.trim()) { setError("Title is required"); return; }
-        if (!listeId) { setError("List is required"); return; }
+        if (!listeId)      { setError("List is required");  return; }
         setError(null); setLoading(true);
         try {
             await onSubmit({
                 title: title.trim(),
                 description: description.trim(),
-                status,
-                priority,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                status, priority,
+                dueDate:    dueDate    ? new Date(dueDate).toISOString() : null,
                 listeId,
-                sprintId: sprintId || null,
-                assigneeId: assigneeId || null
+                sprintId:   sprintId   || null,
+                assigneeId: assigneeId || null,
             });
             onClose();
         } catch (e: unknown) {
@@ -421,16 +461,20 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>Edit Task</span>
-                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontFamily: "monospace" }}>#{taskId.slice(-8)}</span>
+                        <span style={{ color: "var(--text-main)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>
+                            Edit Task
+                        </span>
+                        <span style={{ color: "var(--text-faint)", fontSize: 12, fontFamily: "monospace" }}>
+                            #{taskId.slice(-8)}
+                        </span>
                     </div>
                     <CloseButton onClose={onClose} />
                 </div>
 
                 <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error, loading }} />
 
-                <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
-                <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Save Changes" loadingLabel="Saving…" submitColor="#534AB7" />
+                <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
+                <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Save Changes" loadingLabel="Saving…" />
             </div>
         </div>
     );
@@ -440,7 +484,7 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
 
 export function TaskDelete({ task, onDelete, onClose }: TaskDeleteProps) {
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error,   setError]   = useState<string | null>(null);
 
     async function handleDelete() {
         setError(null); setLoading(true);
@@ -454,53 +498,52 @@ export function TaskDelete({ task, onDelete, onClose }: TaskDeleteProps) {
 
     return (
         <div style={overlayStyle} onClick={onClose}>
-            <div style={{
-                ...modalStyle,
-                width: 400,
-                gap: 20,
-                padding: "28px 24px 22px",
-            }} onClick={e => e.stopPropagation()}>
+            <div style={{ ...modalStyle, width: 400, gap: 20, padding: "28px 24px 22px" }} onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{
                             width: 34, height: 34, borderRadius: 9,
-                            background: "rgba(226,75,74,0.12)",
-                            border: "0.5px solid rgba(226,75,74,0.25)",
+                            background: "var(--error-soft)",
+                            border: "0.5px solid var(--error)",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             flexShrink: 0,
+                            opacity: 0.6,
                         }}>
-                            <Trash2 size={15} style={{ color: "#E24B4A" }} />
+                            <Trash2 size={15} style={{ color: "var(--error)" }} />
                         </div>
-                        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 600 }}>Delete Task</span>
+                        <span style={{ color: "var(--text-main)", fontSize: 14, fontWeight: 600 }}>Delete Task</span>
                     </div>
                     <CloseButton onClose={onClose} />
                 </div>
 
                 {/* Warning */}
                 <div style={{
-                    background: "rgba(226,75,74,0.07)",
-                    border: "0.5px solid rgba(226,75,74,0.2)",
+                    background: "var(--error-soft)",
+                    border: "0.5px solid var(--error)",
                     borderRadius: 9,
                     padding: "12px 14px",
                     display: "flex",
                     gap: 10,
                     alignItems: "flex-start",
+                    opacity: 0.85,
                 }}>
-                    <AlertTriangle size={14} style={{ color: "#E24B4A", flexShrink: 0, marginTop: 1 }} />
+                    <AlertTriangle size={14} style={{ color: "var(--error)", flexShrink: 0, marginTop: 1 }} />
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>This action cannot be undone</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-main)" }}>
+                            This action cannot be undone
+                        </span>
+                        <span style={{ fontSize: 12, color: "var(--text-sub)", lineHeight: 1.5 }}>
                             You are about to permanently delete{" "}
-                            <span style={{ color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>"{task.title}"</span>.
+                            <span style={{ color: "var(--text-main)", fontWeight: 500 }}>"{task.title}"</span>.
                             All associated data will be removed.
                         </span>
                     </div>
                 </div>
 
-                {error && <span style={{ fontSize: 12, color: "#E24B4A", marginTop: -8 }}>{error}</span>}
+                {error && <span style={{ fontSize: 12, color: "var(--error)", marginTop: -8 }}>{error}</span>}
 
-                <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "0 -24px" }} />
+                <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
 
                 {/* Actions */}
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -508,14 +551,14 @@ export function TaskDelete({ task, onDelete, onClose }: TaskDeleteProps) {
                         onClick={onClose}
                         style={{
                             background: "none",
-                            border: "0.5px solid rgba(255,255,255,0.09)",
+                            border: "0.5px solid var(--border)",
                             borderRadius: 7, padding: "7px 16px",
                             fontSize: 12, fontWeight: 500,
-                            color: "rgba(255,255,255,0.45)",
+                            color: "var(--text-sub)",
                             cursor: "pointer", transition: "all 0.15s",
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hov)"; e.currentTarget.style.color = "var(--text-main)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)";     e.currentTarget.style.color = "var(--text-sub)";  }}
                     >
                         Cancel
                     </button>
@@ -523,17 +566,16 @@ export function TaskDelete({ task, onDelete, onClose }: TaskDeleteProps) {
                         onClick={handleDelete}
                         disabled={loading}
                         style={{
-                            background: loading ? "rgba(226,75,74,0.3)" : "rgba(226,75,74,0.85)",
-                            border: "0.5px solid rgba(226,75,74,0.5)",
+                            background: loading ? "var(--error-soft)" : "var(--error)",
+                            border: "0.5px solid var(--error)",
                             borderRadius: 7, padding: "7px 18px",
                             fontSize: 12, fontWeight: 600,
                             color: "#fff",
                             cursor: loading ? "not-allowed" : "pointer",
                             transition: "all 0.15s",
                             display: "flex", alignItems: "center", gap: 6,
+                            opacity: loading ? 0.6 : 1,
                         }}
-                        onMouseEnter={e => { if (!loading) e.currentTarget.style.background = "#E24B4A"; }}
-                        onMouseLeave={e => { if (!loading) e.currentTarget.style.background = "rgba(226,75,74,0.85)"; }}
                     >
                         <Trash2 size={12} />
                         {loading ? "Deleting…" : "Delete Task"}
@@ -554,23 +596,22 @@ function CloseButton({ onClose }: { onClose: () => void }) {
                 background: "none", border: "none", cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: 32, height: 32, borderRadius: 8,
-                color: "rgba(255,255,255,0.35)", transition: "background 0.15s, color 0.15s",
+                color: "var(--text-faint)", transition: "background 0.15s, color 0.15s",
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.35)"; }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-main)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none";            e.currentTarget.style.color = "var(--text-faint)"; }}
         >
             <X size={18} />
         </button>
     );
 }
 
-function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel, submitColor }: {
+function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel }: {
     onClose: () => void;
     onSubmit: () => void;
     loading: boolean;
     submitLabel: string;
     loadingLabel: string;
-    submitColor: string;
 }) {
     return (
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -578,14 +619,14 @@ function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel, su
                 onClick={onClose}
                 style={{
                     background: "none",
-                    border: "0.5px solid rgba(255,255,255,0.09)",
+                    border: "0.5px solid var(--border)",
                     borderRadius: 12, padding: "12px 20px",
                     fontSize: 14, fontWeight: 600,
-                    color: "rgba(255,255,255,0.45)",
+                    color: "var(--text-sub)",
                     cursor: "pointer", transition: "all 0.15s",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hov)"; e.currentTarget.style.color = "var(--text-main)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)";     e.currentTarget.style.color = "var(--text-sub)";  }}
             >
                 Cancel
             </button>
@@ -593,13 +634,14 @@ function FormActions({ onClose, onSubmit, loading, submitLabel, loadingLabel, su
                 onClick={onSubmit}
                 disabled={loading}
                 style={{
-                    background: loading ? `${submitColor}99` : submitColor,
-                    border: "0.5px solid rgba(168,158,245,0.5)",
+                    background: loading ? "var(--accent-soft)" : "var(--accent)",
+                    border: "0.5px solid var(--accent)",
                     borderRadius: 12, padding: "12px 24px",
                     fontSize: 14, fontWeight: 700,
-                    color: "#fff",
+                    color: loading ? "var(--accent)" : "#fff",
                     cursor: loading ? "not-allowed" : "pointer",
                     transition: "all 0.15s",
+                    opacity: loading ? 0.7 : 1,
                 }}
             >
                 {loading ? loadingLabel : submitLabel}

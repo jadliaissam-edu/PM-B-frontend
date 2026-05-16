@@ -40,6 +40,16 @@ function getAuthHeaders(): HeadersInit {
     return { Authorization: `Bearer ${token}` };
 }
 
+function asArray<T>(value: unknown): T[] {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        const nested = record.content ?? record.items ?? record.data;
+        if (Array.isArray(nested)) return nested as T[];
+    }
+    return [];
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${path}`, {
         ...init,
@@ -73,19 +83,23 @@ export async function getTaskById(id: string): Promise<TaskResponseDto> {
 }
 
 export async function getAllTasks(): Promise<TaskResponseDto[]> {
-    return request<TaskResponseDto[]>("/tasks");
+    const data = await request<unknown>("/tasks");
+    return asArray<TaskResponseDto>(data);
 }
 
 export async function getTasksByListe(listeId: string): Promise<TaskResponseDto[]> {
-    return request<TaskResponseDto[]>(`/tasks/liste/${listeId}`);
+    const data = await request<unknown>(`/tasks/liste/${listeId}`);
+    return asArray<TaskResponseDto>(data);
 }
 
 export async function getTasksBySprint(sprintId: string): Promise<TaskResponseDto[]> {
-    return request<TaskResponseDto[]>(`/tasks/sprint/${sprintId}`);
+    const data = await request<unknown>(`/tasks/sprint/${sprintId}`);
+    return asArray<TaskResponseDto>(data);
 }
 
 export async function getTasksByAssignee(assigneeId: string): Promise<TaskResponseDto[]> {
-    return request<TaskResponseDto[]>(`/tasks/assignee/${assigneeId}`);
+    const data = await request<unknown>(`/tasks/assignee/${assigneeId}`);
+    return asArray<TaskResponseDto>(data);
 }
 
 export async function updateTask(id: string, payload: TaskRequestDto): Promise<TaskResponseDto> {

@@ -44,7 +44,7 @@ export default function WorkspacesDropdown({
                         width: 20,
                         height: 20,
                         borderRadius: 5,
-                        background: "linear-gradient(135deg, #534AB7, #3C3489)",
+                        background: "var(--accent-gradient)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -76,10 +76,10 @@ export default function WorkspacesDropdown({
                         top: "calc(100% + 4px)",
                         left: 12,
                         right: 12,
-                        background: "#1a1a1f",
-                        border: "0.5px solid rgba(255,255,255,0.1)",
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border)",
                         borderRadius: 12,
-                        boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
+                        boxShadow: "0 16px 48px rgba(0,0,0,0.2)",
                         zIndex: 100,
                         overflow: "hidden",
                     }}
@@ -88,7 +88,7 @@ export default function WorkspacesDropdown({
                         style={{
                             fontSize: 10,
                             fontWeight: 500,
-                            color: "rgba(255,255,255,0.25)",
+                            color: "var(--text-faint)",
                             textTransform: "uppercase",
                             letterSpacing: "0.8px",
                             padding: "10px 12px 6px",
@@ -109,7 +109,7 @@ export default function WorkspacesDropdown({
                                     gap: 8,
                                     padding: "8px 12px",
                                     cursor: "pointer",
-                                    background: hoveredId === workspace.id ? "rgba(255,255,255,0.04)" : "transparent",
+                                    background: hoveredId === workspace.id ? "var(--bg-hover)" : "transparent",
                                     transition: "background 0.15s",
                                 }}
                             >
@@ -124,8 +124,8 @@ export default function WorkspacesDropdown({
                                         borderRadius: 6,
                                         background:
                                             workspace.id === activeWorkspace?.id
-                                                ? "linear-gradient(135deg, #534AB7, #3C3489)"
-                                                : "rgba(255,255,255,0.08)",
+                                                ? "var(--accent-gradient)"
+                                                : "var(--bg-hover)",
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
@@ -145,7 +145,7 @@ export default function WorkspacesDropdown({
                                     style={{
                                         flex: 1,
                                         fontSize: 13,
-                                        color: workspace.id === activeWorkspace?.id ? "#a89ef5" : "rgba(255,255,255,0.7)",
+                                        color: workspace.id === activeWorkspace?.id ? "var(--accent)" : "var(--text-sub)",
                                         fontWeight: workspace.id === activeWorkspace?.id ? 500 : 400,
                                         overflow: "hidden",
                                         textOverflow: "ellipsis",
@@ -170,7 +170,7 @@ export default function WorkspacesDropdown({
                                                 borderRadius: 6,
                                                 padding: "3px 6px",
                                                 cursor: "pointer",
-                                                color: "#a89ef5",
+                                                color: "var(--accent)",
                                                 display: "flex",
                                             }}
                                         >
@@ -189,7 +189,7 @@ export default function WorkspacesDropdown({
                                                 borderRadius: 6,
                                                 padding: "3px 6px",
                                                 cursor: "pointer",
-                                                color: "#E24B4A",
+                                                color: "var(--error)",
                                                 display: "flex",
                                             }}
                                         >
@@ -201,7 +201,7 @@ export default function WorkspacesDropdown({
                         ))}
 
                         {workspaces.length === 0 && (
-                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", padding: "8px 12px" }}>
+                            <p style={{ fontSize: 12, color: "var(--text-faint)", padding: "8px 12px" }}>
                                 No workspaces yet.
                             </p>
                         )}
@@ -283,7 +283,7 @@ export default function WorkspacesDropdown({
 
                     {onCreateClick && (
                         <>
-                            <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                            <div style={{ height: "0.5px", background: "var(--border)", margin: "4px 0" }} />
                             <button
                                 id="ws-create-btn"
                                 onClick={() => {
@@ -299,7 +299,7 @@ export default function WorkspacesDropdown({
                                     alignItems: "center",
                                     gap: 8,
                                     padding: "9px 12px 10px",
-                                    color: "#a89ef5",
+                                    color: "var(--accent)",
                                     fontSize: 13,
                                     fontWeight: 500,
                                     fontFamily: "'DM Sans', sans-serif",

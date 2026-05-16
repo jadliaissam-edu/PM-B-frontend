@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 // import { login, verifyMfa } from "../api/authApi";
@@ -113,27 +114,29 @@ export default function LoginPage() {
         setError("");
     };
 
+    const theme = localStorage.getItem("orbyte-theme") || "dark";
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0d0d0f] px-4 relative overflow-hidden">
-            {/* Background glows */}
-            <div className="absolute w-[500px] h-[500px] rounded-full top-[-100px] left-[-100px] pointer-events-none"
+        <div data-theme={theme} className="min-h-screen flex items-center justify-center bg-[var(--bg-main)] px-4 relative overflow-hidden transition-colors duration-300">
+            {/* Background glows - subtle in light mode */}
+            <div className="absolute w-[500px] h-[500px] rounded-full top-[-100px] left-[-100px] pointer-events-none opacity-40 dark:opacity-100"
                  style={{ background: "radial-gradient(circle, rgba(83,74,183,0.18) 0%, transparent 70%)" }} />
-            <div className="absolute w-[300px] h-[300px] rounded-full bottom-[-80px] right-[-60px] pointer-events-none"
+            <div className="absolute w-[300px] h-[300px] rounded-full bottom-[-80px] right-[-60px] pointer-events-none opacity-40 dark:opacity-100"
                  style={{ background: "radial-gradient(circle, rgba(29,158,117,0.12) 0%, transparent 70%)" }} />
 
-            <div className="relative z-10 w-full max-w-sm bg-[#16161a] border border-white/[0.08] rounded-2xl p-10">
+            <div className="relative z-10 w-full max-w-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-10 shadow-xl">
                 {/* Logo */}
                 <div className="flex items-center gap-2.5 mb-8">
                     <div className="w-11 h-9 rounded-[10px] flex items-center justify-center overflow-hidden">
                         <img src={logoImage} alt="Orbyte" className="w-full h-full object-cover" />
                     </div>
-                    <span className="font-bold text-lg text-white tracking-tight">Orbyte</span>
+                    <span className="font-bold text-lg text-[var(--text-main)] tracking-tight">Orbyte</span>
                 </div>
 
-                <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">
+                <h1 className="text-2xl font-semibold text-[var(--text-main)] tracking-tight mb-1">
                     {isMfaStep ? "Verify your identity" : "Welcome back"}
                 </h1>
-                <p className="text-sm text-white/40 mb-6">
+                <p className="text-sm text-[var(--text-sub)] mb-6">
                     {isMfaStep
                         ? `Enter the 6-digit code sent to ${mfaData.destination}`
                         : "Sign in to your workspace"}
@@ -148,7 +151,7 @@ export default function LoginPage() {
                 {!isMfaStep ? (
                     <form className="space-y-4" onSubmit={handleFirstStepSubmit}>
                         <div>
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                            <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                                 Email
                             </label>
                             <input
@@ -158,12 +161,12 @@ export default function LoginPage() {
                                 onChange={handleChange}
                                 placeholder="you@company.com"
                                 required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                                className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-all"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                            <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                                 Password
                             </label>
                             <input
@@ -173,12 +176,12 @@ export default function LoginPage() {
                                 onChange={handleChange}
                                 placeholder="••••••••"
                                 required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                                className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-all"
                             />
                         </div>
 
                         <div className="text-right mt-2 mb-6">
-                            <a href="#" className="text-xs text-[#534AB7] hover:opacity-80 transition-opacity">
+                            <a href="#" className="text-xs text-[var(--accent)] hover:opacity-80 transition-opacity">
                                 Forgot password?
                             </a>
                         </div>
@@ -186,7 +189,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-[#534AB7]/20"
                             style={{ background: "linear-gradient(135deg, #534AB7, #3C3489)" }}
                         >
                             {loading ? "Signing in..." : "Sign in →"}
@@ -195,7 +198,7 @@ export default function LoginPage() {
                 ) : (
                     <form className="space-y-4" onSubmit={handleMfaSubmit}>
                         <div>
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                            <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                                 OTP Code
                             </label>
                             <input
@@ -208,12 +211,12 @@ export default function LoginPage() {
                                 minLength={6}
                                 maxLength={6}
                                 required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#1D9E75]/70 transition-colors tracking-[0.25em]"
+                                className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[#1D9E75]/70 transition-all tracking-[0.25em]"
                             />
                         </div>
 
                         {mfaData.expiresInSeconds > 0 && (
-                            <p className="text-xs text-white/40">
+                            <p className="text-xs text-[var(--text-sub)]">
                                 Code valid for about {mfaData.expiresInSeconds} seconds.
                             </p>
                         )}
@@ -221,7 +224,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading || mfaData.otp.length !== 6}
-                            className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-[#1D9E75]/20"
                             style={{ background: "linear-gradient(135deg, #1D9E75, #147557)" }}
                         >
                             {loading ? "Verifying..." : "Verify OTP →"}
@@ -231,7 +234,7 @@ export default function LoginPage() {
                             type="button"
                             onClick={resetMfaStep}
                             disabled={loading}
-                            className="w-full py-3 rounded-[10px] border border-white/10 text-white/75 text-sm transition-colors hover:bg-white/5 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full py-3 rounded-[10px] border border-[var(--border)] text-[var(--text-sub)] text-sm transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             Back to password step
                         </button>
@@ -239,12 +242,12 @@ export default function LoginPage() {
                 )}
 
                 <div className="flex items-center gap-3 my-6">
-                    <div className="flex-1 h-px bg-white/[0.08]" />
-                    <span className="text-xs text-white/25">or</span>
-                    <div className="flex-1 h-px bg-white/[0.08]" />
+                    <div className="flex-1 h-px bg-[var(--border)]" />
+                    <span className="text-xs text-[var(--text-faint)]">or</span>
+                    <div className="flex-1 h-px bg-[var(--border)]" />
                 </div>
 
-                <p className="text-center text-sm text-white/35">
+                <p className="text-center text-sm text-[var(--text-sub)]">
                     Don't have an account?{" "}
                     <Link to="/register" className="text-[#1D9E75] font-medium hover:opacity-80 transition-opacity">
                         Create one
