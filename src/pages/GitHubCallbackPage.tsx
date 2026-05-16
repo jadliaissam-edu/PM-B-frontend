@@ -1,54 +1,24 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, CheckCircle, XCircle, Github } from "lucide-react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { XCircle } from "lucide-react";
 
 /**
- * Page de callback OAuth GitHub.
- * GitHub redirige ici avec ?code=XXX après que l'utilisateur a autorisé l'app.
- * On échange ce code contre un access_token via notre backend Spring Boot.
+ * GitHubCallbackPage — Page désactivée
+ *
+ * L'authentification via "GitHub App" (OAuth flow) a été supprimée.
+ * L'accès aux dépôts privés se fait désormais via un Personal Access Token (PAT)
+ * saisit directement dans le formulaire d'ajout de dépôt sur la page IA.
+ *
+ * Cette page redirige automatiquement vers /ai.
  */
 export default function GitHubCallbackPage() {
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-    const [errorMsg, setErrorMsg] = useState("");
 
     useEffect(() => {
-        const code = searchParams.get("code");
-        const error = searchParams.get("error");
-
-        if (error) {
-            setStatus("error");
-            setErrorMsg("Accès refusé par GitHub. Veuillez réessayer.");
-            return;
-        }
-
-        if (!code) {
-            setStatus("error");
-            setErrorMsg("Code OAuth manquant dans l'URL.");
-            return;
-        }
-
-        // Échanger le code contre un token via le backend
-        fetch(`/api/github/oauth/exchange?code=${code}`, { method: "POST" })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                // Stocker le token GitHub dans localStorage
-                localStorage.setItem("github_access_token", data.access_token);
-                localStorage.setItem("github_scope", data.scope || "");
-                setStatus("success");
-
-                // Rediriger vers la page IA après 1.5s
-                setTimeout(() => navigate("/ai"), 1500);
-            })
-            .catch(err => {
-                setStatus("error");
-                setErrorMsg(err.message || "Erreur lors de l'échange du token.");
-            });
-    }, [searchParams, navigate]);
+        // Redirection automatique vers la page IA après 2 secondes
+        const timer = setTimeout(() => navigate("/ai"), 2000);
+        return () => clearTimeout(timer);
+    }, [navigate]);
 
     return (
         <div style={{
@@ -61,8 +31,6 @@ export default function GitHubCallbackPage() {
         }}>
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=DM+Sans:wght@400;500;600&display=swap');
-                @keyframes spin { 100% { transform: rotate(360deg); } }
-                .spin { animation: spin 1s linear infinite; }
                 @keyframes fade-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
                 .fade-in { animation: fade-in 0.4s ease-out; }
             `}</style>
@@ -70,68 +38,53 @@ export default function GitHubCallbackPage() {
             <div className="fade-in" style={{
                 textAlign: "center",
                 background: "rgba(255,255,255,0.03)",
-                border: "0.5px solid rgba(255,255,255,0.08)",
+                border: "0.5px solid rgba(226,75,74,0.2)",
                 borderRadius: 24,
                 padding: "48px 56px",
-                maxWidth: 420,
+                maxWidth: 440,
             }}>
-                {/* GitHub Icon */}
                 <div style={{
-                    width: 64, height: 64,
-                    borderRadius: 18,
-                    background: status === "success"
-                        ? "rgba(34,197,94,0.12)"
-                        : status === "error"
-                            ? "rgba(226,75,74,0.12)"
-                            : "rgba(83,74,183,0.15)",
+                    width: 64, height: 64, borderRadius: 18,
+                    background: "rgba(226,75,74,0.12)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     margin: "0 auto 20px",
-                    border: `1px solid ${
-                        status === "success" ? "rgba(34,197,94,0.25)"
-                        : status === "error" ? "rgba(226,75,74,0.25)"
-                        : "rgba(83,74,183,0.3)"
-                    }`,
+                    border: "1px solid rgba(226,75,74,0.25)",
                 }}>
-                    {status === "loading" && <Loader2 size={28} color="#a89ef5" className="spin" />}
-                    {status === "success" && <CheckCircle size={28} color="#22C55E" />}
-                    {status === "error" && <XCircle size={28} color="#E24B4A" />}
+                    <XCircle size={28} color="#E24B4A" />
                 </div>
 
-                {/* Title */}
                 <h1 style={{
                     fontFamily: "'Syne', sans-serif",
-                    fontSize: 22, fontWeight: 700,
+                    fontSize: 20, fontWeight: 700,
                     color: "#fff", margin: "0 0 10px",
                 }}>
-                    {status === "loading" && "Connexion GitHub..."}
-                    {status === "success" && "GitHub connecté ! 🎉"}
-                    {status === "error" && "Connexion échouée"}
+                    Flux OAuth désactivé
                 </h1>
 
-                <p style={{
-                    fontSize: 14, color: "rgba(255,255,255,0.45)",
-                    lineHeight: 1.6, margin: 0,
-                }}>
-                    {status === "loading" && "Échange du code d'autorisation en cours..."}
-                    {status === "success" && "Vos dépôts privés sont maintenant accessibles. Redirection..."}
-                    {status === "error" && errorMsg}
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, margin: "0 0 20px" }}>
+                    L'authentification via GitHub App a été supprimée.<br />
+                    Pour accéder aux dépôts privés, utilisez un{" "}
+                    <strong style={{ color: "#a89ef5" }}>Personal Access Token (PAT)</strong>{" "}
+                    directement dans le formulaire d'ajout de dépôt.
                 </p>
 
-                {status === "error" && (
-                    <button
-                        onClick={() => navigate("/ai")}
-                        style={{
-                            marginTop: 24,
-                            background: "linear-gradient(135deg, #534AB7, #3C3489)",
-                            border: "none", borderRadius: 12,
-                            padding: "11px 28px", color: "#fff",
-                            fontSize: 14, fontWeight: 600,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Retour à l'IA
-                    </button>
-                )}
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)" }}>
+                    Redirection vers la page IA...
+                </p>
+
+                <button
+                    onClick={() => navigate("/ai")}
+                    style={{
+                        marginTop: 20,
+                        background: "linear-gradient(135deg, #534AB7, #3C3489)",
+                        border: "none", borderRadius: 12,
+                        padding: "11px 28px", color: "#fff",
+                        fontSize: 14, fontWeight: 600,
+                        cursor: "pointer",
+                    }}
+                >
+                    Retour à l'IA
+                </button>
             </div>
         </div>
     );
