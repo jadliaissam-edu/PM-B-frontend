@@ -232,6 +232,7 @@ export default function NotificationsPage() {
                 <WorkspaceTopBar
                     userName={fullName}
                     userAvatar={avatar}
+                    onInvite={() => navigate("/workspace?invite=true")}
                     onNotificationsClick={() => fetchNotifications(true)}
                     onSearch={setSearchQuery}
                 />

@@ -227,6 +227,7 @@ export default function SettingsPage() {
                 <WorkspaceTopBar
                     userName={fullName}
                     userAvatar={avatar}
+                    onInvite={() => navigate("/workspace?invite=true")}
                     onNotificationsClick={() => navigate("/notifications")}
                     onSearch={setSearchQuery}
                 />
