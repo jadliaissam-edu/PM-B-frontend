@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LayoutGrid, Plus, Clock,
-    Folder, Target, Zap, Loader2, Trash2, X, Check,
-    CalendarDays, Sparkles, Users, UserPlus, List, Kanban,
-    Hash,
-    FolderOpen, Activity, CheckCircle2,
-    SquarePen, History,
+    LayoutGrid, ChevronRight, ChevronDown, Plus, TrendingUp, Clock,
+    Folder, Target, Circle, Zap, Star, Loader2, Trash2, X, Check,
+    CalendarDays, Sparkles, Users, UserPlus, List, Kanban, Home,
+    Hash, MoreVertical, Settings, Bell, Search, LogOut,
+    FolderOpen, Layers, Activity, CheckCircle2, AlertCircle,
+    ArrowRight, Filter, SortAsc, Eye, EyeOff, SquarePen, History,
 } from "lucide-react";
 
 import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";
