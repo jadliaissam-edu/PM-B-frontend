@@ -1,4 +1,4 @@
-import { Bell, Check, Trash2, Info, Loader2, Target, MessageSquare, Zap, LayoutGrid, Sparkles, BellOff, RefreshCw, FolderTree, Folder, List as ListIcon, Rocket, SquarePen, History } from "lucide-react";
+import { Bell, Check, Trash2, Info, Loader2, Target, MessageSquare, Zap, LayoutGrid, Sparkles, BellOff, RefreshCw, FolderTree, Folder, List as ListIcon, Rocket } from "lucide-react";
 import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
 import Sidebar from "../components/Sidebar";
@@ -145,18 +145,6 @@ export default function NotificationsPage() {
             icon: Sparkles,
             label: "Ask AI",
             onClick: () => navigate("/ai"),
-            subItems: [
-                {
-                    label: "New Chat",
-                    icon: SquarePen,
-                    onClick: () => navigate("/ai?new=1"),
-                },
-                {
-                    label: "History",
-                    icon: History,
-                    onClick: () => navigate("/ai?history=1"),
-                },
-            ],
         },
         { icon: Bell, label: "Notifications", active: true },
     ];

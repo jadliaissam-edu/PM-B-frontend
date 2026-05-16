@@ -1,16 +1,37 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactElement } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     FolderGit2,
-    Sparkles, Send, Loader2, Plus,
-    X, Check, Trash2, Pencil,
-    ChevronRight, ChevronDown,
-    Square, SquarePen, History,
-    Folder, FolderOpen, List, Zap, Target, Activity, Users, CheckCircle2,
-    Clock, CalendarDays, ArrowLeft, LayoutGrid, Bell
-    SquarePen, History, Bell,
-    Folder, FolderOpen, List, Zap, Target, Activity, Users, User, CheckCircle2,
-    Clock, CalendarDays, ArrowLeft, LayoutGrid, Eye, EyeOff, Lock
+    Sparkles,
+    Send,
+    Loader2,
+    Plus,
+    X,
+    Check,
+    Trash2,
+    Pencil,
+    ChevronRight,
+    ChevronDown,
+    Square,
+    SquarePen,
+    History,
+    Folder,
+    FolderOpen,
+    List,
+    Zap,
+    Target,
+    Activity,
+    Users,
+    User,
+    CheckCircle2,
+    Clock,
+    CalendarDays,
+    ArrowLeft,
+    LayoutGrid,
+    Bell,
+    Eye,
+    EyeOff,
+    Lock,
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -798,7 +819,7 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
 // AI CONFIRM CARD — carte de confirmation d'entité générée par l'IA
 // ============================================================================
 
-const ENTITY_ICONS: Record<string, JSX.Element> = {
+const ENTITY_ICONS: Record<string, ReactElement> = {
     task: <CheckCircle2 size={24} color="#a89ef5" />,
     workspace: <LayoutGrid size={24} color="#a89ef5" />,
     space: <Folder size={24} color="#a89ef5" />,
@@ -1744,7 +1765,7 @@ export default function AIPage() {
                 case "liste": {
                     if (!entity.folderId) {
                         const folders = await import("../api/folderApi").then(m => m.getAllFolders());
-                        if (folders.length > 0) entity.folderId = folders[0].id || folders[0].folderId;
+                        if (folders.length > 0) entity.folderId = (folders[0] as any).id || (folders[0] as any).folderId;
                         else throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
                     }
                     const data = await callEndpoint(generated.endpoint!, entity);
@@ -1906,18 +1927,6 @@ export default function AIPage() {
                 ...item,
                 active: location.pathname === "/ai",
                 onClick: () => navigate("/ai"),
-                subItems: [
-                    {
-                        label: "New Chat",
-                        icon: SquarePen,
-                        onClick: () => navigate("/ai?new=1"),
-                    },
-                    {
-                        label: "History",
-                        icon: History,
-                        onClick: () => navigate("/ai?history=1"),
-                    },
-                ],
             };
         }
         if (item.label === "Notifications") {

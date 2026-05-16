@@ -1,7 +1,7 @@
 import { 
     User, Bell, Palette, Lock, LayoutGrid, LogOut, Sparkles, 
     CheckCircle2, Clock, Sun, Moon, ListChecks,
-    ChevronRight, CheckCircle, SquarePen, History
+    ChevronRight, CheckCircle
 } from "lucide-react";
 import Layout from "../components/Layout";
 import Content from "../components/layout/Content";
@@ -140,18 +140,6 @@ export default function SettingsPage() {
             icon: Sparkles,
             label: "Ask AI",
             onClick: () => navigate("/ai"),
-            subItems: [
-                {
-                    label: "New Chat",
-                    icon: SquarePen,
-                    onClick: () => navigate("/ai?new=1"),
-                },
-                {
-                    label: "History",
-                    icon: History,
-                    onClick: () => navigate("/ai?history=1"),
-                },
-            ],
         },
         { icon: Bell, label: "Notifications", onClick: () => navigate("/notifications") },
     ];

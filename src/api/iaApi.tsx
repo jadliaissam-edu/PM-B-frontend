@@ -58,7 +58,7 @@ export interface AddRepoPayload {
  */
 export async function addRepository(payload: AddRepoPayload): Promise<{ status: string; full_name: string; is_private: boolean }> {
     const authHeaders = await getAuthHeaders();
-    const res = await fetch(`${IA_BASE_URL}/api/ia/repos/add`, {
+    const res = await fetch(`${IA_REPO_BASE_URL}/repos/add`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body:    JSON.stringify(payload),
@@ -187,7 +187,7 @@ export async function generateEntity(
     payload: GenerateEntityRequest,
     signal?: AbortSignal
 ): Promise<GenerateEntityResponse> {
-    const res = await fetch(`${IA_BASE_URL}/api/ia/generate`, {
+    const res = await fetch(`${IA_BASE_URL}/generate`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
