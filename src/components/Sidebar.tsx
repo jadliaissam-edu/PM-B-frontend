@@ -22,6 +22,7 @@ interface SidebarProps {
     resourcesPanel?: ReactNode;
     userName: string;
     userAvatar: string;
+    onSettingsClick?: () => void;
 }
 
 const SIDEBAR_STORAGE_KEY = "sidebar-expanded-width";
@@ -34,21 +35,21 @@ function clampSidebarWidth(width: number): number {
     return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 }
 
-function SidebarAvatar({ initials, size = 28, color = "#534AB7" }: { initials: string; size?: number; color?: string }) {
+function SidebarAvatar({ initials, size = 28, color = "var(--accent)" }: { initials: string; size?: number; color?: string }) {
     return (
         <div
             style={{
                 width: size,
                 height: size,
                 borderRadius: "50%",
-                background: color + "33",
-                border: `1.5px solid ${color}55`,
+                background: "var(--accent-soft)",
+                border: `1.5px solid var(--accent)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: size * 0.35,
                 fontWeight: 600,
-                color,
+                color: "var(--accent)",
                 flexShrink: 0,
             }}
         >
@@ -83,13 +84,13 @@ function LogoutConfirmModal({ isLoading, onConfirm, onClose }: LogoutConfirmModa
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    background: "#16161a",
-                    border: "0.5px solid rgba(226,75,74,0.22)",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--error)",
                     borderRadius: 18,
                     padding: "24px 28px",
                     width: 360,
                     maxWidth: "calc(100vw - 30px)",
-                    boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+                    boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
                     fontFamily: "'DM Sans', sans-serif",
                 }}
             >
@@ -99,19 +100,19 @@ function LogoutConfirmModal({ isLoading, onConfirm, onClose }: LogoutConfirmModa
                             width: 34,
                             height: 34,
                             borderRadius: 10,
-                            background: "rgba(226,75,74,0.12)",
+                            background: "var(--accent-soft)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                         }}
                     >
-                        <LogOut size={16} style={{ color: "#E24B4A" }} />
+                        <LogOut size={16} style={{ color: "var(--error)" }} />
                     </div>
-                    <h2 style={{ margin: 0, fontSize: 16, color: "#fff", fontWeight: 700 }}>Confirmer la deconnexion</h2>
+                    <h2 style={{ margin: 0, fontSize: 16, color: "var(--text-main)", fontWeight: 700 }}>Confirmer la déconnexion</h2>
                 </div>
 
-                <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
-                    Voulez-vous vraiment vous deconnecter ?
+                <p style={{ margin: 0, fontSize: 13, color: "var(--text-sub)", lineHeight: 1.6 }}>
+                    Voulez-vous vraiment vous déconnecter ?
                 </p>
 
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
@@ -119,11 +120,11 @@ function LogoutConfirmModal({ isLoading, onConfirm, onClose }: LogoutConfirmModa
                         onClick={onClose}
                         disabled={isLoading}
                         style={{
-                            background: "rgba(255,255,255,0.05)",
-                            border: "0.5px solid rgba(255,255,255,0.1)",
+                            background: "var(--bg-hover)",
+                            border: "1px solid var(--border)",
                             borderRadius: 10,
                             padding: "9px 16px",
-                            color: "rgba(255,255,255,0.7)",
+                            color: "var(--text-sub)",
                             fontSize: 13,
                             fontWeight: 500,
                             cursor: isLoading ? "not-allowed" : "pointer",
@@ -136,7 +137,7 @@ function LogoutConfirmModal({ isLoading, onConfirm, onClose }: LogoutConfirmModa
                         onClick={onConfirm}
                         disabled={isLoading}
                         style={{
-                            background: "#E24B4A",
+                            background: "var(--error)",
                             border: "none",
                             borderRadius: 10,
                             padding: "9px 16px",
@@ -151,7 +152,7 @@ function LogoutConfirmModal({ isLoading, onConfirm, onClose }: LogoutConfirmModa
                         }}
                     >
                         {isLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
-                        Se deconnecter
+                        Se déconnecter
                     </button>
                 </div>
             </div>
@@ -167,6 +168,7 @@ export default function Sidebar({
     resourcesPanel,
     userName,
     userAvatar,
+    onSettingsClick,
 }: SidebarProps) {
     const [expandedWidth, setExpandedWidth] = useState(() => {
         if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
@@ -278,8 +280,8 @@ export default function Sidebar({
             <aside
                 style={{
                     width: sidebarWidth,
-                    background: "#111114",
-                    borderRight: "0.5px solid rgba(255,255,255,0.07)",
+                    background: "var(--sidebar-bg)",
+                    borderRight: "1px solid var(--border)",
                     display: "flex",
                     flexDirection: "column",
                     transition: isResizing ? "none" : "width 0.25s cubic-bezier(.4,0,.2,1)",
@@ -312,7 +314,7 @@ export default function Sidebar({
                             />
                         </div>
                         {!collapsed && (
-                            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff", whiteSpace: "nowrap" }}>
+                            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "var(--text-main)", whiteSpace: "nowrap" }}>
                                 Orbyte
                             </span>
                         )}
@@ -323,7 +325,7 @@ export default function Sidebar({
                         style={{
                             background: "none",
                             border: "none",
-                            color: "rgba(255,255,255,0.3)",
+                            color: "var(--text-faint)",
                             cursor: "pointer",
                             display: "flex",
                             padding: 4,
@@ -343,7 +345,7 @@ export default function Sidebar({
                             style={{
                                 fontSize: 10,
                                 fontWeight: 500,
-                                color: "rgba(255,255,255,0.25)",
+                                color: "var(--text-faint)",
                                 textTransform: "uppercase",
                                 letterSpacing: "0.8px",
                                 padding: "0 8px 8px",
@@ -381,8 +383,8 @@ export default function Sidebar({
                                             {item.badge && (
                                                 <span
                                                     style={{
-                                                        background: "rgba(83,74,183,0.3)",
-                                                        color: "#a89ef5",
+                                                        background: "var(--accent-soft)",
+                                                        color: "var(--accent)",
                                                         fontSize: 11,
                                                         fontWeight: 600,
                                                         borderRadius: 99,
@@ -411,7 +413,7 @@ export default function Sidebar({
                                     <div
                                         style={{
                                             marginLeft: 26,
-                                            borderLeft: "1px solid rgba(255,255,255,0.08)",
+                                            borderLeft: "1px solid var(--border)",
                                             paddingLeft: 4,
                                             marginTop: 2,
                                             marginBottom: 8,
@@ -424,7 +426,7 @@ export default function Sidebar({
                                                 style={{
                                                     height: 34,
                                                     fontSize: 13,
-                                                    color: sub.active ? "#a89ef5" : "rgba(255,255,255,0.4)",
+                                                    color: sub.active ? "var(--accent)" : "var(--text-sub)",
                                                 }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -453,21 +455,33 @@ export default function Sidebar({
                     {!collapsed && resourcesPanel}
                 </div>
 
-                <div style={{ padding: "12px 8px 20px", borderTop: "0.5px solid rgba(255,255,255,0.06)" }}>
-                    <div className="nav-item" style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
+                <div style={{ padding: "12px 8px 20px", borderTop: "1px solid var(--border)" }}>
+                    <div 
+                        className="nav-item" 
+                        style={{ justifyContent: collapsed ? "center" : "flex-start" }}
+                        onClick={onSettingsClick}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                onSettingsClick?.();
+                            }
+                        }}
+                    >
                         <Settings size={15} style={{ flexShrink: 0 }} />
                         {!collapsed && <span>Settings</span>}
                     </div>
 
                     {!collapsed && (
                         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 0" }}>
-                            <SidebarAvatar initials={userAvatar} size={30} color="#534AB7" />
+                            <SidebarAvatar initials={userAvatar} size={30} color="var(--accent)" />
                             <div style={{ overflow: "hidden", flex: 1 }}>
                                 <p
                                     style={{
                                         fontSize: 13,
                                         fontWeight: 500,
-                                        color: "#fff",
+                                        color: "var(--text-main)",
                                         whiteSpace: "nowrap",
                                         overflow: "hidden",
                                         textOverflow: "ellipsis",
@@ -475,22 +489,22 @@ export default function Sidebar({
                                 >
                                     {userName}
                                 </p>
-                                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Admin</p>
+                                <p style={{ fontSize: 11, color: "var(--text-faint)" }}>Admin</p>
                             </div>
                             <button
                                 onClick={() => setShowLogoutConfirm(true)}
-                                title="Deconnexion"
+                                title="Déconnexion"
                                 disabled={isLoggingOut}
                                 style={{
                                     width: 30,
                                     height: 30,
                                     borderRadius: 8,
-                                    border: "0.5px solid rgba(255,255,255,0.12)",
-                                    background: "rgba(255,255,255,0.04)",
+                                    border: "1px solid var(--border)",
+                                    background: "var(--bg-hover)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    color: "rgba(255,255,255,0.7)",
+                                    color: "var(--text-sub)",
                                     cursor: isLoggingOut ? "not-allowed" : "pointer",
                                     opacity: isLoggingOut ? 0.6 : 1,
                                 }}
@@ -517,7 +531,7 @@ export default function Sidebar({
                             zIndex: 20,
                             display: "flex",
                             justifyContent: "center",
-                            background: isResizing ? "rgba(255,255,255,0.04)" : "transparent",
+                            background: isResizing ? "var(--bg-hover)" : "transparent",
                         }}
                     >
                         <div
@@ -525,7 +539,7 @@ export default function Sidebar({
                                 width: 2,
                                 margin: "8px 0",
                                 borderRadius: 99,
-                                background: isResizing ? "rgba(168,158,245,0.6)" : "rgba(255,255,255,0.12)",
+                                background: isResizing ? "var(--accent)" : "var(--border)",
                             }}
                         />
                     </div>

@@ -6,7 +6,7 @@ import {
     CalendarDays, Sparkles, Users, UserPlus, List, Kanban,
     Hash,
     FolderOpen, Activity, CheckCircle2,
-    SquarePen, History,
+    SquarePen, History, Bell,
 } from "lucide-react";
 
 import { TaskAdd, TaskUpdate, TaskDelete } from "../components/TaskForms";
@@ -45,23 +45,24 @@ import {
     removeMember,
     type WorkspaceMemberResponseDto,
 } from "../api/workspaceMemberApi";
+import { createNotification } from "../api/notificationApi";
 
 // ─── Palette & tokens ────────────────────────────────────────────────────────
 const C = {
-    bg: "#0a0a0f",
-    surface: "#111118",
-    surfaceEl: "#18181f",
-    border: "rgba(255,255,255,0.06)",
-    borderHov: "rgba(255,255,255,0.12)",
-    text: "#f0f0f8",
-    textMuted: "rgba(240,240,248,0.45)",
-    textFaint: "rgba(240,240,248,0.22)",
-    accent: "#6c63ff",
-    accentSoft: "rgba(108,99,255,0.14)",
+    bg: "var(--bg-main)",
+    surface: "var(--bg-card)",
+    surfaceEl: "var(--bg-hover)",
+    border: "var(--border)",
+    borderHov: "var(--border-hov)",
+    text: "var(--text-main)",
+    textMuted: "var(--text-sub)",
+    textFaint: "var(--text-faint)",
+    accent: "var(--accent)",
+    accentSoft: "var(--accent-soft)",
     accentGlow: "rgba(108,99,255,0.35)",
-    green: "#22d3a0",
-    orange: "#f59e0b",
-    red: "#f43f5e",
+    green: "var(--success)",
+    orange: "var(--warning)",
+    red: "var(--error)",
     pink: "#ec4899",
     blue: "#3b82f6",
 };
@@ -108,8 +109,11 @@ function Pill({ label, color, bg }: { label: string; color: string; bg: string }
     return (
         <span style={{
             padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 600,
-            color, background: bg, letterSpacing: "0.2px",
-        }}>{label}</span>
+            color: color, background: "var(--bg-hover)",
+            border: `1px solid var(--border)`
+        }}>
+            {label}
+        </span>
     );
 }
 
@@ -153,7 +157,7 @@ function ViewTabs({ active, onChange }: { active: ViewMode; onChange: (v: ViewMo
         { id: "members", icon: Users, label: "Members" },
     ];
     return (
-        <div style={{ display: "flex", gap: 4, padding: "0 20px", marginBottom: 16, borderBottom: `1px solid ${"rgba(255,255,255,0.05)"}`, paddingBottom: 0 }}>
+        <div style={{ display: "flex", gap: 4, padding: "0 20px", marginBottom: 16, borderBottom: `1px solid var(--border)`, paddingBottom: 0 }}>
             {tabs.map(t => (
                 <button
                     key={t.id}
@@ -162,15 +166,15 @@ function ViewTabs({ active, onChange }: { active: ViewMode; onChange: (v: ViewMo
                         display: "flex", alignItems: "center", gap: 6,
                         padding: "7px 14px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
                         background: "transparent",
-                        color: active === t.id ? "#fff" : "rgba(255,255,255,0.42)",
+                        color: active === t.id ? "var(--text-main)" : "var(--text-sub)",
                         fontSize: 12, fontWeight: active === t.id ? 600 : 400,
-                        borderBottom: active === t.id ? "2px solid #6c63ff" : "2px solid transparent",
+                        borderBottom: active === t.id ? "2px solid var(--accent)" : "2px solid transparent",
                         transition: "all .15s",
                         fontFamily: "'DM Sans', sans-serif",
                         marginBottom: -1,
                     }}
-                    onMouseEnter={e => { if (active !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
-                    onMouseLeave={e => { if (active !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.42)"; }}
+                    onMouseEnter={e => { if (active !== t.id) e.currentTarget.style.color = "var(--text-main)"; }}
+                    onMouseLeave={e => { if (active !== t.id) e.currentTarget.style.color = "var(--text-sub)"; }}
                 >
                     <t.icon size={13} />
                     {t.label}
@@ -242,9 +246,9 @@ function MembersView({
                                         disabled={isDeleting}
                                         title="Remove member"
                                         style={{
-                                            border: "1px solid rgba(244,63,94,0.35)",
-                                            background: "rgba(244,63,94,0.12)",
-                                            color: "#fda4af",
+                                            border: "1px solid var(--error)",
+                                            background: "var(--error-soft)",
+                                            color: "var(--error)",
                                             borderRadius: 7,
                                             padding: "4px 7px",
                                             cursor: isDeleting ? "not-allowed" : "pointer",
@@ -544,7 +548,7 @@ function SectionHeader({ title, count, action }: { title: string; count?: number
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: "'Syne', sans-serif" }}>{title}</span>
                 {count !== undefined && (
-                    <span style={{ fontSize: 10, color: C.textFaint, background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "1px 7px", fontWeight: 600 }}>{count}</span>
+                    <span style={{ fontSize: 10, color: C.textFaint, background: "var(--bg-hover)", border: "1px solid var(--border)", borderRadius: 99, padding: "1px 7px", fontWeight: 600 }}>{count}</span>
                 )}
             </div>
             {action}
@@ -768,6 +772,7 @@ export default function WorkspacePage() {
     const [deletingList, setDeletingList] = useState<ListeResponseDto | null>(null);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     // ── Filtered data by hierarchy ──
     const filteredTasks = (() => {
@@ -894,6 +899,19 @@ export default function WorkspacePage() {
         setViewMode("overview");
     }, [selectedHierarchy]);
 
+    // ── Handle URL parameters for Modals ──
+    useEffect(() => {
+        const searchParams = new URLSearchParams(location.search);
+        if (searchParams.get("invite") === "true") {
+            setShowInviteModal(true);
+            // Clean up the URL
+            navigate(location.pathname, { replace: true, state: location.state });
+        } else if (searchParams.get("createWs") === "true") {
+            setShowCreateWs(true);
+            navigate(location.pathname, { replace: true, state: location.state });
+        }
+    }, [location.search, navigate, location.pathname, location.state]);
+
     // ── Workspace CRUD ──
     const handleCreateWs = async (name: string, slug: string) => {
         const c = await createWorkspace({ name, slug }); setWorkspaces(p => [...p, c]); setActiveWorkspace(c);
@@ -914,8 +932,36 @@ export default function WorkspacePage() {
 
     // ── Task / List CRUD ──
     const handleTaskSubmit = async (data: TaskRequestDto) => {
-        if (editingTask) { await updateTask(editingTask.id, data); setEditingTask(null); }
-        else { await createTask(data); setShowTaskForm(false); setTaskCreateDefaults(undefined); }
+        if (editingTask) { 
+            await updateTask(editingTask.id, data); 
+            // Notify if assignee changed or set
+            if (data.assigneeId && data.assigneeId !== editingTask.assigneeId) {
+                try {
+                    await createNotification({
+                        title: "Tâche mise à jour",
+                        message: `La tâche "${data.title}" vous a été assignée ou mise à jour.`,
+                        type: "TASK",
+                        userId: data.assigneeId
+                    });
+                } catch (e) { console.error("Notification failed", e); }
+            }
+            setEditingTask(null); 
+        }
+        else { 
+            const newTask = await createTask(data); 
+            if (data.assigneeId) {
+                try {
+                    await createNotification({
+                        title: "Nouvelle tâche",
+                        message: `Une nouvelle tâche "${data.title}" vous a été assignée.`,
+                        type: "TASK",
+                        userId: data.assigneeId
+                    });
+                } catch (e) { console.error("Notification failed", e); }
+            }
+            setShowTaskForm(false); 
+            setTaskCreateDefaults(undefined); 
+        }
         reloadData();
     };
     const handleListSubmit = async (data: ListeRequestDto) => {
@@ -952,6 +998,7 @@ export default function WorkspacePage() {
     const navItems = [
         { icon: LayoutGrid, label: "Dashboard" },
         { icon: Sparkles, label: "Ask AI" },
+        { icon: Bell, label: "Notifications" },
     ];
 
     const sidebarNavItems = navItems.map((item) => {
@@ -984,6 +1031,13 @@ export default function WorkspacePage() {
                 ],
             };
         }
+        if (item.label === "Notifications") {
+            return {
+                ...item,
+                active: location.pathname === "/notifications",
+                onClick: () => navigate("/notifications"),
+            };
+        }
         return item;
     });
 
@@ -993,17 +1047,17 @@ export default function WorkspacePage() {
 
     // ── Overview rendering ──
     const renderOverview = () => {
-        if (!selectedHierarchy) return <WorkspaceOverview tasks={tasks} spaces={spaces} members={members} listes={listes} folders={folders} onSelect={setSelectedHierarchy} />;
-        if (selectedHierarchy.type === "space") return <SpaceOverview space={selectedHierarchy} folders={folders} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} />;
+        if (!selectedHierarchy) return <WorkspaceOverview tasks={filteredTasks} spaces={spaces} members={members} listes={listes} folders={folders} onSelect={setSelectedHierarchy} />;
+        if (selectedHierarchy.type === "space") return <SpaceOverview space={selectedHierarchy} folders={folders} listes={listes} tasks={filteredTasks} sprints={sprints} onSelect={setSelectedHierarchy} />;
         if (selectedHierarchy.type === "folder") {
             const folder = folders.find(f => f.id === selectedHierarchy.id);
-            return folder ? <FolderOverview folder={folder} listes={listes} tasks={tasks} sprints={sprints} onSelect={setSelectedHierarchy} /> : null;
+            return folder ? <FolderOverview folder={folder} listes={listes} tasks={filteredTasks} sprints={sprints} onSelect={setSelectedHierarchy} /> : null;
         }
         if (selectedHierarchy.type === "list") {
             const liste = listes.find(l => l.id === selectedHierarchy.id);
             return liste ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                    <ListOverview liste={liste} tasks={tasks} />
+                    <ListOverview liste={liste} tasks={filteredTasks} />
                     <div style={{ background: C.surfaceEl, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                             <h3 style={{ fontSize: 13, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>Tasks in this List</h3>
@@ -1025,7 +1079,7 @@ export default function WorkspacePage() {
             const sprint = sprints.find(s => s.id === selectedHierarchy.id);
             return sprint ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                    <SprintOverview sprint={sprint} tasks={tasks} />
+                    <SprintOverview sprint={sprint} tasks={filteredTasks} />
                     <div style={{ background: C.surfaceEl, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                             <h3 style={{ fontSize: 13, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>Tasks in this Sprint</h3>
@@ -1074,30 +1128,26 @@ export default function WorkspacePage() {
                     }
                     userName={user.name}
                     userAvatar={user.avatar}
+                    onSettingsClick={() => navigate("/settings")}
                 />
             )}
         >
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&display=swap');
-                * { box-sizing: border-box; margin: 0; padding: 0; }
                 ::-webkit-scrollbar { width: 5px; height: 5px; }
                 ::-webkit-scrollbar-track { background: transparent; }
-                ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+                ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
-                .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s, color 0.15s; color: rgba(255,255,255,0.42); font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; font-family: 'DM Sans', sans-serif; }
-                .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.82); }
-                .nav-item.active { background: rgba(108,99,255,0.15); color: #a89ef5; }
-                .ws-selector { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; font-family: 'DM Sans', sans-serif; }
-                .ws-selector:hover { background: rgba(255,255,255,0.05); }
-                .search-input { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 12px 6px 34px; font-size: 12px; color: #fff; font-family: 'DM Sans', sans-serif; outline: none; width: 220px; transition: border-color 0.2s, width 0.3s; }
-                .search-input:focus { border-color: rgba(108,99,255,0.5); width: 280px; }
-                .search-input::placeholder { color: rgba(255,255,255,0.22); }
-                .icon-btn { width: 30px; height: 30px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
-                .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); }
             `}</style>
 
             <Content>
-                <WorkspaceTopBar userName={user.name} userAvatar={user.avatar} onInvite={() => setShowInviteModal(true)} />
+                <WorkspaceTopBar 
+                    userName={user.name} 
+                    userAvatar={user.avatar} 
+                    onInvite={() => setShowInviteModal(true)} 
+                    onNotificationsClick={() => navigate("/notifications")}
+                    onSearch={(q) => setSearchQuery(q)}
+                />
                 <ViewTabs active={viewMode} onChange={setViewMode} />
 
                 <main style={{ flex: 1, overflowY: "auto", padding: "0px 24px 40px", background: C.bg, fontFamily: "'DM Sans', sans-serif", color: C.text }}>
@@ -1169,7 +1219,10 @@ export default function WorkspacePage() {
                             {viewMode === "list" && (
                                 <ListView
                                     lists={filteredListes}
-                                    tasks={filteredTasks}
+                                    tasks={filteredTasks.filter(t => 
+                                        t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    )}
                                     onEditTask={setEditingTask}
                                     onDeleteTask={setDeletingTask}
                                     onEditList={setEditingList}
@@ -1179,7 +1232,10 @@ export default function WorkspacePage() {
                             )}
                             {viewMode === "board" && (
                                 <BoardView
-                                    tasks={filteredTasks}
+                                    tasks={filteredTasks.filter(t => 
+                                        t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    )}
                                     onEditTask={setEditingTask}
                                     onDeleteTask={setDeletingTask}
                                     onStatusChange={handleStatusChange}

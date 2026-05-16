@@ -310,7 +310,7 @@ export default function WorkspaceResourcesPanel({
                         gap: 6,
                         fontSize: 10,
                         fontWeight: 500,
-                        color: "rgba(255,255,255,0.25)",
+                        color: "var(--text-faint)",
                         textTransform: "uppercase",
                         letterSpacing: "0.8px",
                     }}
@@ -324,8 +324,8 @@ export default function WorkspaceResourcesPanel({
                     disabled={!workspaceId}
                     style={{
                         border: "none",
-                        background: "rgba(83,74,183,0.18)",
-                        color: "#c8c0ff",
+                        background: "var(--accent-soft)",
+                        color: "var(--accent)",
                         borderRadius: 8,
                         width: 22,
                         height: 22,
@@ -341,13 +341,13 @@ export default function WorkspaceResourcesPanel({
             </div>
 
             {!workspaceId && (
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, padding: "4px 8px 8px" }}>
+                <div style={{ color: "var(--text-faint)", fontSize: 12, padding: "4px 8px 8px" }}>
                     Select a workspace first.
                 </div>
             )}
 
             {loadingSpaces && (
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, padding: "4px 8px 8px" }}>
+                <div style={{ color: "var(--text-faint)", fontSize: 12, padding: "4px 8px 8px" }}>
                     Loading spaces...
                 </div>
             )}
@@ -359,7 +359,7 @@ export default function WorkspaceResourcesPanel({
             )}
 
             {!loadingSpaces && workspaceId && spaces.length === 0 && (
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, padding: "4px 8px 8px" }}>
+                <div style={{ color: "var(--text-faint)", fontSize: 12, padding: "4px 8px 8px" }}>
                     No spaces in this workspace.
                 </div>
             )}
@@ -387,8 +387,8 @@ export default function WorkspaceResourcesPanel({
                                 padding: "7px 8px",
                                 borderRadius: 9,
                                 cursor: "pointer",
-                                background: selectedHierarchy?.id === space.id ? "rgba(83,74,183,0.18)" : (hoveredRow === spaceRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
-                                color: selectedHierarchy?.id === space.id ? "#a89ef5" : "rgba(255,255,255,0.82)",
+                                background: selectedHierarchy?.id === space.id ? "var(--accent-soft)" : (hoveredRow === spaceRowKey ? "var(--bg-hover)" : "transparent"),
+                                color: selectedHierarchy?.id === space.id ? "var(--accent)" : "var(--text-main)",
                                 fontSize: 13,
                             }}
                             onClick={() => {
@@ -403,7 +403,7 @@ export default function WorkspaceResourcesPanel({
                                 style={{
                                     border: "none",
                                     background: "transparent",
-                                    color: "rgba(255,255,255,0.65)",
+                                    color: "var(--text-sub)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
@@ -439,7 +439,7 @@ export default function WorkspaceResourcesPanel({
                                                 event.stopPropagation();
                                                 setOpenSpaceCreateMenuFor((current) => (current === spaceRowKey ? null : spaceRowKey));
                                             }}
-                                            style={miniActionStyle("rgba(29,158,117,0.2)", "#76e7c2")}
+                                            style={miniActionStyle("var(--success-soft)", "var(--success)")}
                                         >
                                             <Plus size={12} />
                                         </button>
@@ -454,9 +454,9 @@ export default function WorkspaceResourcesPanel({
                                                     minWidth: 130,
                                                     padding: 6,
                                                     borderRadius: 10,
-                                                    border: "1px solid rgba(255,255,255,0.14)",
-                                                    background: "rgba(13,15,20,0.96)",
-                                                    boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+                                                    border: "1px solid var(--border)",
+                                                    background: "var(--bg-card)",
+                                                    boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
                                                     display: "flex",
                                                     flexDirection: "column",
                                                     gap: 4,
@@ -491,7 +491,7 @@ export default function WorkspaceResourcesPanel({
                                             setOpenSpaceCreateMenuFor(null);
                                             void handleEditSpace(space);
                                         }}
-                                        style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff")}
+                                        style={miniActionStyle("var(--accent-soft)", "var(--accent)")}
                                     >
                                         <Pencil size={12} />
                                     </button>
@@ -502,7 +502,7 @@ export default function WorkspaceResourcesPanel({
                                             setOpenSpaceCreateMenuFor(null);
                                             void handleDeleteSpace(space);
                                         }}
-                                        style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5")}
+                                        style={miniActionStyle("var(--error-soft)", "var(--error)")}
                                     >
                                         <Trash2 size={12} />
                                     </button>
@@ -511,15 +511,15 @@ export default function WorkspaceResourcesPanel({
                         </div>
 
                         {isSpaceOpen && (
-                            <div style={{ marginLeft: 18, borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
+                            <div style={{ marginLeft: 18, borderLeft: "1px solid var(--border)" }}>
                                 {loadingFoldersFor === space.id && (
-                                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, padding: "6px 10px" }}>
+                                    <div style={{ color: "var(--text-faint)", fontSize: 11, padding: "6px 10px" }}>
                                         Loading folders...
                                     </div>
                                 )}
 
                                 {!loadingFoldersFor && spaceFolders.length === 0 && (
-                                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, padding: "6px 10px" }}>
+                                    <div style={{ color: "var(--text-faint)", fontSize: 11, padding: "6px 10px" }}>
                                         No folders.
                                     </div>
                                 )}
@@ -549,8 +549,8 @@ export default function WorkspaceResourcesPanel({
                                                     padding: "6px 10px",
                                                     borderRadius: 8,
                                                     cursor: folder.id ? "pointer" : "default",
-                                                    background: selectedHierarchy?.id === folder.id ? "rgba(83,74,183,0.18)" : (hoveredRow === folderRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
-                                                    color: selectedHierarchy?.id === folder.id ? "#a89ef5" : "rgba(255,255,255,0.68)",
+                                                    background: selectedHierarchy?.id === folder.id ? "var(--accent-soft)" : (hoveredRow === folderRowKey ? "var(--bg-hover)" : "transparent"),
+                                                    color: selectedHierarchy?.id === folder.id ? "var(--accent)" : "var(--text-sub)",
                                                     fontSize: 12,
                                                 }}
                                                 onClick={() => {
@@ -569,7 +569,7 @@ export default function WorkspaceResourcesPanel({
                                                     style={{
                                                         border: "none",
                                                         background: "transparent",
-                                                        color: "rgba(255,255,255,0.55)",
+                                                        color: "var(--text-faint)",
                                                         display: "flex",
                                                         alignItems: "center",
                                                         justifyContent: "center",
@@ -606,7 +606,7 @@ export default function WorkspaceResourcesPanel({
                                                                     event.stopPropagation();
                                                                     setOpenCreateMenuFor((current) => (current === folderRowKey ? null : folderRowKey));
                                                                 }}
-                                                                style={miniActionStyle("rgba(29,158,117,0.2)", "#76e7c2", !folder.id)}
+                                                                style={miniActionStyle("var(--success-soft)", "var(--success)", !folder.id)}
                                                                 disabled={!folder.id}
                                                             >
                                                                 <Plus size={12} />
@@ -622,9 +622,9 @@ export default function WorkspaceResourcesPanel({
                                                                         minWidth: 130,
                                                                         padding: 6,
                                                                         borderRadius: 10,
-                                                                        border: "1px solid rgba(255,255,255,0.14)",
-                                                                        background: "rgba(13,15,20,0.96)",
-                                                                        boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+                                                                        border: "1px solid var(--border)",
+                                                                        background: "var(--bg-card)",
+                                                                        boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
                                                                         display: "flex",
                                                                         flexDirection: "column",
                                                                         gap: 4,
@@ -659,7 +659,7 @@ export default function WorkspaceResourcesPanel({
                                                                 setOpenCreateMenuFor(null);
                                                                 void handleEditFolder(space.id, folder);
                                                             }}
-                                                            style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff", !folder.id)}
+                                                            style={miniActionStyle("var(--accent-soft)", "var(--accent)", !folder.id)}
                                                             disabled={!folder.id}
                                                         >
                                                             <Pencil size={12} />
@@ -671,7 +671,7 @@ export default function WorkspaceResourcesPanel({
                                                                 setOpenCreateMenuFor(null);
                                                                 void handleDeleteFolder(space.id, folder);
                                                             }}
-                                                            style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5", !folder.id)}
+                                                            style={miniActionStyle("var(--error-soft)", "var(--error)", !folder.id)}
                                                             disabled={!folder.id}
                                                         >
                                                             <Trash2 size={12} />
@@ -681,15 +681,15 @@ export default function WorkspaceResourcesPanel({
                                             </div>
 
                                             {folder.id && isFolderOpen && (
-                                                <div style={{ marginLeft: 16, borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
+                                                <div style={{ marginLeft: 16, borderLeft: "1px solid var(--border)" }}>
                                                     {loadingSprintsFor === folder.id && (
-                                                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, padding: "6px 10px" }}>
+                                                        <div style={{ color: "var(--text-faint)", fontSize: 11, padding: "6px 10px" }}>
                                                             Loading items...
                                                         </div>
                                                     )}
 
                                                     {!loadingSprintsFor && folderSprints.length === 0 && folderPhaseLists.length === 0 && (
-                                                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, padding: "6px 10px" }}>
+                                                        <div style={{ color: "var(--text-faint)", fontSize: 11, padding: "6px 10px" }}>
                                                             No sprints or lists.
                                                         </div>
                                                     )}
@@ -708,17 +708,16 @@ export default function WorkspaceResourcesPanel({
                                                                     gap: 6,
                                                                     padding: "6px 10px",
                                                                     borderRadius: 8,
-                                                                    background: selectedHierarchy?.id === liste.id ? "rgba(83,74,183,0.18)" : (hoveredRow === listRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
-                                                                    color: selectedHierarchy?.id === liste.id ? "#a89ef5" : "rgba(255,255,255,0.62)",
+                                                                    background: selectedHierarchy?.id === liste.id ? "var(--accent-soft)" : (hoveredRow === listRowKey ? "var(--bg-hover)" : "transparent"),
+                                                                    color: selectedHierarchy?.id === liste.id ? "var(--accent)" : "var(--text-sub)",
                                                                     fontSize: 12,
                                                                     cursor: "pointer",
                                                                 }}
                                                                 onClick={() => {
                                                                     onSelectHierarchy?.({ type: 'list', id: liste.id, name: liste.name });
                                                                 }}
-                                                                title="List"
                                                             >
-                                                                <List size={12} style={{ color: selectedHierarchy?.id === liste.id ? "#a89ef5" : "#93c5fd", flexShrink: 0 }} />
+                                                                <List size={12} style={{ color: selectedHierarchy?.id === liste.id ? "var(--accent)" : "var(--accent)", flexShrink: 0, opacity: 0.8 }} />
                                                                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                                     {liste.name}
                                                                 </span>
@@ -731,7 +730,7 @@ export default function WorkspaceResourcesPanel({
                                                                                 event.stopPropagation();
                                                                                 void handleEditPhaseList(folder.id!, liste);
                                                                             }}
-                                                                            style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff")}
+                                                                            style={miniActionStyle("var(--accent-soft)", "var(--accent)")}
                                                                         >
                                                                             <Pencil size={12} />
                                                                         </button>
@@ -741,7 +740,7 @@ export default function WorkspaceResourcesPanel({
                                                                                 event.stopPropagation();
                                                                                 void handleDeletePhaseList(folder.id!, liste);
                                                                             }}
-                                                                            style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5")}
+                                                                            style={miniActionStyle("var(--error-soft)", "var(--error)")}
                                                                         >
                                                                             <Trash2 size={12} />
                                                                         </button>
@@ -765,17 +764,16 @@ export default function WorkspaceResourcesPanel({
                                                                     gap: 6,
                                                                     padding: "6px 10px",
                                                                     borderRadius: 8,
-                                                                    background: selectedHierarchy?.id === sprint.id ? "rgba(83,74,183,0.18)" : (hoveredRow === sprintRowKey ? "rgba(255,255,255,0.05)" : "transparent"),
-                                                                    color: selectedHierarchy?.id === sprint.id ? "#a89ef5" : "rgba(255,255,255,0.62)",
+                                                                    background: selectedHierarchy?.id === sprint.id ? "var(--accent-soft)" : (hoveredRow === sprintRowKey ? "var(--bg-hover)" : "transparent"),
+                                                                    color: selectedHierarchy?.id === sprint.id ? "var(--accent)" : "var(--text-sub)",
                                                                     fontSize: 12,
                                                                     cursor: "pointer",
                                                                 }}
                                                                 onClick={() => {
                                                                     onSelectHierarchy?.({ type: 'sprint', id: sprint.id, name: sprint.name });
                                                                 }}
-                                                                title="Sprint"
                                                             >
-                                                                <Rocket size={12} style={{ color: selectedHierarchy?.id === sprint.id ? "#a89ef5" : "#f8c285", flexShrink: 0 }} />
+                                                                <Rocket size={12} style={{ color: selectedHierarchy?.id === sprint.id ? "var(--accent)" : "var(--warning)", flexShrink: 0, opacity: 0.8 }} />
                                                                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                                     {sprint.name}
                                                                 </span>
@@ -788,7 +786,7 @@ export default function WorkspaceResourcesPanel({
                                                                                 event.stopPropagation();
                                                                                 void handleEditSprint(folder.id!, sprint);
                                                                             }}
-                                                                            style={miniActionStyle("rgba(83,74,183,0.18)", "#c8c0ff")}
+                                                                            style={miniActionStyle("var(--accent-soft)", "var(--accent)")}
                                                                         >
                                                                             <Pencil size={12} />
                                                                         </button>
@@ -798,7 +796,7 @@ export default function WorkspaceResourcesPanel({
                                                                                 event.stopPropagation();
                                                                                 void handleDeleteSprint(folder.id!, sprint);
                                                                             }}
-                                                                            style={miniActionStyle("rgba(226,75,74,0.18)", "#fca5a5")}
+                                                                            style={miniActionStyle("var(--error-soft)", "var(--error)")}
                                                                         >
                                                                             <Trash2 size={12} />
                                                                         </button>
@@ -1044,7 +1042,7 @@ function CollapsibleLeadIcon({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "rgba(255,255,255,0.72)",
+                    color: "var(--text-sub)",
                     opacity: isHovered ? 1 : 0,
                     transform: isHovered ? "translateX(0) scale(1)" : "translateX(3px) scale(0.92)",
                     transition: "opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1)",
@@ -1078,8 +1076,8 @@ function miniActionStyle(background: string, color: string, disabled = false) {
 const createMenuItemStyle = {
     border: "none",
     borderRadius: 7,
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.88)",
+    background: "var(--bg-hover)",
+    color: "var(--text-sub)",
     textAlign: "left",
     fontSize: 11,
     padding: "7px 9px",

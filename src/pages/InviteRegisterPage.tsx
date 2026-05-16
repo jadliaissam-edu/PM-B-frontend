@@ -60,28 +60,30 @@ export default function InviteRegisterPage() {
         }
     };
 
+    const theme = localStorage.getItem("orbyte-theme") || "dark";
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0d0d0f] px-4 relative overflow-hidden">
+        <div data-theme={theme} className="min-h-screen flex items-center justify-center bg-[var(--bg-main)] px-4 relative overflow-hidden transition-colors duration-300">
             <div
-                className="absolute w-[500px] h-[500px] rounded-full top-[-100px] right-[-100px] pointer-events-none"
+                className="absolute w-[500px] h-[500px] rounded-full top-[-100px] right-[-100px] pointer-events-none opacity-40 dark:opacity-100"
                 style={{ background: "radial-gradient(circle, rgba(83,74,183,0.18) 0%, transparent 70%)" }}
             />
             <div
-                className="absolute w-[300px] h-[300px] rounded-full bottom-[-80px] left-[-60px] pointer-events-none"
+                className="absolute w-[300px] h-[300px] rounded-full bottom-[-80px] left-[-60px] pointer-events-none opacity-40 dark:opacity-100"
                 style={{ background: "radial-gradient(circle, rgba(29,158,117,0.12) 0%, transparent 70%)" }}
             />
 
-            <div className="relative z-10 w-full max-w-sm bg-[#16161a] border border-white/[0.08] rounded-2xl p-10">
+            <div className="relative z-10 w-full max-w-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-10 shadow-xl">
                 <div className="flex items-center gap-2.5 mb-8">
                     <div className="w-9 h-9 rounded-[10px] flex items-center justify-center overflow-hidden">
                         <img src={logoImage} alt="Orbyte" className="w-full h-full object-cover" />
                     </div>
-                    <span className="font-bold text-lg text-white tracking-tight">Orbyte</span>
+                    <span className="font-bold text-lg text-[var(--text-main)] tracking-tight">Orbyte</span>
                 </div>
 
-                <h1 className="text-2xl font-semibold text-white tracking-tight mb-1">Create account</h1>
-                <p className="text-sm text-white/40 mb-2">You were invited to join a workspace.</p>
-                <p className="text-xs text-white/55 mb-6">Invited email: {invitedEmail || "Unknown"}</p>
+                <h1 className="text-2xl font-semibold text-[var(--text-main)] tracking-tight mb-1">Create account</h1>
+                <p className="text-sm text-[var(--text-sub)] mb-2">You were invited to join a workspace.</p>
+                <p className="text-xs text-[var(--text-faint)] mb-6">Invited email: {invitedEmail || "Unknown"}</p>
 
                 {error && (
                     <div className="mb-4 p-3 rounded-[10px] bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
@@ -92,7 +94,7 @@ export default function InviteRegisterPage() {
                 <form className="space-y-4" onSubmit={handleSubmit}>
                     <div className="flex gap-3">
                         <div className="flex-1">
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                            <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                                 First name
                             </label>
                             <input
@@ -102,11 +104,11 @@ export default function InviteRegisterPage() {
                                 onChange={handleChange}
                                 placeholder="John"
                                 required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                                className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-all"
                             />
                         </div>
                         <div className="flex-1">
-                            <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                            <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                                 Last name
                             </label>
                             <input
@@ -116,13 +118,13 @@ export default function InviteRegisterPage() {
                                 onChange={handleChange}
                                 placeholder="Doe"
                                 required
-                                className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                                className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-all"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                        <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                             Password
                         </label>
                         <input
@@ -132,12 +134,12 @@ export default function InviteRegisterPage() {
                             onChange={handleChange}
                             placeholder="••••••••"
                             required
-                            className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                            className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-all"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-[11px] font-medium text-white/50 uppercase tracking-widest mb-1.5">
+                        <label className="block text-[11px] font-medium text-[var(--text-faint)] uppercase tracking-widest mb-1.5">
                             Confirm password
                         </label>
                         <input
@@ -147,11 +149,11 @@ export default function InviteRegisterPage() {
                             onChange={handleChange}
                             placeholder="••••••••"
                             required
-                            className="w-full bg-[#1e1e24] border border-white/10 rounded-[10px] px-3.5 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-[#534AB7]/70 transition-colors"
+                            className="w-full bg-[var(--bg-hover)] border border-[var(--border)] rounded-[10px] px-3.5 py-2.5 text-sm text-[var(--text-main)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-all"
                         />
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm text-white/70">
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-sub)]">
                         <input
                             type="checkbox"
                             name="mfaEnabled"
@@ -165,20 +167,20 @@ export default function InviteRegisterPage() {
                     <button
                         type="submit"
                         disabled={loading || !invitedEmail}
-                        className="w-full mt-6 py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full mt-6 py-3 rounded-[10px] text-white font-semibold text-sm tracking-wide transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-[#534AB7]/20"
                         style={{ background: "linear-gradient(135deg, #534AB7, #3C3489)" }}
                     >
-                        {loading ? "Creating account..." : "Create account ->"}
+                        {loading ? "Creating account..." : "Create account →"}
                     </button>
                 </form>
 
                 <div className="flex items-center gap-3 my-6">
-                    <div className="flex-1 h-px bg-white/[0.08]" />
-                    <span className="text-xs text-white/25">or</span>
-                    <div className="flex-1 h-px bg-white/[0.08]" />
+                    <div className="flex-1 h-px bg-[var(--border)]" />
+                    <span className="text-xs text-[var(--text-faint)]">or</span>
+                    <div className="flex-1 h-px bg-[var(--border)]" />
                 </div>
 
-                <p className="text-center text-sm text-white/35">
+                <p className="text-center text-sm text-[var(--text-sub)]">
                     Already have an account?{" "}
                     <Link to={`/login${invitedEmail ? `?email=${encodeURIComponent(invitedEmail)}` : ""}`} className="text-[#1D9E75] font-medium hover:opacity-80 transition-opacity">
                         Sign in

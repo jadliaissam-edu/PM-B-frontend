@@ -81,8 +81,8 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                 ...style,
                 padding: 12,
                 borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.04)",
+                border: "1px solid var(--border)",
+                background: "var(--bg-card)",
                 cursor: "default",
                 transition: "transform 0.15s, background 0.15s",
                 boxShadow: isDragging ? "0 18px 45px rgba(0,0,0,0.18)" : "none",
@@ -93,7 +93,7 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                 <div style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
                     <strong style={{ 
                         fontSize: 13, 
-                        color: "#fff",
+                        color: "var(--text-main)",
                         display: "-webkit-box",
                         WebkitLineClamp: 3,
                         WebkitBoxOrient: "vertical",
@@ -114,7 +114,7 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                             fontSize: 10,
                             padding: "2px 6px",
                             borderRadius: 4,
-                            background: "rgba(255,255,255,0.1)",
+                            background: "var(--bg-hover)",
                             color: priorityColors[task.priority.toLowerCase()] || "#fff",
                             textTransform: "uppercase",
                             fontWeight: 600,
@@ -124,12 +124,12 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                     )}
 
                     {task.dueDate && (
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 4 }}>
+                        <span style={{ fontSize: 10, color: "var(--text-sub)", background: "var(--bg-hover)", padding: "2px 6px", borderRadius: 4 }}>
                             {new Date(task.dueDate).toLocaleDateString()}
                         </span>
                     )}
 
-                    <div {...listeners} style={{ cursor: "grab", color: "rgba(255,255,255,0.4)" }}>
+                    <div {...listeners} style={{ cursor: "grab", color: "var(--text-faint)" }}>
                         <GripVertical size={14} />
                     </div>
                 </div>
@@ -157,11 +157,11 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                                 alignItems: "center",
                                 justifyContent: "center",
                                 border: "none",
-                                background: "rgba(255,255,255,0.05)",
+                                background: "var(--bg-hover)",
                                 borderRadius: 6,
                                 width: 22,
                                 height: 22,
-                                color: "rgba(255,255,255,0.6)",
+                                color: "var(--text-sub)",
                                 cursor: "pointer",
                                 padding: 0,
                             }}
@@ -178,9 +178,9 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                                     right: 0,
                                     minWidth: 118,
                                     borderRadius: 8,
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    background: "#15151b",
-                                    boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+                                    border: "1px solid var(--border)",
+                                    background: "var(--bg-card)",
+                                    boxShadow: "0 12px 30px rgba(0,0,0,0.15)",
                                     zIndex: 30,
                                     overflow: "hidden",
                                 }}
@@ -196,7 +196,7 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
                                         width: "100%",
                                         border: "none",
                                         background: "transparent",
-                                        color: "rgba(255,255,255,0.82)",
+                                        color: "var(--text-main)",
                                         display: "flex",
                                         alignItems: "center",
                                         gap: 8,
@@ -241,19 +241,19 @@ function TaskCard({ task, onEditTask, onDeleteTask }: { task: TaskResponseDto; o
             </div>
 
             {showDesc && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
                     {task.description ? (
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                        <p style={{ fontSize: 11, color: "var(--text-sub)", margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
                             {task.description}
                         </p>
                     ) : (
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", margin: 0 }}>No description</p>
+                        <p style={{ fontSize: 11, color: "var(--text-faint)", margin: 0 }}>No description</p>
                     )}
 
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px dashed rgba(255,255,255,0.05)" }}>
-                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{task.listeName ?? task.sprintName ?? "No parent"}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
+                        <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{task.listeName ?? task.sprintName ?? "No parent"}</span>
                         {task.assigneeName && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-sub)" }}>
                                 <User size={11} />
                                 <span>{task.assigneeName}</span>
                             </div>
@@ -285,8 +285,8 @@ function ColumnZone({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             style={{
-                background: isOver ? "rgba(124, 58, 237, 0.15)" : "#16161a",
-                border: `1px solid ${isOver ? "rgba(124, 58, 237, 0.35)" : "rgba(255,255,255,0.08)"}`,
+                background: isOver ? "var(--accent-soft)" : "var(--bg-main)",
+                border: `1px solid ${isOver ? "var(--accent)" : "var(--border)"}`,
                 borderRadius: 12,
                 padding: 14,
                 minHeight: 360,
@@ -297,10 +297,10 @@ function ColumnZone({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: column.accent, display: "inline-block" }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{column.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{column.label}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{count}</span>
+                    <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{count}</span>
                     <button
                         type="button"
                         onClick={(event) => {
@@ -311,9 +311,9 @@ function ColumnZone({
                             display: "flex",
                             alignItems: "center",
                             gap: 4,
-                            border: "1px solid rgba(255,255,255,0.14)",
-                            background: "rgba(255,255,255,0.05)",
-                            color: "rgba(255,255,255,0.82)",
+                            border: "1px solid var(--border)",
+                            background: "var(--bg-hover)",
+                            color: "var(--text-sub)",
                             borderRadius: 999,
                             padding: "3px 9px",
                             fontSize: 10,
@@ -386,7 +386,7 @@ export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusCha
                             onAddTask={onAddTask}
                         >
                             {tasksByStatus[column.key].length === 0 ? (
-                                <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.45)", fontSize: 12, minHeight: 60 }}>
+                                <div style={{ padding: 12, borderRadius: 10, background: "var(--bg-hover)", color: "var(--text-faint)", fontSize: 12, minHeight: 60 }}>
                                     No tasks yet.
                                 </div>
                             ) : (
@@ -406,9 +406,9 @@ export default function BoardView({ tasks, onEditTask, onDeleteTask, onStatusCha
 
             <DragOverlay>
                 {activeTask ? (
-                    <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.12)", width: 260 }}>
-                        <strong style={{ color: "#fff", display: "block", marginBottom: 6, fontSize: 13 }}>{activeTask.title}</strong>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", margin: 0 }}>{activeTask.description || "No description"}</p>
+                    <div style={{ padding: 12, borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border)", width: 260, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}>
+                        <strong style={{ color: "var(--text-main)", display: "block", marginBottom: 6, fontSize: 13 }}>{activeTask.title}</strong>
+                        <p style={{ fontSize: 11, color: "var(--text-sub)", margin: 0 }}>{activeTask.description || "No description"}</p>
                     </div>
                 ) : null}
             </DragOverlay>
