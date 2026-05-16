@@ -5,6 +5,9 @@ import {
     Sparkles, Send, Loader2, Plus,
     X, Check, Trash2, Pencil,
     ChevronRight, ChevronDown,
+    Square, SquarePen, History,
+    Folder, FolderOpen, List, Zap, Target, Activity, Users, CheckCircle2,
+    Clock, CalendarDays, ArrowLeft, LayoutGrid, Bell
     SquarePen, History, Bell,
     Folder, FolderOpen, List, Zap, Target, Activity, Users, User, CheckCircle2,
     Clock, CalendarDays, ArrowLeft, LayoutGrid, Eye, EyeOff, Lock
@@ -56,10 +59,16 @@ interface SelectedHierarchy { type: HierarchyType; id: string; name: string; }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const DC = {
-    surface: "#111118", surfaceEl: "#18181f",
-    border: "rgba(255,255,255,0.06)",
-    text: "#f0f0f8", textMuted: "rgba(240,240,248,0.45)", textFaint: "rgba(240,240,248,0.22)",
-    accent: "#6c63ff", green: "#22d3a0", orange: "#f59e0b", blue: "#3b82f6",
+    surface: "var(--bg-card)",
+    surfaceEl: "var(--bg-hover)",
+    border: "var(--border)",
+    text: "var(--text-main)",
+    textMuted: "var(--text-sub)",
+    textFaint: "var(--text-faint)",
+    accent: "var(--accent)",
+    green: "var(--success)",
+    orange: "var(--warning)",
+    blue: "#3b82f6",
 };
 
 function HStatChip({ value, label, color, icon: Icon }: { value: any; label: string; color: string; icon: any }) {
@@ -78,7 +87,7 @@ function HStatChip({ value, label, color, icon: Icon }: { value: any; label: str
 
 function HBar({ pct, color = DC.accent }: { pct: number; color?: string }) {
     return (
-        <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ height: 3, background: "var(--bg-hover)", borderRadius: 99, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: `linear-gradient(90deg, ${color}, ${color}88)`, transition: "width .6s ease" }} />
         </div>
     );
@@ -92,7 +101,7 @@ function HCard({ icon: Icon, color, title, subtitle, progress, onClick }: any) {
             onMouseEnter={() => setHov(true)}
             onMouseLeave={() => setHov(false)}
             style={{
-                background: hov ? DC.surfaceEl : "rgba(255,255,255,0.015)",
+                background: hov ? DC.surfaceEl : "var(--bg-card)",
                 border: `1px solid ${hov ? DC.accent + "44" : DC.border}`,
                 borderRadius: 10, padding: "12px 14px", cursor: "pointer",
                 transition: "all .2s",
@@ -174,10 +183,10 @@ function InlineHierarchyView({ hierarchy, workspaceId, onNavigate, onBack }: {
     const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) : "—";
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d0d0f", overflow: "hidden" }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-main)", overflow: "hidden" }}>
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", borderBottom: "0.5px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-                <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "5px 10px", color: "rgba(255,255,255,0.6)", fontSize: 12, cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", borderBottom: "0.5px solid var(--border)", flexShrink: 0 }}>
+                <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--bg-hover)", border: "0.5px solid var(--border)", borderRadius: 8, padding: "5px 10px", color: "var(--text-sub)", fontSize: 12, cursor: "pointer" }}>
                     <ArrowLeft size={13} /> Retour au chat
                 </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
@@ -1299,6 +1308,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
 const navItems = [
     { icon: LayoutGrid, label: "Dashboard" },
     { icon: Sparkles, label: "Ask AI" },
+    { icon: Bell, label: "Notifications" },
 ];
 
 type ChatRole = "user" | "assistant" | "system";
@@ -1368,6 +1378,18 @@ export default function AIPage() {
     const [acceptedCards, setAcceptedCards] = useState<Set<number>>(new Set());
     const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const lastRequestRef = useRef<{ input: string; actionType: "chat" | "generate" } | null>(null);
+    const wasAbortedRef = useRef(false);
+    const messagesScrollRef = useRef<HTMLDivElement>(null);
+    const [showScrollDownBtn, setShowScrollDownBtn] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+        const el = messagesScrollRef.current;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior });
+    }, []);
 
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -1884,6 +1906,25 @@ export default function AIPage() {
                 ...item,
                 active: location.pathname === "/ai",
                 onClick: () => navigate("/ai"),
+                subItems: [
+                    {
+                        label: "New Chat",
+                        icon: SquarePen,
+                        onClick: () => navigate("/ai?new=1"),
+                    },
+                    {
+                        label: "History",
+                        icon: History,
+                        onClick: () => navigate("/ai?history=1"),
+                    },
+                ],
+            };
+        }
+        if (item.label === "Notifications") {
+            return {
+                ...item,
+                active: location.pathname === "/notifications",
+                onClick: () => navigate("/notifications"),
             };
         }
         return item;
@@ -1908,6 +1949,7 @@ export default function AIPage() {
                     }
                     userName={user.name}
                     userAvatar={user.avatar}
+                    onSettingsClick={() => navigate("/settings")}
                     resourcesPanel={
                         <WorkspaceResourcesPanel
                             workspaceId={activeWorkspace?.id}
@@ -1930,9 +1972,9 @@ export default function AIPage() {
                     gap: 8px;
                     padding: 8px 18px;
                     border-radius: 12px;
-                    border: 1px solid rgba(168,158,245,0.3);
-                    background: linear-gradient(135deg, rgba(83,74,183,0.15) 0%, rgba(124,58,237,0.15) 100%);
-                    color: #a89ef5;
+                    border: 1px solid var(--accent);
+                    background: var(--accent-soft);
+                    color: var(--accent);
                     font-size: 13px;
                     font-weight: 600;
                     cursor: pointer;
@@ -1940,11 +1982,10 @@ export default function AIPage() {
                     backdrop-filter: blur(10px);
                 }
                 .generate-btn:hover:not(:disabled) {
-                    background: linear-gradient(135deg, rgba(83,74,183,0.3) 0%, rgba(124,58,237,0.3) 100%);
-                    border-color: rgba(168,158,245,0.5);
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 12px rgba(83,74,183,0.2);
+                    background: var(--accent);
                     color: #fff;
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px var(--accent-soft);
                 }
                 .generate-btn:active:not(:disabled) {
                     transform: translateY(0);
@@ -1953,48 +1994,37 @@ export default function AIPage() {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
-                * { box-sizing: border-box; margin: 0; padding: 0; }
-                ::-webkit-scrollbar { width: 4px; }
-                ::-webkit-scrollbar-track { background: transparent; }
-                ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-                .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.18s, color 0.18s; color: rgba(255,255,255,0.45); font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; }
-                .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
-                .nav-item.active { background: rgba(83,74,183,0.18); color: #a89ef5; }
-                .ws-selector { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); cursor: pointer; transition: background 0.18s; font-size: 13px; color: rgba(255,255,255,0.7); }
-                .ws-selector:hover { background: rgba(255,255,255,0.06); }
-                .search-input { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 14px 8px 38px; font-size: 13px; color: #fff; font-family: 'DM Sans', sans-serif; outline: none; width: 240px; transition: border-color 0.2s, width 0.3s; }
-                .search-input:focus { border-color: rgba(83,74,183,0.5); width: 300px; }
-                .search-input::placeholder { color: rgba(255,255,255,0.25); }
-                .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.18s, border-color 0.18s; }
-                .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
-                .ai-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
-                .ai-action-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
-                .ai-action-btn.primary { background: rgba(83,74,183,0.22); border-color: rgba(83,74,183,0.45); color: #d9d4ff; }
-                .ai-action-btn.primary:hover { background: rgba(83,74,183,0.32); }
+                .ai-page-wrapper ::-webkit-scrollbar { width: 4px; }
+                .ai-page-wrapper ::-webkit-scrollbar-track { background: transparent; }
+                .ai-page-wrapper ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+                .ai-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-sub); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+                .ai-action-btn:hover { background: var(--bg-hover); color: var(--text-main); border-color: var(--border-hov); }
+                .ai-action-btn.primary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+                .ai-action-btn.primary:hover { background: var(--accent); color: #fff; }
                 
                 /* Markdown Styles */
                 .markdown-content { font-size: 14px; line-height: 1.6; }
                 .markdown-content p { margin-bottom: 12px; }
                 .markdown-content p:last-child { margin-bottom: 0; }
-                .markdown-content h1, .markdown-content h2, .markdown-content h3 { color: #fff; margin: 20px 0 10px; font-family: 'Syne', sans-serif; font-weight: 700; }
-                .markdown-content h1 { font-size: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+                .markdown-content h1, .markdown-content h2, .markdown-content h3 { color: var(--text-main); margin: 20px 0 10px; font-family: 'Syne', sans-serif; font-weight: 700; }
+                .markdown-content h1 { font-size: 20px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
                 .markdown-content h2 { font-size: 18px; }
                 .markdown-content h3 { font-size: 16px; }
-                .markdown-content code { background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
-                .markdown-content pre { background: #000; padding: 16px; border-radius: 12px; overflow-x: auto; margin: 12px 0; border: 1px solid rgba(255,255,255,0.05); }
-                .markdown-content pre code { background: none; padding: 0; font-size: 13px; color: #e5e7eb; }
-                .markdown-content ul, .markdown-content ol { margin-left: 20px; margin-bottom: 12px; }
+                .markdown-content code { background: var(--bg-hover); padding: 2px 5px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; color: var(--accent); }
+                .markdown-content pre { background: var(--bg-hover); padding: 16px; border-radius: 12px; overflow-x: auto; margin: 12px 0; border: 1px solid var(--border); }
+                .markdown-content pre code { background: none; padding: 0; font-size: 13px; color: var(--text-main); }
+                .markdown-content ul, .markdown-content ol { margin-left: 20px; margin-bottom: 12px; color: var(--text-main); }
                 .markdown-content li { margin-bottom: 6px; }
                 .markdown-content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
-                .markdown-content th, .markdown-content td { border: 1px solid rgba(255,255,255,0.1); padding: 10px 12px; text-align: left; }
-                .markdown-content th { background: rgba(255,255,255,0.05); color: #fff; font-weight: 600; }
-                .markdown-content tr:nth-child(even) { background: rgba(255,255,255,0.02); }
-                .markdown-content blockquote { border-left: 4px solid #534AB7; background: rgba(83,74,183,0.05); padding: 10px 20px; margin: 12px 0; font-style: italic; color: rgba(255,255,255,0.7); }
-                .markdown-content hr { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 24px 0; }
+                .markdown-content th, .markdown-content td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; color: var(--text-main); }
+                .markdown-content th { background: var(--bg-hover); color: var(--text-main); font-weight: 600; }
+                .markdown-content tr:nth-child(even) { background: var(--bg-hover); }
+                .markdown-content blockquote { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 20px; margin: 12px 0; font-style: italic; color: var(--text-sub); }
+                .markdown-content hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
                 /* AI Page Layout */
-                .ai-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: #0d0d0f; position: relative; }
-                .ai-top-bar { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; background: rgba(13,13,15,0.4); backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+                .ai-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: var(--bg-main); position: relative; }
+                .ai-top-bar { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--bg-card); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
                 .ai-top-bar.collapsed { border-bottom: none; background: transparent; padding-top: 8px; }
                 .ai-top-row { display: flex; align-items: center; gap: 8px; }
                 .ai-top-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -2010,29 +2040,29 @@ export default function AIPage() {
                     font-size: 11px; 
                     cursor: default; 
                     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
-                    border: 1px solid rgba(255,255,255,0.06); 
-                    background: rgba(255,255,255,0.02); 
-                    color: rgba(255,255,255,0.4); 
+                    border: 1px solid var(--border); 
+                    background: var(--bg-hover); 
+                    color: var(--text-sub); 
                     position: relative; 
                     overflow: hidden; 
                     flex-shrink: 0;
                 }
                 .repo-chip:hover { 
-                    background: rgba(83,74,183,0.08); 
-                    border-color: rgba(83,74,183,0.4); 
+                    background: var(--accent-soft); 
+                    border-color: var(--accent); 
                     transform: translateY(-1px) scale(1.02);
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(83,74,183,0.1);
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
                 }
-                .repo-name { color: rgba(255,255,255,0.9); font-weight: 600; font-size: 11px; }
-                .repo-owner { opacity: 0.6; font-weight: 300; font-size: 10px; }
-                .repo-chip-icon { color: #a89ef5; font-size: 12px; display: flex; align-items: center; }
+                .repo-name { color: var(--text-main); font-weight: 600; font-size: 11px; }
+                .repo-owner { color: var(--text-faint); font-weight: 300; font-size: 10px; }
+                .repo-chip-icon { color: var(--accent); font-size: 12px; display: flex; align-items: center; }
                 
                 .repo-actions { 
                     display: flex; 
                     gap: 8px; 
                     margin-left: 4px;
                     padding-left: 8px;
-                    border-left: 1px solid rgba(255,255,255,0.1);
+                    border-left: 1px solid var(--border);
                     transform: translateX(40px);
                     opacity: 0;
                     transition: all 0.25s ease;
@@ -2047,40 +2077,40 @@ export default function AIPage() {
                     align-items: center;
                     justify-content: center;
                     transition: all 0.2s;
-                    background: rgba(255,255,255,0.05);
+                    background: var(--bg-hover);
                 }
-                .action-btn-sm:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
+                .action-btn-sm:hover { background: var(--bg-hover); border: 1px solid var(--border-hov); transform: scale(1.1); }
                 
                 .messages-scroll { flex: 1; overflow-y: auto; padding: 0; transition: padding-right 0.25s ease; }
                 .messages-scroll.with-panel { padding-right: 320px; }
                 .messages-inner { max-width: 760px; margin: 0 auto; padding: 28px 20px 20px; display: flex; flex-direction: column; gap: 0; }
-                .msg-row { display: flex; gap: 10px; padding: 14px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); align-items: flex-start; }
+                .msg-row { display: flex; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
                 .msg-row:last-child { border-bottom: none; }
                 .msg-row.user { flex-direction: row-reverse; }
-                .msg-avatar { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; font-weight: 700; }
-                .msg-avatar.ai { background: linear-gradient(135deg, #534AB7, #8b5cf6); }
-                .msg-avatar.user-av { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); font-size: 11px; }
-                .msg-body { flex: 1; min-width: 0; }
+                .msg-avatar { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #fff; }
+                .msg-avatar.ai { background: var(--accent-gradient); }
+                .msg-avatar.user-av { background: var(--bg-hover); border: 1px solid var(--border); font-size: 11px; color: var(--text-sub); }
+                .msg-body { flex: 1; min-width: 0; color: var(--text-main); }
                 .msg-row.user .msg-body { display: flex; flex-direction: column; align-items: flex-end; }
-                .msg-name { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.3); margin-bottom: 4px; letter-spacing: 0.3px; }
-                .msg-user-bubble { background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.35); border-radius: 14px 14px 4px 14px; padding: 9px 14px; max-width: 560px; font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.92); }
-                .msg-ai-content { font-size: 13px; line-height: 1.65; color: rgba(255,255,255,0.88); padding-top: 2px; }
-                .msg-meta { font-size: 10px; color: rgba(255,255,255,0.18); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+                .msg-name { font-size: 10px; font-weight: 600; color: var(--text-faint); margin-bottom: 4px; letter-spacing: 0.3px; }
+                .msg-user-bubble { background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.35); border-radius: 14px 14px 4px 14px; padding: 9px 14px; max-width: 560px; font-size: 13px; line-height: 1.55; color: var(--text-main); }
+                .msg-ai-content { font-size: 13px; line-height: 1.65; color: var(--text-main); padding-top: 2px; }
+                .msg-meta { font-size: 10px; color: var(--text-faint); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
                 .msg-row.user .msg-meta { justify-content: flex-end; }
-                .input-dock { flex-shrink: 0; padding: 12px 20px 16px; background: #0d0d0f; }
+                .input-dock { flex-shrink: 0; padding: 12px 20px 16px; background: var(--bg-main); }
                 .input-dock.with-panel { padding-right: 340px; }
                 .input-dock-inner { max-width: 760px; margin: 0 auto; }
-                .input-box { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 6px 6px 6px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
-                .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 2px rgba(83,74,183,0.08), 0 6px 24px rgba(0,0,0,0.2); }
-                .input-textarea { flex: 1; background: none; border: none; color: rgba(255,255,255,0.9); outline: none; font-size: 13px; font-family: 'DM Sans', sans-serif; resize: none; line-height: 1.5; min-height: 22px; max-height: 140px; overflow-y: auto; }
-                .input-textarea::placeholder { color: rgba(255,255,255,0.2); }
+                .input-box { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 6px 6px 6px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+                .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 2px rgba(83,74,183,0.08), 0 6px 24px rgba(0,0,0,0.1); }
+                .input-textarea { flex: 1; background: none; border: none; color: var(--text-main); outline: none; font-size: 13px; font-family: 'DM Sans', sans-serif; resize: none; line-height: 1.5; min-height: 22px; max-height: 140px; overflow-y: auto; }
+                .input-textarea::placeholder { color: var(--text-faint); }
                 .send-btn { width: 34px; height: 34px; border-radius: 10px; border: none; background: linear-gradient(135deg, #534AB7, #7c3aed); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
                 .send-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 12px rgba(83,74,183,0.4); }
                 .send-btn:active { transform: scale(0.96); }
                 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-                .send-hint { text-align: center; font-size: 10px; color: rgba(255,255,255,0.15); margin-top: 7px; }
+                .send-hint { text-align: center; font-size: 10px; color: var(--text-faint); margin-top: 7px; }
                 .suggestion-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 20px; }
-                .sugg-chip { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); padding: 6px 13px; border-radius: 99px; font-size: 12px; cursor: pointer; transition: all 0.18s; }
+                .sugg-chip { background: var(--bg-hover); border: 0.5px solid var(--border); color: var(--text-sub); padding: 6px 13px; border-radius: 99px; font-size: 12px; cursor: pointer; transition: all 0.18s; }
                 .sugg-chip:hover { background: rgba(83,74,183,0.12); border-color: rgba(83,74,183,0.3); color: #c4beff; }
                 .typing-dots { display: flex; gap: 4px; align-items: center; padding: 6px 0; }
                 .typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: #a89ef5; animation: typing-pulse 1.4s ease-in-out infinite; }
@@ -2088,18 +2118,18 @@ export default function AIPage() {
                 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
                 .show-more-btn { background: rgba(83,74,183,0.12); border: 0.5px solid rgba(83,74,183,0.35); color: #cfc8ff; border-radius: 99px; padding: 8px 14px; font-size: 12px; cursor: pointer; transition: background 0.18s; }
                 .show-more-btn:hover { background: rgba(83,74,183,0.2); }
-                .conversation-panel { position: absolute; top: 0; right: 0; width: 320px; height: 100%; background: rgba(17,17,20,0.96); border-left: 0.5px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); display: flex; flex-direction: column; transform: translateX(100%); opacity: 0; pointer-events: none; transition: transform 0.25s ease, opacity 0.25s ease; }
+                .conversation-panel { position: absolute; top: 0; right: 0; width: 320px; height: 100%; background: var(--bg-card); border-left: 0.5px solid var(--border); z-index: 100; backdrop-filter: blur(10px); display: flex; flex-direction: column; transform: translateX(100%); opacity: 0; pointer-events: none; transition: transform 0.25s ease, opacity 0.25s ease; }
                 .conversation-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
-                .conversation-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; border-bottom: 0.5px solid rgba(255,255,255,0.07); }
-                .conversation-new-btn { margin: 12px 14px; background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.32); color: #d6d2ff; border-radius: 10px; padding: 9px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+                .conversation-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; border-bottom: 0.5px solid var(--border); }
+                .conversation-new-btn { margin: 12px 14px; background: rgba(83,74,183,0.18); border: 0.5px solid rgba(83,74,183,0.32); color: var(--text-main); border-radius: 10px; padding: 9px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
                 .conversation-new-btn:hover { background: rgba(83,74,183,0.26); }
                 .conversation-list { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
-                .conversation-item { width: 100%; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; transition: border-color 0.18s, background 0.18s; }
-                .conversation-item:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+                .conversation-item { width: 100%; border: 0.5px solid var(--border); background: var(--bg-hover); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; transition: border-color 0.18s, background 0.18s; }
+                .conversation-item:hover { border-color: var(--border-hov); }
                 .conversation-item.active { border-color: rgba(83,74,183,0.45); background: rgba(83,74,183,0.14); }
                 .conversation-item-main { flex: 1; min-width: 0; }
-                .conversation-item-title { color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                .conversation-item-time { color: rgba(255,255,255,0.32); font-size: 11px; margin-top: 4px; }
+                .conversation-item-title { color: var(--text-main); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .conversation-item-time { color: var(--text-faint); font-size: 11px; margin-top: 4px; }
                 .conversation-delete-btn { width: 26px; height: 26px; border: none; border-radius: 8px; background: rgba(226,75,74,0.08); color: #f87171; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
                 .conversation-delete-btn:hover { background: rgba(226,75,74,0.18); }
                 @keyframes typing-pulse { 0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
@@ -2136,7 +2166,13 @@ export default function AIPage() {
             `}</style>
 
             <Content>
-                <WorkspaceTopBar userName={user.name} userAvatar={user.avatar} />
+                <WorkspaceTopBar 
+                    userName={user.name} 
+                    userAvatar={user.avatar} 
+                    onInvite={() => navigate("/workspace?invite=true")}
+                    onNotificationsClick={() => navigate("/notifications")}
+                    onSearch={(q) => setSearchQuery(q)}
+                />
 
                 <div className="ai-page-wrapper">
                     {selectedHierarchy ? (
@@ -2159,17 +2195,17 @@ export default function AIPage() {
                                             gap: 8,
                                             cursor: "pointer",
                                             userSelect: "none",
-                                            background: isReposExpanded ? "rgba(255,255,255,0.03)" : "rgba(83,74,183,0.1)",
+                                            background: isReposExpanded ? "var(--bg-hover)" : "var(--accent-soft)",
                                             padding: isReposExpanded ? "6px 12px" : "4px 10px",
                                             borderRadius: isReposExpanded ? "8px" : "20px",
-                                            border: isReposExpanded ? "none" : "1px solid rgba(83,74,183,0.3)",
+                                            border: isReposExpanded ? "none" : "1px solid var(--accent)",
                                             transition: "all 0.3s ease"
                                         }}
                                     >
-                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: isReposExpanded ? "#a89ef5" : "#7c3aed" }}>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: isReposExpanded ? "var(--accent)" : "var(--accent)" }}>
                                             {isReposExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                         </div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: isReposExpanded ? "rgba(255,255,255,0.8)" : "#a89ef5", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: isReposExpanded ? "var(--text-main)" : "var(--accent)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
                                             <FolderGit2 size={12} /> {isReposExpanded ? "Repositories" : "Manage Repos"}
                                         </div>
                                     </div>
@@ -2199,15 +2235,15 @@ export default function AIPage() {
                                                 </div>
                                                 <div className="repo-actions">
                                                     <div className="action-btn-sm" onClick={(e) => { e.stopPropagation(); setEditingRepoIndex(i); }}>
-                                                        <Pencil size={11} style={{ color: "rgba(255,255,255,0.7)" }} />
+                                                        <Pencil size={11} style={{ color: "var(--text-sub)" }} />
                                                     </div>
-                                                    <div className="action-btn-sm" onClick={(e) => { e.stopPropagation(); setDeletingRepoIndex(i); }} style={{ color: "#f87171" }}>
+                                                    <div className="action-btn-sm" onClick={(e) => { e.stopPropagation(); setDeletingRepoIndex(i); }} style={{ color: "var(--error)" }}>
                                                         <Trash2 size={11} />
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
-                                        <button onClick={() => setShowRepoModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 12, border: "1px dashed rgba(52,211,153,0.3)", background: "rgba(52,211,153,0.03)", color: "#34d399", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
+                                        <button onClick={() => setShowRepoModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 12, border: "1px dashed var(--success)", background: "var(--success-soft)", color: "var(--success)", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
                                             <Plus size={13} /> Add Repo
                                         </button>
                                     </div>
@@ -2231,10 +2267,10 @@ export default function AIPage() {
                                                 <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, #534AB7, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 10px 32px rgba(83,74,183,0.3)" }}>
                                                     <Sparkles size={22} color="white" />
                                                 </div>
-                                                <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 8, letterSpacing: "-0.3px" }}>
+                                                <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 700, color: "var(--text-main)", marginBottom: 8, letterSpacing: "-0.3px" }}>
                                                     Bonjour, que puis-je analyser ?
                                                 </h2>
-                                                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", maxWidth: 360, lineHeight: 1.6 }}>
+                                                <p style={{ fontSize: 12, color: "var(--text-faint)", maxWidth: 360, lineHeight: 1.6 }}>
                                                     Je peux analyser votre code, suggérer des améliorations, détecter des bugs ou générer des tickets techniques.
                                                 </p>
                                                 <div className="suggestion-chips">
@@ -2246,7 +2282,7 @@ export default function AIPage() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            messages.map((m, i) => (
+                                            messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase())).map((m, i) => (
                                                 <div key={`${m.timestamp}-${i}`} className={`msg-row${m.role === "user" ? " user" : ""}`}>
                                                     <div className={`msg-avatar${m.role === "user" ? " user-av" : " ai"}`}>
                                                         {m.role === "user"
@@ -2318,7 +2354,7 @@ export default function AIPage() {
                                             <div className="msg-row">
                                                 <div className="msg-avatar ai"><Loader2 size={16} color="white" className="animate-spin" /></div>
                                                 <div className="msg-body">
-                                                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Chargement de la conversation...</div>
+                                                    <div style={{ fontSize: 12, color: "var(--text-faint)" }}>Chargement de la conversation...</div>
                                                 </div>
                                             </div>
                                         )}
@@ -2330,7 +2366,7 @@ export default function AIPage() {
                                                     <div className="typing-dots">
                                                         <span /><span /><span />
                                                     </div>
-                                                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
                                                         <Loader2 size={10} className="animate-spin" />
                                                         {statusText || "Analyse en cours..."}
                                                     </div>
@@ -2353,10 +2389,10 @@ export default function AIPage() {
 
                                 <div className={`conversation-panel${isConversationPanelOpen ? " open" : ""}`}>
                                     <div className="conversation-panel-head">
-                                        <h3 style={{ margin: 0, fontSize: 14, color: "#fff", fontFamily: "'Syne', sans-serif" }}>Historique</h3>
+                                        <h3 style={{ margin: 0, fontSize: 14, color: "var(--text-main)", fontFamily: "'Syne', sans-serif" }}>Historique</h3>
                                         <button
                                             onClick={() => setIsConversationPanelOpen(false)}
-                                            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex" }}
+                                            style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", display: "flex" }}
                                         >
                                             <X size={16} />
                                         </button>
@@ -2368,7 +2404,7 @@ export default function AIPage() {
 
                                     <div className="conversation-list">
                                         {conversations.length === 0 ? (
-                                            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, padding: "10px 6px" }}>Aucune conversation.</p>
+                                            <p style={{ color: "var(--text-faint)", fontSize: 12, padding: "10px 6px" }}>Aucune conversation.</p>
                                         ) : (
                                             conversations.map((conv) => (
                                                 <button

@@ -7,6 +7,8 @@ import AIPage from "./pages/AIPage";
 import GitHubCallbackPage from "./pages/GitHubCallbackPage";
 import InvitationWelcomePage from "./pages/InvitationWelcomePage";
 import InviteRegisterPage from "./pages/InviteRegisterPage";
+import SettingsPage from "./pages/SettingsPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("accessToken");
@@ -34,6 +36,22 @@ export default function App() {
                     element={(
                         <ProtectedRoute>
                             <AIPage />
+                        </ProtectedRoute>
+                    )}
+                />
+                <Route
+                    path="/settings"
+                    element={(
+                        <ProtectedRoute>
+                            <SettingsPage />
+                        </ProtectedRoute>
+                    )}
+                />
+                <Route
+                    path="/notifications"
+                    element={(
+                        <ProtectedRoute>
+                            <NotificationsPage />
                         </ProtectedRoute>
                     )}
                 />
