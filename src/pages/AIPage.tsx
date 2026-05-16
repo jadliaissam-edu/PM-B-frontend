@@ -2,36 +2,12 @@ import { useState, useEffect, useRef, useCallback, type ReactElement } from "rea
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     FolderGit2,
-    Sparkles,
-    Send,
-    Loader2,
-    Plus,
-    X,
-    Check,
-    Trash2,
-    Pencil,
-    ChevronRight,
-    ChevronDown,
-    Square,
-    SquarePen,
-    History,
-    Folder,
-    FolderOpen,
-    List,
-    Zap,
-    Target,
-    Activity,
-    Users,
-    User,
-    CheckCircle2,
-    Clock,
-    CalendarDays,
-    ArrowLeft,
-    LayoutGrid,
-    Bell,
-    Eye,
-    EyeOff,
-    Lock,
+    Sparkles, Send, Loader2, Plus,
+    X, Check, Trash2, Pencil,
+    ChevronRight, ChevronDown,
+    SquarePen, History, Bell,
+    Folder, FolderOpen, List, Zap, Target, Activity, Users, User, CheckCircle2,
+    Clock, CalendarDays, ArrowLeft, LayoutGrid, Eye, EyeOff, Lock, Square
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -73,6 +49,7 @@ import Content from "../components/layout/Content";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
 import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
+import VoiceInput from "../components/VoiceInput";
 
 // ─── Hierarchy types (mirrors DashboardPage) ──────────────────────────────────
 type HierarchyType = 'space' | 'folder' | 'list' | 'sprint';
@@ -819,7 +796,7 @@ function RepoFormModal({ mode, initialData, onSubmit, onClose }: RepoFormModalPr
 // AI CONFIRM CARD — carte de confirmation d'entité générée par l'IA
 // ============================================================================
 
-const ENTITY_ICONS: Record<string, ReactElement> = {
+const ENTITY_ICONS: Record<string, React.ReactNode> = {
     task: <CheckCircle2 size={24} color="#a89ef5" />,
     workspace: <LayoutGrid size={24} color="#a89ef5" />,
     space: <Folder size={24} color="#a89ef5" />,
@@ -1390,6 +1367,7 @@ export default function AIPage() {
     const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
     const [isConversationLoading, setIsConversationLoading] = useState(false);
     const [input, setInput] = useState("");
+    const [interimVoice, setInterimVoice] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [showRepoModal, setShowRepoModal] = useState(false);
     const [editingRepoIndex, setEditingRepoIndex] = useState<number | null>(null);
@@ -1399,17 +1377,25 @@ export default function AIPage() {
     const [acceptedCards, setAcceptedCards] = useState<Set<number>>(new Set());
     const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const abortControllerRef = useRef<AbortController | null>(null);
-    const lastRequestRef = useRef<{ input: string; actionType: "chat" | "generate" } | null>(null);
-    const wasAbortedRef = useRef(false);
     const messagesScrollRef = useRef<HTMLDivElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const wasAbortedRef = useRef<boolean>(false);
+    const lastRequestRef = useRef<{ input: string; actionType: "chat" | "generate" } | null>(null);
     const [showScrollDownBtn, setShowScrollDownBtn] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+        messagesScrollRef.current?.scrollTo({ top: messagesScrollRef.current.scrollHeight, behavior });
+    }, []);
+
+    useEffect(() => {
         const el = messagesScrollRef.current;
         if (!el) return;
-        el.scrollTo({ top: el.scrollHeight, behavior });
+        const onScroll = () => {
+            const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+            setShowScrollDownBtn(distFromBottom > 200);
+        };
+        el.addEventListener("scroll", onScroll);
+        return () => el.removeEventListener("scroll", onScroll);
     }, []);
 
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -1765,7 +1751,7 @@ export default function AIPage() {
                 case "liste": {
                     if (!entity.folderId) {
                         const folders = await import("../api/folderApi").then(m => m.getAllFolders());
-                        if (folders.length > 0) entity.folderId = (folders[0] as any).id || (folders[0] as any).folderId;
+                        if (folders.length > 0) entity.folderId = folders[0].id || (folders[0] as any).folderId;
                         else throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
                     }
                     const data = await callEndpoint(generated.endpoint!, entity);
@@ -1975,41 +1961,71 @@ export default function AIPage() {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap');
                 
+                /* Style Agent Robot pour le bouton Générer */
                 .generate-btn {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                    padding: 8px 18px;
-                    border-radius: 12px;
-                    border: 1px solid var(--accent);
-                    background: var(--accent-soft);
-                    color: var(--accent);
-                    font-size: 13px;
-                    font-weight: 600;
+                    justify-content: center;
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 10px;
+                    border: 1px solid rgba(6,182,212,0.3);
+                    background: linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(6,182,212,0.1) 100%);
+                    color: #22d3ee;
                     cursor: pointer;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    backdrop-filter: blur(10px);
+                    flex-shrink: 0;
+                    position: relative;
+                    overflow: hidden;
+                    box-shadow: 0 0 10px rgba(6,182,212,0.15);
+                }
+                .generate-btn::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(6,182,212,0.3) 100%);
+                    opacity: 0;
+                    transition: opacity 0.25s;
+                }
+                .generate-btn:hover:not(:disabled)::before {
+                    opacity: 1;
                 }
                 .generate-btn:hover:not(:disabled) {
-                    background: var(--accent);
+                    border-color: rgba(6,182,212,0.6);
+                    transform: scale(1.05);
+                    box-shadow: 0 0 15px rgba(6,182,212,0.4), inset 0 0 8px rgba(34,211,238,0.2);
                     color: #fff;
                     transform: translateY(-1px);
                     box-shadow: 0 4px 12px var(--accent-soft);
                 }
                 .generate-btn:active:not(:disabled) {
-                    transform: translateY(0);
+                    transform: scale(0.95);
+                    box-shadow: 0 0 5px rgba(6,182,212,0.2);
                 }
                 .generate-btn:disabled {
-                    opacity: 0.5;
+                    opacity: 0.3;
                     cursor: not-allowed;
+                    box-shadow: none;
                 }
-                .ai-page-wrapper ::-webkit-scrollbar { width: 4px; }
-                .ai-page-wrapper ::-webkit-scrollbar-track { background: transparent; }
-                .ai-page-wrapper ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-                .ai-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-sub); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
-                .ai-action-btn:hover { background: var(--bg-hover); color: var(--text-main); border-color: var(--border-hov); }
-                .ai-action-btn.primary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-                .ai-action-btn.primary:hover { background: var(--accent); color: #fff; }
+                
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                ::-webkit-scrollbar { width: 4px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+                ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+                .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.18s, color 0.18s; color: rgba(255,255,255,0.45); font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; }
+                .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
+                .nav-item.active { background: rgba(83,74,183,0.18); color: #a89ef5; }
+                .ws-selector { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); cursor: pointer; transition: background 0.18s; font-size: 13px; color: rgba(255,255,255,0.7); }
+                .ws-selector:hover { background: rgba(255,255,255,0.06); }
+                .search-input { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 14px 8px 38px; font-size: 13px; color: #fff; font-family: 'DM Sans', sans-serif; outline: none; width: 240px; transition: border-color 0.2s, width 0.3s; }
+                .search-input:focus { border-color: rgba(83,74,183,0.5); width: 300px; }
+                .search-input::placeholder { color: rgba(255,255,255,0.25); }
+                .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.18s, border-color 0.18s; }
+                .icon-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+                .ai-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+                .ai-action-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+                .ai-action-btn.primary { background: rgba(83,74,183,0.22); border-color: rgba(83,74,183,0.45); color: #d9d4ff; }
+                .ai-action-btn.primary:hover { background: rgba(83,74,183,0.32); }
                 
                 /* Markdown Styles */
                 .markdown-content { font-size: 14px; line-height: 1.6; }
@@ -2109,10 +2125,10 @@ export default function AIPage() {
                 .input-dock { flex-shrink: 0; padding: 12px 20px 16px; background: var(--bg-main); }
                 .input-dock.with-panel { padding-right: 340px; }
                 .input-dock-inner { max-width: 760px; margin: 0 auto; }
-                .input-box { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 6px 6px 6px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
-                .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 2px rgba(83,74,183,0.08), 0 6px 24px rgba(0,0,0,0.1); }
-                .input-textarea { flex: 1; background: none; border: none; color: var(--text-main); outline: none; font-size: 13px; font-family: 'DM Sans', sans-serif; resize: none; line-height: 1.5; min-height: 22px; max-height: 140px; overflow-y: auto; }
-                .input-textarea::placeholder { color: var(--text-faint); }
+                .input-box { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 6px 6px 6px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+                .input-box:focus-within { border-color: rgba(168,158,245,0.4); box-shadow: 0 0 0 2px rgba(83,74,183,0.08), 0 6px 24px rgba(0,0,0,0.2); }
+                .input-textarea { flex: 1; background: none; border: none; color: rgba(255,255,255,0.9); outline: none; font-size: 13px; font-family: 'DM Sans', sans-serif; resize: none; line-height: 1.5; min-height: 22px; max-height: 140px; overflow-y: auto; padding-right: 8px; }
+                .input-textarea::placeholder { color: rgba(255,255,255,0.2); }
                 .send-btn { width: 34px; height: 34px; border-radius: 10px; border: none; background: linear-gradient(135deg, #534AB7, #7c3aed); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
                 .send-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 12px rgba(83,74,183,0.4); }
                 .send-btn:active { transform: scale(0.96); }
@@ -2487,26 +2503,61 @@ export default function AIPage() {
                                         <textarea
                                             ref={textareaRef}
                                             className="input-textarea"
-                                            value={input}
-                                            onChange={e => setInput(e.target.value)}
+                                            value={input + (interimVoice ? " " + interimVoice : "")}
+                                            onChange={e => {
+                                                const raw = e.target.value;
+                                                const suffix = interimVoice ? " " + interimVoice : "";
+                                                if (suffix) {
+                                                    if (raw.includes(suffix)) {
+                                                        setInput(raw.replace(suffix, ""));
+                                                    } else if (raw.length < (input.length + suffix.length) && raw.startsWith(input)) {
+                                                        // L'utilisateur a supprimé une partie du suffixe avec Backspace
+                                                        setInput(input);
+                                                    } else {
+                                                        // L'utilisateur a tout sélectionné et remplacé
+                                                        setInput(raw);
+                                                    }
+                                                } else {
+                                                    setInput(raw);
+                                                }
+                                            }}
                                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend("chat"); } }}
                                             placeholder="Posez une question sur votre codebase ou décrivez un élément à générer..."
                                             rows={1}
+                                            style={interimVoice ? { opacity: 0.85 } : undefined}
                                         />
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                            <VoiceInput
+                                                inputValue={input}
+                                                onTranscript={useCallback((text: string, isFinal: boolean) => {
+                                                    if (isFinal) {
+                                                        setInput(prev => (prev.trim() ? prev.trimEnd() + " " + text : text));
+                                                        setInterimVoice("");
+                                                    }
+                                                }, [])}
+                                                onInterimResult={useCallback((text: string) => setInterimVoice(text), [])}
+                                                onError={useCallback((msg: string) => showToast(msg, "error"), [])}
+                                            />
                                             <button
                                                 className="generate-btn"
                                                 onClick={() => handleSend("generate")}
                                                 disabled={isTyping || !input.trim()}
-                                                title="Générer une entité"
+                                                title="Générer une entité avec le Robot Agent"
                                             >
                                                 {isTyping && actionTypeState === "generate" ? (
-                                                    <Loader2 size={16} className="animate-spin" />
+                                                    <Loader2 size={14} className="animate-spin" />
                                                 ) : (
-                                                    <>
-                                                        <img src="/generate_icon.png" alt="" style={{ width: 16, height: 16, filter: "drop-shadow(0 0 6px rgba(168,158,245,0.6))" }} />
-                                                        Générer
-                                                    </>
+                                                    /* Icône Tête de Robot Moderne (Style Agent) */
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ position: "relative", zIndex: 1, color: "#ffffff" }}>
+                                                        <path d="M12 2v4" />
+                                                        <path d="M9 5h6" />
+                                                        <path d="M3 13h2" />
+                                                        <path d="M19 13h2" />
+                                                        <rect x="5" y="8" width="14" height="12" rx="3" />
+                                                        <circle cx="9.5" cy="13.5" r="1" fill="currentColor" />
+                                                        <circle cx="14.5" cy="13.5" r="1" fill="currentColor" />
+                                                        <path d="M9 17h6" />
+                                                    </svg>
                                                 )}
                                             </button>
                                             <button

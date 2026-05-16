@@ -1,5 +1,6 @@
 import { X, Calendar, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
+import AskAIButton from "./AskAIButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -194,6 +195,7 @@ function TaskFormBody({
     assigneeId, setAssigneeId,
     listes, sprints, assignees,
     error,
+    loading = false,
 }: {
     title: string; setTitle: (v: string) => void;
     description: string; setDescription: (v: string) => void;
@@ -205,6 +207,7 @@ function TaskFormBody({
     assigneeId: string; setAssigneeId: (v: string) => void;
     listes: SelectOption[]; sprints: SelectOption[]; assignees: SelectOption[];
     error: string | null;
+    loading?: boolean;
 }) {
     const currentPriority = PRIORITIES.find(p => p.value === priority)!;
     const currentStatus   = STATUSES.find(s => s.value === status)!;
@@ -230,7 +233,15 @@ function TaskFormBody({
 
             {/* Description */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <label style={labelStyle}>Description</label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Description</label>
+                    <AskAIButton 
+                        entityName={title} 
+                        entityType="task" 
+                        onGenerationComplete={(text) => setDescription(text)}
+                        isLoading={loading}
+                    />
+                </div>
                 <textarea
                     value={description}
                     onChange={e => setDescription(e.target.value)}
@@ -402,7 +413,7 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
                     <CloseButton onClose={onClose} />
                 </div>
 
-                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error }} />
+                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error, loading }} />
 
                 <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
                 <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Create Task" loadingLabel="Creating…" />
@@ -460,7 +471,7 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
                     <CloseButton onClose={onClose} />
                 </div>
 
-                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error }} />
+                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error, loading }} />
 
                 <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
                 <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Save Changes" loadingLabel="Saving…" />

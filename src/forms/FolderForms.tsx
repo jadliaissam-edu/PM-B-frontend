@@ -1,6 +1,7 @@
 import { X, Trash2, ChevronDown, EyeOff } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { FolderRequestDto, FolderResponseDto } from "../api/folderApi";
+import AskAIButton from "../components/AskAIButton";
 
 export type { FolderRequestDto, FolderResponseDto };
 
@@ -225,7 +226,15 @@ export function FolderAdd({ onSubmit, onClose, spaces, defaults }: FolderFormPro
                     </div>
 
                     <div>
-                        <label style={labelStyle}>Description <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}>Description <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+                            <AskAIButton 
+                                entityName={name} 
+                                entityType="folder" 
+                                onGenerationComplete={(text) => setDescription(text)}
+                                isLoading={loading}
+                            />
+                        </div>
                         <textarea
                             style={{ ...inputStyle, minHeight: 90, resize: "none" }}
                             value={description}
@@ -315,7 +324,15 @@ export function FolderUpdate(props: FolderFormProps & { folderId: string }) {
                     </div>
 
                     <div>
-                        <label style={labelStyle}>Description</label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}>Description</label>
+                            <AskAIButton 
+                                entityName={name} 
+                                entityType="folder" 
+                                onGenerationComplete={(text) => setDescription(text)}
+                                isLoading={loading}
+                            />
+                        </div>
                         <textarea
                             style={{ ...inputStyle, minHeight: 90, resize: "none" }}
                             value={description}
