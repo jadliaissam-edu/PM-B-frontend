@@ -1,6 +1,7 @@
 import { X, Trash2, Target, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { SprintRequestDto, SprintResponseDto } from "../api/sprintApi";
+import AskAIButton from "../components/AskAIButton";
 
 export type { SprintRequestDto, SprintResponseDto };
 
@@ -185,7 +186,15 @@ export function SprintAdd({ onSubmit, onClose, folders, defaults }: SprintFormPr
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <label style={labelStyle}>Sprint Goal</label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}>Sprint Goal</label>
+                            <AskAIButton 
+                                entityName={name} 
+                                entityType="sprint" 
+                                onGenerationComplete={(text) => setGoal(text)}
+                                isLoading={loading}
+                            />
+                        </div>
                         <div style={{ position: "relative" }}>
                             <Target size={18} style={{ position: "absolute", top: 16, left: 18, color: theme.textMuted }} />
                             <textarea
@@ -294,7 +303,15 @@ export function SprintUpdate(props: SprintFormProps & { sprintId: string }) {
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <label style={labelStyle}>Sprint Goal</label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}>Sprint Goal</label>
+                            <AskAIButton 
+                                entityName={name} 
+                                entityType="sprint" 
+                                onGenerationComplete={(text) => setGoal(text)}
+                                isLoading={loading}
+                            />
+                        </div>
                         <div style={{ position: "relative" }}>
                             <Target size={18} style={{ position: "absolute", top: 16, left: 18, color: theme.textMuted }} />
                             <textarea

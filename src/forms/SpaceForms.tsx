@@ -1,6 +1,7 @@
 import { X, Trash2, Shield, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { SpaceRequestDto, SpaceResponseDto } from "../api/spaceApi";
+import AskAIButton from "../components/AskAIButton";
 
 export type { SpaceRequestDto, SpaceResponseDto };
 
@@ -209,7 +210,15 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
                     </div>
 
                     <div>
-                        <label style={labelStyle}>Description <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}>Description <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+                            <AskAIButton 
+                                entityName={name} 
+                                entityType="space" 
+                                onGenerationComplete={(text) => setDescription(text)}
+                                isLoading={loading}
+                            />
+                        </div>
                         <textarea
                             style={{ ...inputStyle, minHeight: 90, resize: "none", padding: "16px" }}
                             value={description}
@@ -357,7 +366,15 @@ export function SpaceUpdate(props: SpaceFormProps & { spaceId: string }) {
                     </div>
 
                     <div>
-                        <label style={labelStyle}>Description <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}>Description <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+                            <AskAIButton 
+                                entityName={name} 
+                                entityType="space" 
+                                onGenerationComplete={(text) => setDescription(text)}
+                                isLoading={loading}
+                            />
+                        </div>
                         <textarea
                             style={{ ...inputStyle, minHeight: 90, resize: "none", padding: "16px" }}
                             value={description}

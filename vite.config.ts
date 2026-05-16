@@ -7,6 +7,7 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
+    assetsInclude: ['**/*.onnx'],
     server: {
         proxy: {
             '/api/ia': {
@@ -18,5 +19,8 @@ export default defineConfig({
                 changeOrigin: true,
             }
         }
-    }
+    },
+    optimizeDeps: {
+        exclude: ['@huggingface/transformers'],
+    },
 })
