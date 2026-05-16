@@ -81,7 +81,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
 
       recorder.onstop = async () => {
         setRecordingState("transcribing");
-        onInterimResult?.("Transcription en cours...");
+        onInterimResult?.("Analyse...");
 
         try {
           if (audioChunksRef.current.length === 0) {
