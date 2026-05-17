@@ -49,7 +49,6 @@ import Content from "../components/layout/Content";
 import WorkspacesDropdown from "../components/WorkspacesDropdown";
 import WorkspaceTopBar from "../components/WorkspaceTopBar";
 import WorkspaceResourcesPanel from "../components/WorkspaceResourcesPanel";
-import VoiceInput from "../components/VoiceInput";
 
 // ─── Hierarchy types (mirrors DashboardPage) ──────────────────────────────────
 type HierarchyType = 'space' | 'folder' | 'list' | 'sprint';
@@ -1368,7 +1367,6 @@ export default function AIPage() {
     const [isConversationLoading, setIsConversationLoading] = useState(false);
     const [input, setInput] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [interimVoice, setInterimVoice] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [showRepoModal, setShowRepoModal] = useState(false);
     const [editingRepoIndex, setEditingRepoIndex] = useState<number | null>(null);
@@ -1462,7 +1460,7 @@ export default function AIPage() {
                                 owner: r.repoOwner,
                                 repo: r.repoName,
                                 branch: r.branch,
-                                is_private: r.isPrivate
+                                is_private: r.isPrivate ?? r.private ?? false
                             })));
                         }
                     }
@@ -2504,61 +2502,23 @@ export default function AIPage() {
                                         <textarea
                                             ref={textareaRef}
                                             className="input-textarea"
-                                            value={input + (interimVoice ? " " + interimVoice : "")}
-                                            onChange={e => {
-                                                const raw = e.target.value;
-                                                const suffix = interimVoice ? " " + interimVoice : "";
-                                                if (suffix) {
-                                                    if (raw.includes(suffix)) {
-                                                        setInput(raw.replace(suffix, ""));
-                                                    } else if (raw.length < (input.length + suffix.length) && raw.startsWith(input)) {
-                                                        // L'utilisateur a supprimé une partie du suffixe avec Backspace
-                                                        setInput(input);
-                                                    } else {
-                                                        // L'utilisateur a tout sélectionné et remplacé
-                                                        setInput(raw);
-                                                    }
-                                                } else {
-                                                    setInput(raw);
-                                                }
-                                            }}
+                                            value={input}
+                                            onChange={e => setInput(e.target.value)}
                                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend("chat"); } }}
                                             placeholder="Posez une question sur votre codebase ou décrivez un élément à générer..."
                                             rows={1}
-                                            style={interimVoice ? { opacity: 0.85 } : undefined}
                                         />
                                         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                            <VoiceInput
-                                                inputValue={input}
-                                                onTranscript={useCallback((text: string, isFinal: boolean) => {
-                                                    if (isFinal) {
-                                                        setInput(prev => (prev.trim() ? prev.trimEnd() + " " + text : text));
-                                                        setInterimVoice("");
-                                                    }
-                                                }, [])}
-                                                onInterimResult={useCallback((text: string) => setInterimVoice(text), [])}
-                                                onError={useCallback((msg: string) => showToast(msg, "error"), [])}
-                                            />
                                             <button
                                                 className="generate-btn"
                                                 onClick={() => handleSend("generate")}
                                                 disabled={isTyping || !input.trim()}
-                                                title="Générer une entité avec le Robot Agent"
+                                                title="Générer une entité"
                                             >
                                                 {isTyping && actionTypeState === "generate" ? (
                                                     <Loader2 size={14} className="animate-spin" />
                                                 ) : (
-                                                    /* Icône Tête de Robot Moderne (Style Agent) */
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ position: "relative", zIndex: 1, color: "#ffffff" }}>
-                                                        <path d="M12 2v4" />
-                                                        <path d="M9 5h6" />
-                                                        <path d="M3 13h2" />
-                                                        <path d="M19 13h2" />
-                                                        <rect x="5" y="8" width="14" height="12" rx="3" />
-                                                        <circle cx="9.5" cy="13.5" r="1" fill="currentColor" />
-                                                        <circle cx="14.5" cy="13.5" r="1" fill="currentColor" />
-                                                        <path d="M9 17h6" />
-                                                    </svg>
+                                                    <Sparkles size={14} style={{ color: "#ffffff" }} />
                                                 )}
                                             </button>
                                             <button

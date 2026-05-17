@@ -76,7 +76,8 @@ export interface GithubRepositoryResponseDto {
     repoOwner: string;
     repoName: string;
     branch: string;
-    isPrivate: boolean;
+    isPrivate?: boolean;
+    private?: boolean;
     tokenStored: boolean;
     createdAt: string;
     updatedAt: string;
@@ -215,25 +216,5 @@ export async function askAI(
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail ?? `Erreur Ask AI : ${res.status}`);
     }
-    return res.json();
-}
-/**
- * Transcrit un fichier audio via le service IA backend.
- */
-export async function transcribeAudio(audioBlob: Blob, language: string = "fr"): Promise<{ text: string }> {
-    const formData = new FormData();
-    formData.append("audio_file", audioBlob, "recording.webm");
-    formData.append("language", language);
-
-    const res = await fetch(`${IA_BASE_URL}/transcribe`, {
-        method: "POST",
-        body: formData,
-    });
-
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? `Erreur transcription API : ${res.status}`);
-    }
-
     return res.json();
 }
