@@ -1878,8 +1878,9 @@ export default function AIPage() {
 
         const callEndpoint = async (endpoint: string, body: any) => {
             const url = endpoint.replace("POST ", "").replace(/^\/api/, "/api");
-            const backendBase = (window as any).BACKEND_API_BASE || "http://localhost:8080";
-            const resp = await fetch(`${backendBase}${url}`, {
+            const backendBase = (window as any).BACKEND_API_BASE;
+            const targetUrl = backendBase ? new URL(url, backendBase).toString() : url;
+            const resp = await fetch(targetUrl, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
