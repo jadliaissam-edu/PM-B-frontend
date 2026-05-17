@@ -176,7 +176,7 @@ export interface GenerateEntityRequest {
 
 export interface GenerateEntityResponse {
     intent:      EntityIntent;
-    entity:      Record<string, any> | null;
+    entity:      Record<string, any> | Record<string, any>[] | null;
     endpoint:    string | null;
     explanation: string;
 }
