@@ -862,6 +862,39 @@ interface AIConfirmCardProps {
 function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirmCardProps) {
     const navigate = useNavigate();
     const isArray = Array.isArray(generated.entity);
+
+    const toDateOnly = (value?: string) => {
+        if (!value) return "";
+        return value.slice(0, 10);
+    };
+
+    const getTodayDateOnly = () => {
+        const now = new Date();
+        const pad = (n: number) => String(n).padStart(2, "0");
+        return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    };
+
+    const addDaysDateOnly = (dateOnly: string, days: number) => {
+        const [year, month, day] = dateOnly.split("-").map(Number);
+        const date = new Date(year, month - 1, day);
+        date.setDate(date.getDate() + days);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    };
+
+    const getSprintDurationWeeks = (item: any): 1 | 2 => {
+        const startDate = toDateOnly(item?.startDate);
+        const endDate = toDateOnly(item?.endDate);
+        if (!startDate || !endDate) return 1;
+
+        const [sYear, sMonth, sDay] = startDate.split("-").map(Number);
+        const [eYear, eMonth, eDay] = endDate.split("-").map(Number);
+        const start = new Date(sYear, sMonth - 1, sDay).getTime();
+        const end = new Date(eYear, eMonth - 1, eDay).getTime();
+        const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+        return diffDays >= 14 ? 2 : 1;
+    };
+
     const [localEntity, setLocalEntity] = useState<any>(() => {
         const initItem = (base: any) => {
             const baseClean = { ...base };
@@ -898,10 +931,11 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                 };
             }
             if (generated.intent === "sprint") {
+                const today = getTodayDateOnly();
                 return {
                     name: baseClean.name || "",
-                    startDate: baseClean.startDate || "",
-                    endDate: baseClean.endDate || "",
+                    startDate: toDateOnly(baseClean.startDate) || today,
+                    endDate: toDateOnly(baseClean.endDate) || addDaysDateOnly(today, 7),
                     goal: baseClean.goal || "",
                     isActive: baseClean.isActive ?? false,
                     spaceId: baseClean.spaceId || "",
@@ -939,6 +973,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
     const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
 
     const currentItem = isArray && editingItemIndex !== null ? localEntity[editingItemIndex] : localEntity;
+    const sprintDurationWeeks: 1 | 2 = generated.intent === "sprint" ? getSprintDurationWeeks(currentItem) : 1;
 
     const [listesOptions, setListesOptions] = useState<any[]>([]);
     const [sprintsOptions, setSprintsOptions] = useState<any[]>([]);
@@ -978,7 +1013,9 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
         setLocalEntity((prev: any) => {
             if (isArray && editingItemIndex !== null) {
                 const nextArr = [...prev];
-                const nextItem = { ...nextArr[editingItemIndex], [key]: value };
+                const current = nextArr[editingItemIndex];
+                const previousSprintWeeks = getSprintDurationWeeks(current);
+                const nextItem = { ...current, [key]: value };
                 if (key === "spaceId") {
                     nextItem.folderId = "";
                     nextItem.listeId = "";
@@ -988,9 +1025,15 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                     nextItem.listeId = "";
                     nextItem.sprintId = "";
                 }
+                if (generated.intent === "sprint" && key === "startDate") {
+                    const nextStart = toDateOnly(value) || getTodayDateOnly();
+                    nextItem.startDate = nextStart;
+                    nextItem.endDate = addDaysDateOnly(nextStart, previousSprintWeeks * 7);
+                }
                 nextArr[editingItemIndex] = nextItem;
                 return nextArr;
             } else {
+                const previousSprintWeeks = getSprintDurationWeeks(prev);
                 const next = { ...prev, [key]: value };
                 if (key === "spaceId") {
                     next.folderId = "";
@@ -1001,8 +1044,33 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                     next.listeId = "";
                     next.sprintId = "";
                 }
+                if (generated.intent === "sprint" && key === "startDate") {
+                    const nextStart = toDateOnly(value) || getTodayDateOnly();
+                    next.startDate = nextStart;
+                    next.endDate = addDaysDateOnly(nextStart, previousSprintWeeks * 7);
+                }
                 return next;
             }
+        });
+    };
+
+    const handleSprintDurationChange = (weeks: 1 | 2) => {
+        setLocalEntity((prev: any) => {
+            if (isArray && editingItemIndex !== null) {
+                const nextArr = [...prev];
+                const current = { ...nextArr[editingItemIndex] };
+                const startDate = toDateOnly(current.startDate) || getTodayDateOnly();
+                current.startDate = startDate;
+                current.endDate = addDaysDateOnly(startDate, weeks * 7);
+                nextArr[editingItemIndex] = current;
+                return nextArr;
+            }
+
+            const current = { ...prev };
+            const startDate = toDateOnly(current.startDate) || getTodayDateOnly();
+            current.startDate = startDate;
+            current.endDate = addDaysDateOnly(startDate, weeks * 7);
+            return current;
         });
     };
 
@@ -1235,7 +1303,36 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                             width: "100%", fontFamily: "'DM Sans', sans-serif"
                         };
 
-                        if (key === "status") {
+                        if (generated.intent === "sprint" && key === "startDate") {
+                            inputElement = (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    <input
+                                        type="date"
+                                        value={toDateOnly(val) || getTodayDateOnly()}
+                                        onChange={e => handleChange(key, e.target.value)}
+                                        style={inputStyle}
+                                    />
+                                    <select
+                                        className="ai-form-select"
+                                        value={String(sprintDurationWeeks)}
+                                        onChange={e => handleSprintDurationChange((e.target.value === "2" ? 2 : 1) as 1 | 2)}
+                                        style={inputStyle}
+                                    >
+                                        <option value="1">Durée: 1 semaine</option>
+                                        <option value="2">Durée: 2 semaines</option>
+                                    </select>
+                                </div>
+                            );
+                        } else if (generated.intent === "sprint" && key === "endDate") {
+                            inputElement = (
+                                <input
+                                    type="date"
+                                    value={toDateOnly(val)}
+                                    readOnly
+                                    style={{ ...inputStyle, opacity: 0.8 }}
+                                />
+                            );
+                        } else if (key === "status") {
                             inputElement = (
                                 <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
                                     <option value="TO_DO">À faire (TO_DO)</option>
@@ -1363,11 +1460,8 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                             );
                         } else {
                             const isDate = key.toLowerCase().includes("date");
-                            let formattedVal = val;
-                            if (isDate && val && val.length === 10) {
-                                formattedVal = `${val}T00:00`;
-                            }
-                            inputElement = <input type={isDate ? "datetime-local" : "text"} value={formattedVal || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle} />;
+                            const formattedVal = isDate ? toDateOnly(val) : val;
+                            inputElement = <input type={isDate ? "date" : "text"} value={formattedVal || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle} />;
                         }
 
                         return (
@@ -1814,6 +1908,25 @@ export default function AIPage() {
         // ── Helpers ──────────────────────────────────────────────────────────
         const cleanEntity = (raw: any) => {
             const e = { ...raw };
+            const toDateTimeString = (value: string) => {
+                if (!value) return value;
+                if (value.length === 10) return `${value}T00:00:00`;
+                if (value.length === 16) return `${value}:00`;
+                return value;
+            };
+            const buildDefaultSprintDates = () => {
+                const start = new Date();
+                const end = new Date(start);
+                end.setDate(end.getDate() + 14);
+                const toLocalIso = (date: Date) => {
+                    const pad = (value: number) => String(value).padStart(2, "0");
+                    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+                };
+                return {
+                    startDate: toLocalIso(start),
+                    endDate: toLocalIso(end),
+                };
+            };
             
             // Decouple/remove nested identifiers we only use for form flow, to avoid backend errors
             if (generated.intent === "space") {
@@ -1834,13 +1947,14 @@ export default function AIPage() {
                 };
             }
             if (generated.intent === "sprint") {
+                const defaults = buildDefaultSprintDates();
                 const cleaned: any = {
                     name: e.name || "",
                     goal: e.goal || "",
                     isActive: e.isActive === true || e.isActive === "true",
+                    startDate: toDateTimeString(e.startDate || defaults.startDate),
+                    endDate: toDateTimeString(e.endDate || defaults.endDate),
                 };
-                if (e.startDate) cleaned.startDate = e.startDate;
-                if (e.endDate) cleaned.endDate = e.endDate;
                 if (e.spaceId) cleaned.spaceId = e.spaceId;
                 if (e.folderId) cleaned.folderId = e.folderId;
                 return cleaned;
