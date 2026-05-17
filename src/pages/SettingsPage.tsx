@@ -18,6 +18,7 @@ import { getWorkspacesByUser } from "../api/workspaceApi.tsx";
 import type { WorkspaceResponseDto } from "../api/workspaceApi.tsx";
 import { TaskUpdate } from "../components/TaskForms";
 import type { SelectedHierarchy } from "./DashboardPage";
+import { getProfile, updateProfile } from "../api/userApi";
 
 interface UserData {
     id?: string;
@@ -52,9 +53,15 @@ function getThemeFromStorage(): "dark" | "light" {
 
 export default function SettingsPage() {
     const navigate = useNavigate();
+    const storedUser = getUserFromStorage();
     const [collapsed, setCollapsed] = useState(false);
     const [activeTab, setActiveTab] = useState("profile");
-    const [userData] = useState<UserData>(getUserFromStorage);
+    const [userData, setUserData] = useState<UserData>(storedUser);
+    const [profileFirstName, setProfileFirstName] = useState(storedUser.firstName || "");
+    const [profileLastName, setProfileLastName] = useState(storedUser.lastName || "");
+    const [profileMfaEnabled, setProfileMfaEnabled] = useState(Boolean(storedUser.mfaEnabled));
+    const [profileSaving, setProfileSaving] = useState(false);
+    const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [tasks, setTasks] = useState<TaskResponseDto[]>([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -77,10 +84,36 @@ export default function SettingsPage() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === "tasks" && userData.id) {
+        const loadProfile = async () => {
+            try {
+                const profile = await getProfile();
+                const nextUser = {
+                    ...storedUser,
+                    ...profile,
+                    id: profile.id || storedUser.id || storedUser.userId || "",
+                    userId: profile.id || storedUser.id || storedUser.userId || "",
+                };
+                setUserData(nextUser);
+                setProfileFirstName(profile.firstName || "");
+                setProfileLastName(profile.lastName || "");
+                setProfileMfaEnabled(Boolean(profile.mfaEnabled));
+                localStorage.setItem("user", JSON.stringify(nextUser));
+            } catch (err) {
+                console.error("Failed to load profile", err);
+                setProfileFirstName(storedUser.firstName || "");
+                setProfileLastName(storedUser.lastName || "");
+                setProfileMfaEnabled(Boolean(storedUser.mfaEnabled));
+            }
+        };
+
+        loadProfile();
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === "tasks" && (userData.id || userData.userId)) {
             loadTasks();
         }
-    }, [activeTab]);
+    }, [activeTab, userData.id, userData.userId]);
 
     const loadSidebarData = async () => {
         try {
@@ -108,6 +141,41 @@ export default function SettingsPage() {
             console.error("Failed to load user tasks", err);
         } finally {
             setLoadingTasks(false);
+        }
+    };
+
+    const handleProfileSave = async () => {
+        const nextFirstName = profileFirstName.trim();
+        const nextLastName = profileLastName.trim();
+
+        if (!nextFirstName || !nextLastName) {
+            setProfileMessage({ type: "error", text: "Le prénom et le nom sont obligatoires." });
+            return;
+        }
+
+        setProfileSaving(true);
+        setProfileMessage(null);
+
+        try {
+            const updatedProfile = await updateProfile({
+                firstName: nextFirstName,
+                lastName: nextLastName,
+                mfaEnabled: profileMfaEnabled,
+            });
+            const nextUser = {
+                ...userData,
+                ...updatedProfile,
+                id: updatedProfile.id || userData.id || userData.userId || "",
+                userId: updatedProfile.id || userData.id || userData.userId || "",
+            };
+
+            setUserData(nextUser);
+            localStorage.setItem("user", JSON.stringify(nextUser));
+            setProfileMessage({ type: "success", text: "Profil mis à jour." });
+        } catch (err) {
+            setProfileMessage({ type: "error", text: err instanceof Error ? err.message : "La mise à jour a échoué." });
+        } finally {
+            setProfileSaving(false);
         }
     };
 
@@ -280,33 +348,62 @@ export default function SettingsPage() {
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                                         <div>
                                             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: textSub, marginBottom: 8, textTransform: "uppercase" }}>Prénom</label>
-                                            <div style={{ background: "var(--bg-main)", borderRadius: 12, padding: "12px 16px", border: `1px solid ${border}`, color: textMain }}>{userData.firstName}</div>
+                                            <input
+                                                value={profileFirstName}
+                                                onChange={(event) => setProfileFirstName(event.target.value)}
+                                                style={{ width: "100%", background: "var(--bg-main)", borderRadius: 12, padding: "12px 16px", border: `1px solid ${border}`, color: textMain }}
+                                            />
                                         </div>
                                         <div>
                                             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: textSub, marginBottom: 8, textTransform: "uppercase" }}>Nom</label>
-                                            <div style={{ background: "var(--bg-main)", borderRadius: 12, padding: "12px 16px", border: `1px solid ${border}`, color: textMain }}>{userData.lastName}</div>
+                                            <input
+                                                value={profileLastName}
+                                                onChange={(event) => setProfileLastName(event.target.value)}
+                                                style={{ width: "100%", background: "var(--bg-main)", borderRadius: 12, padding: "12px 16px", border: `1px solid ${border}`, color: textMain }}
+                                            />
                                         </div>
                                     </div>
-                                    <div style={{ marginTop: 24, padding: "20px 24px", background: "var(--bg-main)", borderRadius: 16, border: `1px solid ${border}` }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <div style={{ marginTop: 20, padding: "16px 18px", background: "var(--bg-main)", borderRadius: 16, border: `1px solid ${border}` }}>
+                                        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, cursor: "pointer" }}>
                                             <div>
                                                 <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Authentification à deux facteurs (MFA)</h4>
                                                 <p style={{ fontSize: 12, color: textSub }}>
-                                                    {userData.mfaEnabled
-                                                        ? "Votre compte est sécurisé par MFA."
-                                                        : "La MFA n'est pas activée."}
+                                                    {profileMfaEnabled
+                                                        ? "Votre compte demandera un code à la connexion."
+                                                        : "La MFA est désactivée pour ce compte."}
                                                 </p>
                                             </div>
-                                            <span style={{
-                                                padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                                background: userData.mfaEnabled ? "var(--success-soft)" : "var(--border)",
-                                                color: userData.mfaEnabled ? "var(--success)" : textSub,
-                                            }}>
-                                                {userData.mfaEnabled ? "ACTIVÉ" : "DÉSACTIVÉ"}
-                                            </span>
-                                        </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={profileMfaEnabled}
+                                                onChange={(event) => setProfileMfaEnabled(event.target.checked)}
+                                                style={{ width: 18, height: 18, accentColor }}
+                                            />
+                                        </label>
                                     </div>
-                                    <p style={{ fontSize: 12, color: "var(--error)", marginTop: 16 }}>* La modification du profil n'est pas disponible pour le moment.</p>
+                                    <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                                        <button
+                                            onClick={handleProfileSave}
+                                            disabled={profileSaving}
+                                            style={{
+                                                padding: "10px 16px",
+                                                borderRadius: 12,
+                                                border: "none",
+                                                background: accentColor,
+                                                color: "#fff",
+                                                fontWeight: 700,
+                                                cursor: profileSaving ? "not-allowed" : "pointer",
+                                                opacity: profileSaving ? 0.7 : 1,
+                                            }}
+                                        >
+                                            {profileSaving ? "Enregistrement..." : "Enregistrer"}
+                                        </button>
+                                        {profileMessage && (
+                                            <span style={{ fontSize: 13, color: profileMessage.type === "success" ? "var(--success)" : "var(--error)" }}>
+                                                {profileMessage.text}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}

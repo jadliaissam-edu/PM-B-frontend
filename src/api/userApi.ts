@@ -9,12 +9,14 @@ export interface UserProfileResponse {
     role?: string;
     bio?: string;
     avatarUrl?: string;
+    mfaEnabled?: boolean;
 }
 
 export interface UpdateProfileRequest {
     firstName?: string;
     lastName?: string;
     bio?: string;
+    mfaEnabled?: boolean;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
