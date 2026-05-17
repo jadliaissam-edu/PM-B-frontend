@@ -1841,6 +1841,8 @@ export default function AIPage() {
                 };
                 if (e.startDate) cleaned.startDate = e.startDate;
                 if (e.endDate) cleaned.endDate = e.endDate;
+                if (e.spaceId) cleaned.spaceId = e.spaceId;
+                if (e.folderId) cleaned.folderId = e.folderId;
                 return cleaned;
             }
             if (generated.intent === "liste") {
@@ -1931,7 +1933,9 @@ export default function AIPage() {
                 }
                 case "sprint": {
                     if (!entity.folderId) {
-                        const folders = await import("../api/folderApi").then(m => m.getAllFolders());
+                        const folders = entity.spaceId
+                            ? await getFoldersBySpace(entity.spaceId)
+                            : await import("../api/folderApi").then(m => m.getAllFolders());
                         if (folders.length > 0) entity.folderId = folders[0].id || (folders[0] as any).folderId;
                         else throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter ce sprint.");
                     }
