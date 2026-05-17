@@ -1367,6 +1367,7 @@ export default function AIPage() {
     const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
     const [isConversationLoading, setIsConversationLoading] = useState(false);
     const [input, setInput] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [interimVoice, setInterimVoice] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [showRepoModal, setShowRepoModal] = useState(false);

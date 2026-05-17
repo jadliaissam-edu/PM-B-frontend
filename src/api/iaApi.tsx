@@ -187,7 +187,7 @@ export async function generateEntity(
     payload: GenerateEntityRequest,
     signal?: AbortSignal
 ): Promise<GenerateEntityResponse> {
-    const res = await fetch(`${IA_BASE_URL}/generate`, {
+    // const res = await fetch(`${IA_BASE_URL}/generate`, {
     const res = await fetch(`${IA_BASE_URL}/generate`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
