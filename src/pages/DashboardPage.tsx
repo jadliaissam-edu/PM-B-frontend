@@ -966,14 +966,18 @@ export default function WorkspacePage() {
     const handleTaskSubmit = async (data: TaskRequestDto) => {
         if (editingTask) { 
             await updateTask(editingTask.id, data); 
-            // Notify if assignee changed or set
-            if (data.assigneeId && data.assigneeId !== editingTask.assigneeId) {
+            // Notify if assignees changed or set
+            const oldAssignees = editingTask.assigneeIds || (editingTask.assigneeId ? [editingTask.assigneeId] : []);
+            const newAssignees = data.assigneeIds || (data.assigneeId ? [data.assigneeId] : []);
+            const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id));
+            
+            for (const userId of addedAssignees) {
                 try {
                     await createNotification({
                         title: "Tâche mise à jour",
                         message: `La tâche "${data.title}" vous a été assignée ou mise à jour.`,
                         type: "TASK",
-                        userId: data.assigneeId
+                        userId: userId
                     });
                 } catch (e) { console.error("Notification failed", e); }
             }
@@ -981,13 +985,14 @@ export default function WorkspacePage() {
         }
         else { 
             const newTask = await createTask(data); 
-            if (data.assigneeId) {
+            const newAssignees = data.assigneeIds || (data.assigneeId ? [data.assigneeId] : []);
+            for (const userId of newAssignees) {
                 try {
                     await createNotification({
                         title: "Nouvelle tâche",
                         message: `Une nouvelle tâche "${data.title}" vous a été assignée.`,
                         type: "TASK",
-                        userId: data.assigneeId
+                        userId: userId
                     });
                 } catch (e) { console.error("Notification failed", e); }
             }
@@ -1008,9 +1013,34 @@ export default function WorkspacePage() {
         try { await updateTask(task.id, { ...task, status }); } catch { reloadData(); }
     };
 
+    const getTaskDefaultsFromHierarchy = () => {
+        const defaults: Partial<TaskRequestDto> & { spaceId?: string; folderId?: string } = {};
+        if (selectedHierarchy) {
+            if (selectedHierarchy.type === "space") {
+                defaults.spaceId = selectedHierarchy.id;
+            } else if (selectedHierarchy.type === "folder") {
+                defaults.folderId = selectedHierarchy.id;
+                const folderObj = folders.find(f => f.id === selectedHierarchy.id);
+                if (folderObj) defaults.spaceId = folderObj.spaceId;
+            } else if (selectedHierarchy.type === "list") {
+                defaults.listeId = selectedHierarchy.id;
+                const listObj = listes.find(l => l.id === selectedHierarchy.id);
+                if (listObj) {
+                    defaults.folderId = listObj.folderId;
+                    const folderObj = folders.find(f => f.id === listObj.folderId);
+                    if (folderObj) defaults.spaceId = folderObj.spaceId;
+                }
+            } else if (selectedHierarchy.type === "sprint") {
+                defaults.sprintId = selectedHierarchy.id;
+            }
+        }
+        return defaults;
+    };
+
     const openTaskCreateModal = async (defaults?: Partial<TaskRequestDto>) => {
         if (folders.length === 0) await reloadData();
-        setTaskCreateDefaults(defaults);
+        const hierarchyDefaults = getTaskDefaultsFromHierarchy();
+        setTaskCreateDefaults({ ...hierarchyDefaults, ...defaults });
         setShowTaskForm(true);
     };
 
@@ -1217,7 +1247,7 @@ export default function WorkspacePage() {
                                         <button
                                             onClick={async () => {
                                                 if (folders.length === 0) await reloadData();
-                                                setTaskCreateDefaults(undefined);
+                                                setTaskCreateDefaults(getTaskDefaultsFromHierarchy());
                                                 setShowTaskForm(true);
                                             }}
                                             style={{
@@ -1280,8 +1310,8 @@ export default function WorkspacePage() {
             {editingWs && <WorkspaceFormModal mode="edit" initialName={editingWs.name} initialSlug={editingWs.slug} onSubmit={handleUpdateWs} onClose={() => setEditingWs(null)} />}
             {deletingWs && <DeleteModal name={deletingWs.name} onConfirm={handleDeleteWs} onClose={() => setDeletingWs(null)} />}
 
-            {showTaskForm && <TaskAdd defaults={taskCreateDefaults} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} />}
-            {editingTask && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} />}
+            {showTaskForm && <TaskAdd defaults={taskCreateDefaults} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setShowTaskForm(false)} spaces={spaces} folders={folders} rawListes={listes} />}
+            {editingTask && <TaskUpdate taskId={editingTask.id} defaults={editingTask} listes={listes.map(l => ({ value: l.id!, label: l.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} assignees={members.map(m => ({ value: m.userId, label: `${m.userName} (${m.userEmail})` }))} onSubmit={handleTaskSubmit} onClose={() => setEditingTask(null)} spaces={spaces} folders={folders} rawListes={listes} />}
             {deletingTask && <TaskDelete task={deletingTask} onDelete={handleTaskDelete} onClose={() => setDeletingTask(null)} />}
 
             {showListForm && <ListeAdd folders={folders.map(f => ({ value: f.id!, label: f.name }))} sprints={sprints.map(s => ({ value: s.id!, label: s.name }))} onSubmit={handleListSubmit} onClose={() => setShowListForm(false)} />}

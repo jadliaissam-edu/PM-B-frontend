@@ -822,6 +822,7 @@ const FIELD_LABELS: Record<string, string> = {
     listeId: "Liste Parente",
     sprintId: "Sprint Associé",
     assigneeId: "Membre Assigné",
+    assigneeIds: "Membres Assignés",
     workspaceId: "Workspace Parent",
     spaceId: "Espace (Space) Parent",
     folderId: "Dossier (Folder) Parent",
@@ -876,6 +877,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                     listeId: baseClean.listeId || "",
                     sprintId: baseClean.sprintId || "",
                     assigneeId: baseClean.assigneeId || "",
+                    assigneeIds: baseClean.assigneeIds || (baseClean.assigneeId ? [baseClean.assigneeId] : []),
                 };
             }
             if (generated.intent === "space") {
@@ -1214,7 +1216,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                             return key === "name" || key === "type" || key === "order" || key === "spaceId" || key === "folderId" || key === "sprintId";
                         }
                         if (generated.intent === "task") {
-                            return key === "title" || key === "description" || key === "status" || key === "priority" || key === "dueDate" || key === "spaceId" || key === "folderId" || key === "listeId" || key === "sprintId" || key === "assigneeId";
+                            return key === "title" || key === "description" || key === "status" || key === "priority" || key === "dueDate" || key === "spaceId" || key === "folderId" || key === "listeId" || key === "sprintId" || key === "assigneeId" || key === "assigneeIds";
                         }
 
                         return true;
@@ -1308,6 +1310,56 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                                         </option>
                                     ))}
                                 </select>
+                            );
+                        } else if (key === "assigneeIds") {
+                            const currentIds = Array.isArray(value) ? value : [];
+                            inputElement = (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                    <div style={{
+                                        display: "flex", flexWrap: "wrap", gap: 6,
+                                        padding: "6px 10px", minHeight: "38px",
+                                        background: "rgba(255,255,255,0.03)",
+                                        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
+                                    }}>
+                                        {currentIds.length === 0 ? (
+                                            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 13, alignSelf: "center" }}>
+                                                Aucun membre assigné
+                                            </span>
+                                        ) : (
+                                            currentIds.map(id => {
+                                                const m = membersOptions.find(opt => opt.userId === id);
+                                                return (
+                                                    <div key={id} style={{
+                                                        display: "flex", alignItems: "center", gap: 4,
+                                                        background: "rgba(108,99,255,0.2)", border: "1px solid rgba(108,99,255,0.3)",
+                                                        borderRadius: 6, padding: "2px 8px", fontSize: 12, color: "#a89ef5"
+                                                    }}>
+                                                        <span>{m ? m.userName : id}</span>
+                                                        <button type="button" onClick={() => {
+                                                            handleChange(key, currentIds.filter(x => x !== id));
+                                                        }} style={{
+                                                            background: "none", border: "none", color: "rgba(255,255,255,0.5)",
+                                                            cursor: "pointer", display: "flex", alignItems: "center", padding: 0
+                                                        }}><X size={12} /></button>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                    <select className="ai-form-select" value="" onChange={e => {
+                                        const newId = e.target.value;
+                                        if (newId && !currentIds.includes(newId)) {
+                                            handleChange(key, [...currentIds, newId]);
+                                        }
+                                    }} style={inputStyle}>
+                                        <option value="">-- Ajouter un membre... --</option>
+                                        {membersOptions.filter(m => !currentIds.includes(m.userId)).map(m => (
+                                            <option key={m.userId} value={m.userId}>
+                                                {m.userName} ({m.role})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             );
                         } else {
                             const isDate = key.toLowerCase().includes("date");
@@ -1812,6 +1864,7 @@ export default function AIPage() {
                 if (e.listeId) cleaned.listeId = e.listeId;
                 if (e.sprintId) cleaned.sprintId = e.sprintId;
                 if (e.assigneeId) cleaned.assigneeId = e.assigneeId;
+                if (e.assigneeIds) cleaned.assigneeIds = e.assigneeIds;
                 return cleaned;
             }
             if (generated.intent === "workspace") {
