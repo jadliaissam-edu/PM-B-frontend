@@ -2,6 +2,81 @@ import { Plus, List, Pencil, Trash2 } from "lucide-react";
 import type { ListeResponseDto } from "../api/listeApi";
 import type { TaskResponseDto } from "../api/taskApi";
 
+function getInitials(name: string): string {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+}
+
+function AssigneeAvatars({ names }: { names: string[] }) {
+    if (!names || names.length === 0) {
+        return <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Unassigned</span>;
+    }
+
+    return (
+        <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
+            {names.slice(0, 3).map((name, i) => {
+                const initials = getInitials(name);
+                const bgColors = ["#4F46E5", "#0ea5e9", "#10b981", "#f59e0b"];
+                const bgColor = bgColors[i % bgColors.length];
+
+                return (
+                    <div
+                        key={name + i}
+                        title={name}
+                        style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: "50%",
+                            background: bgColor,
+                            color: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            border: "1.5px solid var(--bg-card)",
+                            marginLeft: i > 0 ? -6 : 0,
+                            zIndex: 10 - i,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                            fontFamily: "'DM Sans', sans-serif"
+                        }}
+                    >
+                        {initials}
+                    </div>
+                );
+            })}
+            {names.length > 3 && (
+                <div
+                    title={names.slice(3).join(", ")}
+                    style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        background: "var(--bg-hover)",
+                        color: "var(--text-sub)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 9,
+                        fontWeight: 700,
+                        border: "1.5px solid var(--bg-card)",
+                        marginLeft: -6,
+                        zIndex: 5,
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                        fontFamily: "'DM Sans', sans-serif"
+                    }}
+                >
+                    +{names.length - 3}
+                </div>
+            )}
+        </div>
+    );
+}
+
 interface ListViewProps {
     lists: ListeResponseDto[];
     tasks: TaskResponseDto[];
@@ -95,16 +170,7 @@ export default function ListView({ lists, tasks: _tasks, onEditTask: _onEditTask
                                                             {task.dueDate ? new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : <span style={{ opacity: 0.5 }}>-</span>}
                                                         </td>
                                                         <td style={{ padding: "10px 16px" }}>
-                                                            {task.assigneeName ? (
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                                    <div style={{ width: 18, height: 18, borderRadius: "50%", background: "var(--accent)", color: "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
-                                                                        {task.assigneeName[0].toUpperCase()}
-                                                                    </div>
-                                                                    <span style={{ fontSize: 12, color: "var(--text-main)" }}>{task.assigneeName}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Unassigned</span>
-                                                            )}
+                                                            <AssigneeAvatars names={task.assigneeNames || (task.assigneeName ? [task.assigneeName] : [])} />
                                                         </td>
                                                         <td style={{ padding: "10px 16px", textAlign: "right" }}>
                                                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

@@ -819,14 +819,23 @@ const FIELD_LABELS: Record<string, string> = {
     status: "Statut",
     priority: "Priorité",
     dueDate: "Échéance",
-    listeId: "ID Liste",
-    sprintId: "ID Sprint",
+    listeId: "Liste Parente",
+    sprintId: "Sprint Associé",
     assigneeId: "Membre Assigné",
-    workspaceId: "ID Workspace",
-    spaceId: "ID Space",
-    startDate: "Début",
-    endDate: "Fin",
+    assigneeIds: "Membres Assignés",
+    workspaceId: "Workspace Parent",
+    spaceId: "Espace (Space) Parent",
+    folderId: "Dossier (Folder) Parent",
+    startDate: "Date de Début",
+    endDate: "Date de Fin",
     slug: "Slug",
+    goal: "Objectif du Sprint (Goal)",
+    color: "Couleur de l'Espace",
+    isPrivate: "Espace Privé ?",
+    isActive: "Sprint Actif ?",
+    isHidden: "Dossier Masqué ?",
+    order: "Ordre d'Affichage",
+    type: "Type de Liste",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -855,11 +864,67 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
     const isArray = Array.isArray(generated.entity);
     const [localEntity, setLocalEntity] = useState<any>(() => {
         const initItem = (base: any) => {
-            if (generated.intent === "task") return { spaceId: "", folderId: "", listeId: "", sprintId: "", ...base };
-            if (generated.intent === "liste") return { spaceId: "", folderId: "", type: "SPRINT", ...base };
-            if (generated.intent === "sprint") return { spaceId: "", folderId: "", ...base };
-            if (generated.intent === "folder") return { spaceId: "", ...base };
-            return base;
+            const baseClean = { ...base };
+            if (generated.intent === "task") {
+                return {
+                    title: baseClean.title || baseClean.name || "",
+                    description: baseClean.description || "",
+                    status: baseClean.status || "TO_DO",
+                    priority: baseClean.priority || "MEDIUM",
+                    dueDate: baseClean.dueDate || "",
+                    spaceId: baseClean.spaceId || "",
+                    folderId: baseClean.folderId || "",
+                    listeId: baseClean.listeId || "",
+                    sprintId: baseClean.sprintId || "",
+                    assigneeId: baseClean.assigneeId || "",
+                    assigneeIds: baseClean.assigneeIds || (baseClean.assigneeId ? [baseClean.assigneeId] : []),
+                };
+            }
+            if (generated.intent === "space") {
+                return {
+                    name: baseClean.name || baseClean.spaceName || "",
+                    description: baseClean.description || "",
+                    color: baseClean.color || "#534AB7",
+                    isPrivate: baseClean.isPrivate ?? false,
+                    workspaceId: baseClean.workspaceId || workspaceId || "",
+                };
+            }
+            if (generated.intent === "folder") {
+                return {
+                    name: baseClean.name || "",
+                    description: baseClean.description || "",
+                    spaceId: baseClean.spaceId || "",
+                    isHidden: baseClean.isHidden ?? false,
+                };
+            }
+            if (generated.intent === "sprint") {
+                return {
+                    name: baseClean.name || "",
+                    startDate: baseClean.startDate || "",
+                    endDate: baseClean.endDate || "",
+                    goal: baseClean.goal || "",
+                    isActive: baseClean.isActive ?? false,
+                    spaceId: baseClean.spaceId || "",
+                    folderId: baseClean.folderId || "",
+                };
+            }
+            if (generated.intent === "liste") {
+                return {
+                    name: baseClean.name || "",
+                    type: baseClean.type || "SPRINT",
+                    order: baseClean.order ?? 1,
+                    spaceId: baseClean.spaceId || "",
+                    folderId: baseClean.folderId || "",
+                    sprintId: baseClean.sprintId || "",
+                };
+            }
+            if (generated.intent === "workspace") {
+                return {
+                    name: baseClean.name || "",
+                    slug: baseClean.slug || "",
+                };
+            }
+            return baseClean;
         };
 
         if (isArray) {
@@ -1135,19 +1200,23 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                     .filter(([key]) => {
                         if (key === "workspaceId") return false;
 
-                        // Cacher les listes et sprints si on ne crée pas de tâche
-                        if (generated.intent !== "task" && (key === "listeId" || key === "sprintId")) {
-                            return false;
+                        if (generated.intent === "workspace") {
+                            return key === "name" || key === "slug";
                         }
-
-                        // Cacher le folder si on crée un workspace, un space ou un folder
-                        if ((generated.intent === "workspace" || generated.intent === "space" || generated.intent === "folder") && key === "folderId") {
-                            return false;
+                        if (generated.intent === "space") {
+                            return key === "name" || key === "description" || key === "color" || key === "isPrivate";
                         }
-
-                        // Cacher le space si on crée un workspace
-                        if (generated.intent === "workspace" && key === "spaceId") {
-                            return false;
+                        if (generated.intent === "folder") {
+                            return key === "name" || key === "description" || key === "spaceId" || key === "isHidden";
+                        }
+                        if (generated.intent === "sprint") {
+                            return key === "name" || key === "startDate" || key === "endDate" || key === "goal" || key === "isActive" || key === "spaceId" || key === "folderId";
+                        }
+                        if (generated.intent === "liste") {
+                            return key === "name" || key === "type" || key === "order" || key === "spaceId" || key === "folderId" || key === "sprintId";
+                        }
+                        if (generated.intent === "task") {
+                            return key === "title" || key === "description" || key === "status" || key === "priority" || key === "dueDate" || key === "spaceId" || key === "folderId" || key === "listeId" || key === "sprintId" || key === "assigneeId" || key === "assigneeIds";
                         }
 
                         return true;
@@ -1220,8 +1289,17 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                                     <option value="PHASE">Phase</option>
                                 </select>
                             );
-                        } else if (key === "description") {
+                        } else if (key === "isPrivate" || key === "isActive" || key === "isHidden") {
+                            inputElement = (
+                                <select className="ai-form-select" value={String(value)} onChange={e => handleChange(key, e.target.value === "true")} style={inputStyle}>
+                                    <option value="true">Oui</option>
+                                    <option value="false">Non</option>
+                                </select>
+                            );
+                        } else if (key === "description" || key === "goal") {
                             inputElement = <textarea value={val || ""} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />;
+                        } else if (key === "color") {
+                            inputElement = <input type="color" value={val || "#534AB7"} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, height: "38px", padding: "2px 6px", cursor: "pointer" }} />;
                         } else if (key === "assigneeId") {
                             inputElement = (
                                 <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
@@ -1233,11 +1311,60 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                                     ))}
                                 </select>
                             );
+                        } else if (key === "assigneeIds") {
+                            const currentIds = Array.isArray(value) ? value : [];
+                            inputElement = (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                    <div style={{
+                                        display: "flex", flexWrap: "wrap", gap: 6,
+                                        padding: "6px 10px", minHeight: "38px",
+                                        background: "rgba(255,255,255,0.03)",
+                                        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
+                                    }}>
+                                        {currentIds.length === 0 ? (
+                                            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 13, alignSelf: "center" }}>
+                                                Aucun membre assigné
+                                            </span>
+                                        ) : (
+                                            currentIds.map(id => {
+                                                const m = membersOptions.find(opt => opt.userId === id);
+                                                return (
+                                                    <div key={id} style={{
+                                                        display: "flex", alignItems: "center", gap: 4,
+                                                        background: "rgba(108,99,255,0.2)", border: "1px solid rgba(108,99,255,0.3)",
+                                                        borderRadius: 6, padding: "2px 8px", fontSize: 12, color: "#a89ef5"
+                                                    }}>
+                                                        <span>{m ? m.userName : id}</span>
+                                                        <button type="button" onClick={() => {
+                                                            handleChange(key, currentIds.filter(x => x !== id));
+                                                        }} style={{
+                                                            background: "none", border: "none", color: "rgba(255,255,255,0.5)",
+                                                            cursor: "pointer", display: "flex", alignItems: "center", padding: 0
+                                                        }}><X size={12} /></button>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                    <select className="ai-form-select" value="" onChange={e => {
+                                        const newId = e.target.value;
+                                        if (newId && !currentIds.includes(newId)) {
+                                            handleChange(key, [...currentIds, newId]);
+                                        }
+                                    }} style={inputStyle}>
+                                        <option value="">-- Ajouter un membre... --</option>
+                                        {membersOptions.filter(m => !currentIds.includes(m.userId)).map(m => (
+                                            <option key={m.userId} value={m.userId}>
+                                                {m.userName} ({m.role})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            );
                         } else {
                             const isDate = key.toLowerCase().includes("date");
                             let formattedVal = val;
                             if (isDate && val && val.length === 10) {
-                                // yyyy-MM-dd -> yyyy-MM-ddT00:00
                                 formattedVal = `${val}T00:00`;
                             }
                             inputElement = <input type={isDate ? "datetime-local" : "text"} value={formattedVal || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle} />;
@@ -1687,10 +1814,65 @@ export default function AIPage() {
         // ── Helpers ──────────────────────────────────────────────────────────
         const cleanEntity = (raw: any) => {
             const e = { ...raw };
-            if (e.spaceId === "") delete e.spaceId;
-            if (e.folderId === "") delete e.folderId;
-            if (e.listeId === "") delete e.listeId;
-            if (e.sprintId === "") delete e.sprintId;
+            
+            // Decouple/remove nested identifiers we only use for form flow, to avoid backend errors
+            if (generated.intent === "space") {
+                return {
+                    name: e.name || "",
+                    description: e.description || "",
+                    color: e.color || "#534AB7",
+                    isPrivate: e.isPrivate === true || e.isPrivate === "true",
+                    workspaceId: e.workspaceId || activeWorkspace?.id || "",
+                };
+            }
+            if (generated.intent === "folder") {
+                return {
+                    name: e.name || "",
+                    description: e.description || "",
+                    isHidden: e.isHidden === true || e.isHidden === "true",
+                    spaceId: e.spaceId || "",
+                };
+            }
+            if (generated.intent === "sprint") {
+                const cleaned: any = {
+                    name: e.name || "",
+                    goal: e.goal || "",
+                    isActive: e.isActive === true || e.isActive === "true",
+                };
+                if (e.startDate) cleaned.startDate = e.startDate;
+                if (e.endDate) cleaned.endDate = e.endDate;
+                return cleaned;
+            }
+            if (generated.intent === "liste") {
+                const cleaned: any = {
+                    name: e.name || "",
+                    type: e.type || "SPRINT",
+                    order: parseInt(e.order, 10) || 1,
+                    folderId: e.folderId || "",
+                };
+                if (e.sprintId) cleaned.sprintId = e.sprintId;
+                return cleaned;
+            }
+            if (generated.intent === "task") {
+                const cleaned: any = {
+                    title: e.title || "",
+                    description: e.description || "",
+                    status: e.status || "TO_DO",
+                    priority: e.priority || "MEDIUM",
+                };
+                if (e.dueDate) cleaned.dueDate = e.dueDate;
+                if (e.listeId) cleaned.listeId = e.listeId;
+                if (e.sprintId) cleaned.sprintId = e.sprintId;
+                if (e.assigneeId) cleaned.assigneeId = e.assigneeId;
+                if (e.assigneeIds) cleaned.assigneeIds = e.assigneeIds;
+                return cleaned;
+            }
+            if (generated.intent === "workspace") {
+                return {
+                    name: e.name || "",
+                    slug: e.slug || "",
+                };
+            }
             return e;
         };
 
@@ -1746,7 +1928,16 @@ export default function AIPage() {
                     const data = await callEndpoint(generated.endpoint!, entity);
                     return { type: "folder", id: data.id, name: data.name };
                 }
-                case "sprint":
+                case "sprint": {
+                    if (!entity.folderId) {
+                        const folders = await import("../api/folderApi").then(m => m.getAllFolders());
+                        if (folders.length > 0) entity.folderId = folders[0].id || (folders[0] as any).folderId;
+                        else throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter ce sprint.");
+                    }
+                    const sprintApi = await import("../api/sprintApi");
+                    const data = await sprintApi.createSprintInFolder(entity.folderId, entity);
+                    return { type: "sprint", id: data.id, name: data.name };
+                }
                 case "liste": {
                     if (!entity.folderId) {
                         const folders = await import("../api/folderApi").then(m => m.getAllFolders());
@@ -1754,7 +1945,7 @@ export default function AIPage() {
                         else throw new Error("Veuillez d'abord créer un Dossier (Folder) pour pouvoir y ajouter cette liste.");
                     }
                     const data = await callEndpoint(generated.endpoint!, entity);
-                    return { type: generated.intent === "liste" ? "list" : "sprint", id: data.id, name: data.name };
+                    return { type: "list", id: data.id, name: data.name };
                 }
                 default:
                     throw new Error(`Intent inconnu : ${generated.intent}`);

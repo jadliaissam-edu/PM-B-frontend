@@ -16,7 +16,10 @@ interface TaskFormProps {
     listes?: SelectOption[];
     sprints?: SelectOption[];
     assignees?: SelectOption[];
-    defaults?: Partial<TaskRequestDto>;
+    defaults?: Partial<TaskRequestDto> & { spaceId?: string; folderId?: string };
+    spaces?: any[];
+    folders?: any[];
+    rawListes?: any[];
 }
 
 interface TaskUpdateProps extends TaskFormProps {
@@ -193,9 +196,17 @@ function TaskFormBody({
     listeId, setListeId,
     sprintId, setSprintId,
     assigneeId, setAssigneeId,
+    assigneeIds = [], setAssigneeIds,
     listes, sprints, assignees,
     error,
     loading = false,
+    spaceId = "",
+    setSpaceId,
+    folderId = "",
+    setFolderId,
+    spaces = [],
+    folders = [],
+    rawListes = []
 }: {
     title: string; setTitle: (v: string) => void;
     description: string; setDescription: (v: string) => void;
@@ -205,12 +216,34 @@ function TaskFormBody({
     listeId: string; setListeId: (v: string) => void;
     sprintId: string; setSprintId: (v: string) => void;
     assigneeId: string; setAssigneeId: (v: string) => void;
+    assigneeIds?: string[]; setAssigneeIds?: (v: string[]) => void;
     listes: SelectOption[]; sprints: SelectOption[]; assignees: SelectOption[];
     error: string | null;
     loading?: boolean;
+    spaceId?: string;
+    setSpaceId?: (v: string) => void;
+    folderId?: string;
+    setFolderId?: (v: string) => void;
+    spaces?: any[];
+    folders?: any[];
+    rawListes?: any[];
 }) {
     const currentPriority = PRIORITIES.find(p => p.value === priority)!;
     const currentStatus   = STATUSES.find(s => s.value === status)!;
+
+    const filteredFolders = (folders && spaceId)
+        ? folders.filter((f: any) => f.spaceId === spaceId)
+        : folders;
+
+    const filteredListes = (rawListes && folderId)
+        ? rawListes.filter((l: any) => l.folderId === folderId)
+        : rawListes;
+
+    const spaceOptions = (spaces || []).map((s: any) => ({ value: s.id!, label: s.spaceName ?? s.name ?? "Unnamed Space" }));
+    const folderOptions = filteredFolders.map((f: any) => ({ value: f.id!, label: f.name ?? f.folderName ?? "Unnamed Folder" }));
+    const listOptions = (rawListes && rawListes.length > 0)
+        ? filteredListes.map((l: any) => ({ value: l.id!, label: l.name }))
+        : listes;
 
     return (
         <>
@@ -346,11 +379,42 @@ function TaskFormBody({
 
             <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
 
+            {/* Space + Folder Selectors */}
+            {spaceOptions.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        <label style={labelStyle}>Space</label>
+                        <Select
+                            options={spaceOptions}
+                            value={spaceId}
+                            onChange={v => {
+                                if (setSpaceId) setSpaceId(v);
+                                if (setFolderId) setFolderId("");
+                                setListeId("");
+                            }}
+                            placeholder="Select space…"
+                        />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        <label style={labelStyle}>Folder</label>
+                        <Select
+                            options={folderOptions}
+                            value={folderId}
+                            onChange={v => {
+                                if (setFolderId) setFolderId(v);
+                                setListeId("");
+                            }}
+                            placeholder="Select folder…"
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* List + Sprint */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     <label style={labelStyle}>List</label>
-                    <Select options={listes} value={listeId} onChange={setListeId} placeholder="Select list…" />
+                    <Select options={listOptions} value={listeId} onChange={setListeId} placeholder="Select list…" />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     <label style={labelStyle}>Sprint</label>
@@ -360,8 +424,45 @@ function TaskFormBody({
 
             {/* Assignee */}
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                <label style={labelStyle}>Assignee</label>
-                <Select options={assignees} value={assigneeId} onChange={setAssigneeId} placeholder="Assign to…" />
+                <label style={labelStyle}>Assignees</label>
+                {setAssigneeIds ? (
+                    <>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+                            {assigneeIds.map(id => {
+                                const option = assignees.find(o => o.value === id);
+                                return (
+                                    <div key={id} style={{
+                                        display: "flex", alignItems: "center", gap: 6,
+                                        background: "var(--accent-soft)", border: "1px solid var(--border)",
+                                        borderRadius: 8, padding: "4px 10px", fontSize: 13, color: "var(--accent)"
+                                    }}>
+                                        <span>{option?.label ?? id}</span>
+                                        <button type="button" onClick={() => setAssigneeIds(assigneeIds.filter(x => x !== id))} style={{
+                                            background: "none", border: "none", color: "var(--text-faint)",
+                                            cursor: "pointer", display: "flex", alignItems: "center", padding: 0
+                                        }}><X size={14} /></button>
+                                    </div>
+                                );
+                            })}
+                            {assigneeIds.length === 0 && (
+                                <span style={{ color: "var(--text-faint)", fontSize: 13 }}>No assignees selected</span>
+                            )}
+                        </div>
+                        <Select
+                            options={assignees.filter(o => !assigneeIds.includes(o.value))}
+                            value=""
+                            onChange={v => {
+                                if (v && !assigneeIds.includes(v)) {
+                                    setAssigneeIds([...assigneeIds, v]);
+                                    setAssigneeId(v);
+                                }
+                            }}
+                            placeholder="Add assignee…"
+                        />
+                    </>
+                ) : (
+                    <Select options={assignees} value={assigneeId} onChange={setAssigneeId} placeholder="Assign to…" />
+                )}
             </div>
 
             {error && <span style={{ fontSize: 12, color: "var(--error)", marginTop: -6 }}>{error}</span>}
@@ -371,17 +472,41 @@ function TaskFormBody({
 
 // ─── TaskAdd ──────────────────────────────────────────────────────────────────
 
-export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {} }: TaskFormProps) {
+export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {}, spaces = [], folders = [], rawListes = [] }: TaskFormProps) {
     const [title,      setTitle]      = useState(defaults.title      ?? "");
     const [description,setDescription]= useState(defaults.description ?? "");
     const [status,     setStatus]     = useState<TaskStatus>((defaults.status   as TaskStatus) ?? "TO_DO");
     const [priority,   setPriority]   = useState<Priority> ((defaults.priority  as Priority)  ?? "MEDIUM");
     const [dueDate,    setDueDate]    = useState(defaults.dueDate    ?? "");
+    const [spaceId,    setSpaceId]    = useState(defaults.spaceId    ?? "");
+    const [folderId,   setFolderId]   = useState(defaults.folderId   ?? "");
     const [listeId,    setListeId]    = useState(defaults.listeId    ?? "");
     const [sprintId,   setSprintId]   = useState(defaults.sprintId   ?? "");
     const [assigneeId, setAssigneeId] = useState(defaults.assigneeId ?? "");
+    const [assigneeIds, setAssigneeIds] = useState<string[]>(defaults.assigneeIds ?? (defaults.assigneeId ? [defaults.assigneeId] : []));
     const [loading,    setLoading]    = useState(false);
     const [error,      setError]      = useState<string | null>(null);
+
+    useEffect(() => {
+        if (defaults.spaceId) setSpaceId(defaults.spaceId);
+        if (defaults.folderId) setFolderId(defaults.folderId);
+        if (defaults.listeId) {
+            setListeId(defaults.listeId);
+            const listObj = rawListes.find(l => l.id === defaults.listeId);
+            if (listObj && listObj.folderId) {
+                setFolderId(listObj.folderId);
+                const folderObj = folders.find(f => f.id === listObj.folderId);
+                if (folderObj && folderObj.spaceId) {
+                    setSpaceId(folderObj.spaceId);
+                }
+            }
+        } else if (defaults.folderId) {
+            const folderObj = folders.find(f => f.id === defaults.folderId);
+            if (folderObj && folderObj.spaceId) {
+                setSpaceId(folderObj.spaceId);
+            }
+        }
+    }, [defaults.spaceId, defaults.folderId, defaults.listeId, rawListes, folders]);
 
     async function handleSubmit() {
         if (!title.trim()) { setError("Title is required"); return; }
@@ -395,7 +520,8 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
                 dueDate:    dueDate    ? new Date(dueDate).toISOString() : null,
                 listeId,
                 sprintId:   sprintId   || null,
-                assigneeId: assigneeId || null,
+                assigneeId: assigneeIds[0] || null,
+                assigneeIds: assigneeIds.length > 0 ? assigneeIds : null,
             });
             onClose();
         } catch (e: unknown) {
@@ -406,14 +532,14 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
     return (
         <div style={overlayStyle} onClick={onClose}>
             <div style={modalStyle} onClick={e => e.stopPropagation()}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", justifySelf: "space-between", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-main)", fontSize: 16, fontWeight: 700, letterSpacing: 0.1 }}>
                         New Task
                     </span>
                     <CloseButton onClose={onClose} />
                 </div>
 
-                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error, loading }} />
+                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, assigneeIds, setAssigneeIds, listes, sprints, assignees, error, loading, spaceId, setSpaceId, folderId, setFolderId, spaces, folders, rawListes }} />
 
                 <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
                 <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Create Task" loadingLabel="Creating…" />
@@ -424,17 +550,41 @@ export function TaskAdd({ onSubmit, onClose, listes = [], sprints = [], assignee
 
 // ─── TaskUpdate ───────────────────────────────────────────────────────────────
 
-export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {} }: TaskUpdateProps) {
+export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [], assignees = [], defaults = {}, spaces = [], folders = [], rawListes = [] }: TaskUpdateProps) {
     const [title,      setTitle]      = useState(defaults.title      ?? "");
     const [description,setDescription]= useState(defaults.description ?? "");
     const [status,     setStatus]     = useState<TaskStatus>((defaults.status   as TaskStatus) ?? "TO_DO");
     const [priority,   setPriority]   = useState<Priority> ((defaults.priority  as Priority)  ?? "MEDIUM");
     const [dueDate,    setDueDate]    = useState(defaults.dueDate    ?? "");
+    const [spaceId,    setSpaceId]    = useState(defaults.spaceId    ?? "");
+    const [folderId,   setFolderId]   = useState(defaults.folderId   ?? "");
     const [listeId,    setListeId]    = useState(defaults.listeId    ?? "");
     const [sprintId,   setSprintId]   = useState(defaults.sprintId   ?? "");
     const [assigneeId, setAssigneeId] = useState(defaults.assigneeId ?? "");
+    const [assigneeIds, setAssigneeIds] = useState<string[]>(defaults.assigneeIds ?? (defaults.assigneeId ? [defaults.assigneeId] : []));
     const [loading,    setLoading]    = useState(false);
     const [error,      setError]      = useState<string | null>(null);
+
+    useEffect(() => {
+        if (defaults.spaceId) setSpaceId(defaults.spaceId);
+        if (defaults.folderId) setFolderId(defaults.folderId);
+        if (defaults.listeId) {
+            setListeId(defaults.listeId);
+            const listObj = rawListes.find(l => l.id === defaults.listeId);
+            if (listObj && listObj.folderId) {
+                setFolderId(listObj.folderId);
+                const folderObj = folders.find(f => f.id === listObj.folderId);
+                if (folderObj && folderObj.spaceId) {
+                    setSpaceId(folderObj.spaceId);
+                }
+            }
+        } else if (defaults.folderId) {
+            const folderObj = folders.find(f => f.id === defaults.folderId);
+            if (folderObj && folderObj.spaceId) {
+                setSpaceId(folderObj.spaceId);
+            }
+        }
+    }, [defaults.spaceId, defaults.folderId, defaults.listeId, rawListes, folders]);
 
     async function handleSubmit() {
         if (!title.trim()) { setError("Title is required"); return; }
@@ -448,7 +598,8 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
                 dueDate:    dueDate    ? new Date(dueDate).toISOString() : null,
                 listeId,
                 sprintId:   sprintId   || null,
-                assigneeId: assigneeId || null,
+                assigneeId: assigneeIds[0] || null,
+                assigneeIds: assigneeIds.length > 0 ? assigneeIds : null,
             });
             onClose();
         } catch (e: unknown) {
@@ -471,7 +622,7 @@ export function TaskUpdate({ taskId, onSubmit, onClose, listes = [], sprints = [
                     <CloseButton onClose={onClose} />
                 </div>
 
-                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, listes, sprints, assignees, error, loading }} />
+                <TaskFormBody {...{ title, setTitle, description, setDescription, status, setStatus, priority, setPriority, dueDate, setDueDate, listeId, setListeId, sprintId, setSprintId, assigneeId, setAssigneeId, assigneeIds, setAssigneeIds, listes, sprints, assignees, error, loading, spaceId, setSpaceId, folderId, setFolderId, spaces, folders, rawListes }} />
 
                 <div style={{ height: "0.5px", background: "var(--border)", margin: "0 -24px" }} />
                 <FormActions onClose={onClose} onSubmit={handleSubmit} loading={loading} submitLabel="Save Changes" loadingLabel="Saving…" />

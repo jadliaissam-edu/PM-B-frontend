@@ -12,6 +12,7 @@ export interface TaskRequestDto {
     listeId: string;
     sprintId?: string | null;
     assigneeId?: string | null;
+    assigneeIds?: string[] | null;
 }
 
 export interface TaskResponseDto {
@@ -32,6 +33,8 @@ export interface TaskResponseDto {
 
     assigneeId?: string | null;
     assigneeName?: string | null;
+    assigneeIds?: string[] | null;
+    assigneeNames?: string[] | null;
 }
 
 function getAuthHeaders(): HeadersInit {
