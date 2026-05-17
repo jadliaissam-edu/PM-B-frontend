@@ -1804,6 +1804,9 @@ export default function AIPage() {
 
         try {
             let currentConversationId = conversationId;
+            const storedUserStr = localStorage.getItem("user");
+            const parsedUser = storedUserStr ? JSON.parse(storedUserStr) : null;
+            const activeUserId = parsedUser?.id || user.id || "anonymous";
 
             if (!currentConversationId) {
                 setStatusText("Création de la session...");
@@ -1830,7 +1833,7 @@ export default function AIPage() {
                         members: activeWorkspace?.id ? await getWorkspaceMembers(activeWorkspace.id).then(m => m.map(mem => ({ id: mem.userId, name: mem.userName }))) : []
                     },
                     repositories: repoList.length > 0 ? repoList : undefined,
-                    user_id: user.id || "anonymous",
+                    user_id: activeUserId,
                 });
 
                 let assistantContent = generated.explanation;
@@ -1867,7 +1870,7 @@ export default function AIPage() {
             const res = await analyzeRepo({
                 repositories: repoList,
                 user_query:   userInput,
-                user_id:      user.id || "anonymous",
+                user_id:      activeUserId,
             });
 
             setStatusText("Génération de la réponse...");
