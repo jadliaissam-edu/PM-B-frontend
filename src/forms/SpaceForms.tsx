@@ -81,6 +81,9 @@ const colorOptions = [
     "#EA580C", "#D97706", "#65A30D", "#0891B2"
 ];
 
+const SPACE_NAME_MAX = 255;
+const SPACE_DESC_MAX = 2000;
+
 
 function Select({ options, value, onChange, label }: {
     options: SelectOption[];
@@ -159,10 +162,12 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim() || !workspaceId) return;
+        const trimmedName = name.trim().slice(0, SPACE_NAME_MAX);
+        const trimmedDescription = description.trim().slice(0, SPACE_DESC_MAX);
+        if (!trimmedName || !workspaceId) return;
         setLoading(true);
         try {
-            await onSubmit({ name: name.trim(), description: description.trim(), color, isPrivate, workspaceId });
+            await onSubmit({ name: trimmedName, description: trimmedDescription, color, isPrivate, workspaceId });
             onClose();
         } finally {
             setLoading(false);
@@ -204,6 +209,7 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
                                 style={inputStyle}
                                 value={name}
                                 onChange={e => setName(e.target.value)}
+                                maxLength={SPACE_NAME_MAX}
                                 placeholder="e.g. Marketing, Engineering, HR"
                             />
                         </div>
@@ -215,7 +221,7 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
                             <AskAIButton 
                                 entityName={name} 
                                 entityType="space" 
-                                onGenerationComplete={(text) => setDescription(text)}
+                                onGenerationComplete={(text) => setDescription(text.slice(0, SPACE_DESC_MAX))}
                                 isLoading={loading}
                             />
                         </div>
@@ -223,6 +229,7 @@ export function SpaceAdd({ onSubmit, onClose, workspaces, defaults }: SpaceFormP
                             style={{ ...inputStyle, minHeight: 90, resize: "none", padding: "16px" }}
                             value={description}
                             onChange={e => setDescription(e.target.value)}
+                            maxLength={SPACE_DESC_MAX}
                             placeholder="Briefly describe what happens in this space..."
                         />
                     </div>
@@ -319,10 +326,12 @@ export function SpaceUpdate(props: SpaceFormProps & { spaceId: string }) {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim() || !workspaceId) return;
+        const trimmedName = name.trim().slice(0, SPACE_NAME_MAX);
+        const trimmedDescription = description.trim().slice(0, SPACE_DESC_MAX);
+        if (!trimmedName || !workspaceId) return;
         setLoading(true);
         try {
-            await onSubmit({ name: name.trim(), description: description.trim(), color, isPrivate, workspaceId });
+            await onSubmit({ name: trimmedName, description: trimmedDescription, color, isPrivate, workspaceId });
             onClose();
         } finally {
             setLoading(false);
@@ -361,6 +370,7 @@ export function SpaceUpdate(props: SpaceFormProps & { spaceId: string }) {
                                 style={inputStyle}
                                 value={name}
                                 onChange={e => setName(e.target.value)}
+                                maxLength={SPACE_NAME_MAX}
                             />
                         </div>
                     </div>
@@ -371,7 +381,7 @@ export function SpaceUpdate(props: SpaceFormProps & { spaceId: string }) {
                             <AskAIButton 
                                 entityName={name} 
                                 entityType="space" 
-                                onGenerationComplete={(text) => setDescription(text)}
+                                onGenerationComplete={(text) => setDescription(text.slice(0, SPACE_DESC_MAX))}
                                 isLoading={loading}
                             />
                         </div>
@@ -379,6 +389,7 @@ export function SpaceUpdate(props: SpaceFormProps & { spaceId: string }) {
                             style={{ ...inputStyle, minHeight: 90, resize: "none", padding: "16px" }}
                             value={description}
                             onChange={e => setDescription(e.target.value)}
+                            maxLength={SPACE_DESC_MAX}
                         />
                     </div>
 
