@@ -134,7 +134,7 @@ export default function LoginPage() {
                 </div>
 
                 <h1 className="text-2xl font-semibold text-[var(--text-main)] tracking-tight mb-1">
-                    {isMfaStep ? "Verify your identity" : "Welcome back"}
+                    {isMfaStep ? "Verify your identity" : "Welcome backss"}
                 </h1>
                 <p className="text-sm text-[var(--text-sub)] mb-6">
                     {isMfaStep
