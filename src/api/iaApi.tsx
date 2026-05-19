@@ -175,10 +175,15 @@ export interface GenerateEntityRequest {
 }
 
 export interface GenerateEntityResponse {
-    intent:      EntityIntent;
-    entity:      Record<string, any> | Record<string, any>[] | null;
-    endpoint:    string | null;
+    intent?:      EntityIntent;
+    entity?:      Record<string, any> | Record<string, any>[] | null;
+    endpoint?:    string | null;
     explanation: string;
+    flow?:       {
+        intent:   EntityIntent;
+        endpoint: string;
+        entity:   Record<string, any>;
+    }[];
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ReactElement } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactElement } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     FolderGit2,
@@ -7,7 +7,7 @@ import {
     ChevronRight, ChevronDown,
     SquarePen, History, Bell,
     Folder, FolderOpen, List, Zap, Target, Activity, Users, User, CheckCircle2,
-    Clock, CalendarDays, ArrowLeft, LayoutGrid, Eye, EyeOff, Lock, Square
+    Clock, CalendarDays, ArrowLeft, LayoutGrid, Eye, EyeOff, Lock, Square, ArrowRight
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -855,13 +855,13 @@ const STATUS_COLORS: Record<string, string> = {
 interface AIConfirmCardProps {
     generated: GenerateEntityResponse;
     workspaceId?: string;
-    onAccept: (editedEntity: any) => Promise<void>;
+    workspaces?: WorkspaceResponseDto[];
+    onAccept: (editedEntity: any, stepIntent?: EntityIntent, stepEndpoint?: string | null) => Promise<any>;
     onReject: () => void;
 }
 
-function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirmCardProps) {
+function AIConfirmCard({ generated, workspaceId, workspaces = [], onAccept, onReject }: AIConfirmCardProps) {
     const navigate = useNavigate();
-    const isArray = Array.isArray(generated.entity);
 
     const toDateOnly = (value?: string) => {
         if (!value) return "";
@@ -895,85 +895,113 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
         return diffDays >= 14 ? 2 : 1;
     };
 
-    const [localEntity, setLocalEntity] = useState<any>(() => {
-        const initItem = (base: any) => {
-            const baseClean = { ...base };
-            if (generated.intent === "task") {
-                return {
-                    title: baseClean.title || baseClean.name || "",
-                    description: baseClean.description || "",
-                    status: baseClean.status || "TO_DO",
-                    priority: baseClean.priority || "MEDIUM",
-                    dueDate: baseClean.dueDate || "",
-                    spaceId: baseClean.spaceId || "",
-                    folderId: baseClean.folderId || "",
-                    listeId: baseClean.listeId || "",
-                    sprintId: baseClean.sprintId || "",
-                    assigneeId: baseClean.assigneeId || "",
-                    assigneeIds: baseClean.assigneeIds || (baseClean.assigneeId ? [baseClean.assigneeId] : []),
-                };
-            }
-            if (generated.intent === "space") {
-                return {
-                    name: baseClean.name || baseClean.spaceName || "",
-                    description: baseClean.description || "",
-                    color: baseClean.color || "#534AB7",
-                    isPrivate: baseClean.isPrivate ?? false,
-                    workspaceId: baseClean.workspaceId || workspaceId || "",
-                };
-            }
-            if (generated.intent === "folder") {
-                return {
-                    name: baseClean.name || "",
-                    description: baseClean.description || "",
-                    spaceId: baseClean.spaceId || "",
-                    isHidden: baseClean.isHidden ?? false,
-                };
-            }
-            if (generated.intent === "sprint") {
-                const today = getTodayDateOnly();
-                return {
-                    name: baseClean.name || "",
-                    startDate: toDateOnly(baseClean.startDate) || today,
-                    endDate: toDateOnly(baseClean.endDate) || addDaysDateOnly(today, 7),
-                    goal: baseClean.goal || "",
-                    isActive: baseClean.isActive ?? false,
-                    spaceId: baseClean.spaceId || "",
-                    folderId: baseClean.folderId || "",
-                };
-            }
-            if (generated.intent === "liste") {
-                return {
-                    name: baseClean.name || "",
-                    type: baseClean.type || "SPRINT",
-                    order: baseClean.order ?? 1,
-                    spaceId: baseClean.spaceId || "",
-                    folderId: baseClean.folderId || "",
-                    sprintId: baseClean.sprintId || "",
-                };
-            }
-            if (generated.intent === "workspace") {
-                return {
-                    name: baseClean.name || "",
-                    slug: baseClean.slug || "",
-                };
-            }
-            return baseClean;
-        };
-
-        if (isArray) {
-            return (generated.entity as any[]).map(item => initItem(item || {}));
+    const flowSteps = useMemo(() => {
+        if (generated.flow && generated.flow.length > 0) {
+            return generated.flow;
         }
-        return initItem(generated.entity ?? {});
-    });
+        const entities = Array.isArray(generated.entity)
+            ? generated.entity
+            : (generated.entity ? [generated.entity] : []);
+        return entities.map(entityItem => ({
+            intent: (generated.intent || "unknown") as EntityIntent,
+            endpoint: generated.endpoint || "",
+            entity: entityItem
+        }));
+    }, [generated]);
+
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const [resolvedEntities, setResolvedEntities] = useState<Record<string, any>>({});
+    const [createdSteps, setCreatedSteps] = useState<any[]>([]);
+    const [localEntity, setLocalEntity] = useState<any>(null);
     const [isAccepting, setIsAccepting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [accepted, setAccepted] = useState(false);
-    const [acceptedData, setAcceptedData] = useState<any>(null);
-    const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
 
-    const currentItem = isArray && editingItemIndex !== null ? localEntity[editingItemIndex] : localEntity;
-    const sprintDurationWeeks: 1 | 2 = generated.intent === "sprint" ? getSprintDurationWeeks(currentItem) : 1;
+    const currentStep = flowSteps[currentStepIndex];
+
+    const initItem = (base: any, intent: string) => {
+        const baseClean = { ...base };
+        if (intent === "task") {
+            return {
+                title: baseClean.title || baseClean.name || "",
+                description: baseClean.description || "",
+                status: baseClean.status || "TO_DO",
+                priority: baseClean.priority || "MEDIUM",
+                dueDate: baseClean.dueDate || "",
+                spaceId: baseClean.spaceId || resolvedEntities.spaceId || "",
+                folderId: baseClean.folderId || resolvedEntities.folderId || "",
+                listeId: baseClean.listeId || resolvedEntities.listeId || "",
+                sprintId: baseClean.sprintId || resolvedEntities.sprintId || "",
+                assigneeId: baseClean.assigneeId || "",
+                assigneeIds: baseClean.assigneeIds || (baseClean.assigneeId ? [baseClean.assigneeId] : []),
+            };
+        }
+        if (intent === "space") {
+            return {
+                name: baseClean.name || baseClean.spaceName || "",
+                description: baseClean.description || "",
+                color: baseClean.color || "#534AB7",
+                isPrivate: baseClean.isPrivate ?? false,
+                workspaceId: baseClean.workspaceId || resolvedEntities.workspaceId || workspaceId || "",
+            };
+        }
+        if (intent === "folder") {
+            return {
+                name: baseClean.name || "",
+                description: baseClean.description || "",
+                spaceId: baseClean.spaceId || resolvedEntities.spaceId || "",
+                isHidden: baseClean.isHidden ?? false,
+            };
+        }
+        if (intent === "sprint") {
+            const today = getTodayDateOnly();
+            return {
+                name: baseClean.name || "",
+                startDate: toDateOnly(baseClean.startDate) || today,
+                endDate: toDateOnly(baseClean.endDate) || addDaysDateOnly(today, 7),
+                goal: baseClean.goal || "",
+                isActive: baseClean.isActive ?? false,
+                spaceId: baseClean.spaceId || resolvedEntities.spaceId || "",
+                folderId: baseClean.folderId || resolvedEntities.folderId || "",
+            };
+        }
+        if (intent === "liste") {
+            return {
+                name: baseClean.name || "",
+                type: baseClean.type || "SPRINT",
+                order: baseClean.order ?? 1,
+                spaceId: baseClean.spaceId || resolvedEntities.spaceId || "",
+                folderId: baseClean.folderId || resolvedEntities.folderId || "",
+                sprintId: baseClean.sprintId || resolvedEntities.sprintId || "",
+            };
+        }
+        if (intent === "workspace") {
+            return {
+                name: baseClean.name || "",
+                slug: baseClean.slug || "",
+            };
+        }
+        return baseClean;
+    };
+
+    useEffect(() => {
+        if (!currentStep) return;
+        
+        const resolvedEntity = { ...currentStep.entity };
+        Object.keys(resolvedEntity).forEach(key => {
+            if (resolvedEntity[key] === "__PENDING__") {
+                if (resolvedEntities[key]) {
+                    resolvedEntity[key] = resolvedEntities[key];
+                } else {
+                    resolvedEntity[key] = "";
+                }
+            }
+        });
+
+        setLocalEntity(initItem(resolvedEntity, currentStep.intent));
+    }, [currentStepIndex, flowSteps, resolvedEntities]);
+
+    const sprintDurationWeeks: 1 | 2 = currentStep?.intent === "sprint" && localEntity ? getSprintDurationWeeks(localEntity) : 1;
 
     const [listesOptions, setListesOptions] = useState<any[]>([]);
     const [sprintsOptions, setSprintsOptions] = useState<any[]>([]);
@@ -981,91 +1009,64 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
     const [foldersOptions, setFoldersOptions] = useState<any[]>([]);
     const [membersOptions, setMembersOptions] = useState<WorkspaceMemberResponseDto[]>([]);
 
+    const currentWorkspaceId = localEntity?.workspaceId || resolvedEntities?.workspaceId || workspaceId;
+    const currentSpaceId = localEntity?.spaceId || resolvedEntities?.spaceId;
+    const currentFolderId = localEntity?.folderId || resolvedEntities?.folderId;
+
     useEffect(() => {
-        if (!workspaceId) {
+        if (!currentWorkspaceId) {
             setSpacesOptions([]);
             setMembersOptions([]);
             return;
         }
-        import("../api/spaceApi").then(api => api.getSpacesByWorkspace(workspaceId).then(res => setSpacesOptions(res || []))).catch(() => { });
-        getWorkspaceMembers(workspaceId).then(res => setMembersOptions(res || [])).catch(() => { });
-    }, [workspaceId]);
+        import("../api/spaceApi").then(api => api.getSpacesByWorkspace(currentWorkspaceId).then(res => setSpacesOptions(res || []))).catch(() => { });
+        getWorkspaceMembers(currentWorkspaceId).then(res => setMembersOptions(res || [])).catch(() => { });
+    }, [currentWorkspaceId, createdSteps]);
 
     useEffect(() => {
-        if (!currentItem || !currentItem.spaceId) {
+        if (!currentSpaceId) {
             setFoldersOptions([]);
             return;
         }
-        import("../api/folderApi").then(api => api.getFoldersBySpace(currentItem.spaceId).then(res => setFoldersOptions(res || []))).catch(() => { });
-    }, [currentItem?.spaceId]);
+        import("../api/folderApi").then(api => api.getFoldersBySpace(currentSpaceId).then(res => setFoldersOptions(res || []))).catch(() => { });
+    }, [currentSpaceId, createdSteps]);
 
     useEffect(() => {
-        if (!currentItem || !currentItem.folderId) {
+        if (!currentFolderId) {
             setListesOptions([]);
             setSprintsOptions([]);
             return;
         }
-        import("../api/listeApi").then(api => api.getListesByFolder(currentItem.folderId).then(res => setListesOptions(res || []))).catch(() => { });
-        import("../api/sprintApi").then(api => api.getSprintsByFolder(currentItem.folderId).then(res => setSprintsOptions(res || []))).catch(() => { });
-    }, [currentItem?.folderId]);
+        import("../api/listeApi").then(api => api.getListesByFolder(currentFolderId).then(res => setListesOptions(res || []))).catch(() => { });
+        import("../api/sprintApi").then(api => api.getSprintsByFolder(currentFolderId).then(res => setSprintsOptions(res || []))).catch(() => { });
+    }, [currentFolderId, createdSteps]);
 
     const handleChange = (key: string, value: any) => {
         setLocalEntity((prev: any) => {
-            if (isArray && editingItemIndex !== null) {
-                const nextArr = [...prev];
-                const current = nextArr[editingItemIndex];
-                const previousSprintWeeks = getSprintDurationWeeks(current);
-                const nextItem = { ...current, [key]: value };
-                if (key === "spaceId") {
-                    nextItem.folderId = "";
-                    nextItem.listeId = "";
-                    nextItem.sprintId = "";
-                }
-                if (key === "folderId") {
-                    nextItem.listeId = "";
-                    nextItem.sprintId = "";
-                }
-                if (generated.intent === "sprint" && key === "startDate") {
-                    const nextStart = toDateOnly(value) || getTodayDateOnly();
-                    nextItem.startDate = nextStart;
-                    nextItem.endDate = addDaysDateOnly(nextStart, previousSprintWeeks * 7);
-                }
-                nextArr[editingItemIndex] = nextItem;
-                return nextArr;
-            } else {
-                const previousSprintWeeks = getSprintDurationWeeks(prev);
-                const next = { ...prev, [key]: value };
-                if (key === "spaceId") {
-                    next.folderId = "";
-                    next.listeId = "";
-                    next.sprintId = "";
-                }
-                if (key === "folderId") {
-                    next.listeId = "";
-                    next.sprintId = "";
-                }
-                if (generated.intent === "sprint" && key === "startDate") {
-                    const nextStart = toDateOnly(value) || getTodayDateOnly();
-                    next.startDate = nextStart;
-                    next.endDate = addDaysDateOnly(nextStart, previousSprintWeeks * 7);
-                }
-                return next;
+            if (!prev) return prev;
+            const previousSprintWeeks = getSprintDurationWeeks(prev);
+            const next = { ...prev, [key]: value };
+            if (key === "spaceId") {
+                next.folderId = "";
+                next.listeId = "";
+                next.sprintId = "";
             }
+            if (key === "folderId") {
+                next.listeId = "";
+                next.sprintId = "";
+            }
+            if (currentStep.intent === "sprint" && key === "startDate") {
+                const nextStart = toDateOnly(value) || getTodayDateOnly();
+                next.startDate = nextStart;
+                next.endDate = addDaysDateOnly(nextStart, previousSprintWeeks * 7);
+            }
+            return next;
         });
     };
 
     const handleSprintDurationChange = (weeks: 1 | 2) => {
         setLocalEntity((prev: any) => {
-            if (isArray && editingItemIndex !== null) {
-                const nextArr = [...prev];
-                const current = { ...nextArr[editingItemIndex] };
-                const startDate = toDateOnly(current.startDate) || getTodayDateOnly();
-                current.startDate = startDate;
-                current.endDate = addDaysDateOnly(startDate, weeks * 7);
-                nextArr[editingItemIndex] = current;
-                return nextArr;
-            }
-
+            if (!prev) return prev;
             const current = { ...prev };
             const startDate = toDateOnly(current.startDate) || getTodayDateOnly();
             current.startDate = startDate;
@@ -1075,109 +1076,244 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
     };
 
     const handleAccept = async () => {
+        if (!localEntity) return;
+
+        // --- Validation rigoureuse des champs obligatoires ---
+        const intent = currentStep.intent;
+
+        if (intent === "workspace") {
+            if (!localEntity.name?.trim()) {
+                setError("Veuillez renseigner le nom de l'espace de travail.");
+                return;
+            }
+        } else if (intent === "space") {
+            if (!localEntity.name?.trim()) {
+                setError("Veuillez renseigner le nom de l'espace (Space).");
+                return;
+            }
+            if (!localEntity.workspaceId) {
+                setError("Veuillez sélectionner un Espace de travail (Workspace) parent.");
+                return;
+            }
+        } else if (intent === "folder") {
+            if (!localEntity.name?.trim()) {
+                setError("Veuillez renseigner le nom du dossier (Folder).");
+                return;
+            }
+            if (!localEntity.spaceId) {
+                setError("Veuillez sélectionner un Espace (Space) parent.");
+                return;
+            }
+        } else if (intent === "sprint") {
+            if (!localEntity.name?.trim()) {
+                setError("Veuillez renseigner le nom du sprint.");
+                return;
+            }
+            if (!localEntity.folderId) {
+                setError("Veuillez sélectionner un Dossier (Folder) parent.");
+                return;
+            }
+        } else if (intent === "liste") {
+            if (!localEntity.name?.trim()) {
+                setError("Veuillez renseigner le nom de la liste.");
+                return;
+            }
+            if (!localEntity.folderId) {
+                setError("Veuillez sélectionner un Dossier (Folder) parent.");
+                return;
+            }
+            if (!localEntity.spaceId) {
+                setError("Veuillez sélectionner un Espace (Space) parent.");
+                return;
+            }
+        } else if (intent === "task") {
+            if (!localEntity.title?.trim()) {
+                setError("Veuillez renseigner le titre de la tâche.");
+                return;
+            }
+            if (!localEntity.spaceId) {
+                setError("Veuillez sélectionner un Espace (Space) parent.");
+                return;
+            }
+            if (!localEntity.folderId) {
+                setError("Veuillez sélectionner un Dossier (Folder) parent.");
+                return;
+            }
+            if (!localEntity.listeId) {
+                setError("Veuillez sélectionner une Liste parente.");
+                return;
+            }
+        }
+
         setIsAccepting(true);
         setError(null);
         try {
-            const data = await onAccept(localEntity);
-            if (data !== undefined) {
-                setAcceptedData(data);
+            const data = await onAccept(localEntity, currentStep.intent, currentStep.endpoint);
+            
+            let key = "";
+            if (data?.type === "workspace") key = "workspaceId";
+            else if (data?.type === "space") key = "spaceId";
+            else if (data?.type === "folder") key = "folderId";
+            else if (data?.type === "sprint") key = "sprintId";
+            else if (data?.type === "list" || data?.type === "liste") key = "listeId";
+
+            const nextResolved = { ...resolvedEntities };
+            if (key && data?.id) {
+                nextResolved[key] = data.id;
+                setResolvedEntities(nextResolved);
             }
-            setAccepted(true);
+
+            const stepInfo = {
+                intent: currentStep.intent,
+                name: localEntity.name || localEntity.title || data?.name || data?.title || "Élément",
+                data
+            };
+            const nextCreated = [...createdSteps, stepInfo];
+            setCreatedSteps(nextCreated);
+
+            if (currentStepIndex < flowSteps.length - 1) {
+                setCurrentStepIndex(prev => prev + 1);
+            } else {
+                setAccepted(true);
+            }
         } catch (e: any) {
-            setError(e.message || "Erreur lors de la création.");
+            const errMsg = e.message || String(e);
+            let userFriendlyMsg = "Nous n'avons pas pu créer cet élément. Veuillez réessayer dans un instant.";
+            
+            if (errMsg.includes("Failed to fetch") || errMsg.includes("NetworkError")) {
+                userFriendlyMsg = "Connexion perdue avec le serveur. Vérifiez votre réseau et réessayez.";
+            } else if (errMsg.includes("409") || errMsg.includes("already exists") || errMsg.includes("existe déjà")) {
+                userFriendlyMsg = "Un élément portant ce nom existe déjà. Modifiez le nom et réessayez.";
+            } else if (errMsg.includes("timeout") || errMsg.includes("timed out")) {
+                userFriendlyMsg = "Le serveur met trop de temps à répondre. Attendez un instant et réessayez.";
+            }
+            setError(userFriendlyMsg);
         } finally {
             setIsAccepting(false);
         }
     };
 
-    const icon = ENTITY_ICONS[generated.intent] ?? <Zap size={24} color="#a89ef5" />;
-    const label = ENTITY_LABELS[generated.intent] ?? generated.intent;
+    const icon = ENTITY_ICONS[currentStep?.intent] ?? <Zap size={24} color="#a89ef5" />;
+    const label = ENTITY_LABELS[currentStep?.intent] ?? currentStep?.intent;
 
     if (accepted) {
-        // Cas batch
-        if (acceptedData?.type === "batch") {
-            return (
-                <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 14, padding: "16px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                        <CheckCircle2 size={18} color="#22C55E" />
-                        <span style={{ color: "#22C55E", fontSize: 14, fontWeight: 600 }}>
-                            {acceptedData.count} {label}(s) créé(e)(s) avec succès !
-                        </span>
-                    </div>
-                    {acceptedData.results.map((r: any, i: number) => (
-                        <div key={i} style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", paddingLeft: 8, marginBottom: 2 }}>
-                            • {r.name || r.id}
-                        </div>
-                    ))}
-                    {acceptedData.errors.length > 0 && (
-                        <div style={{ marginTop: 8, fontSize: 12, color: "#E24B4A" }}>
-                            {acceptedData.errors.length} erreur(s) : {acceptedData.errors.join(", ")}
-                        </div>
-                    )}
-                </div>
-            );
-        }
         return (
             <div style={{
                 background: "rgba(34,197,94,0.08)",
                 border: "1px solid rgba(34,197,94,0.25)",
-                borderRadius: 14, padding: "16px 20px",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                borderRadius: 16, padding: "20px 24px",
+                fontFamily: "'DM Sans', sans-serif",
+                maxWidth: 480,
+                display: "flex",
+                flexDirection: "column",
+                gap: 16
             }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 20, display: "flex", alignItems: "center" }}><CheckCircle2 size={20} color="#22C55E" /></span>
-                    <span style={{ color: "#22C55E", fontSize: 14, fontWeight: 600 }}>
-                        {label} créé(e) avec succès !
-                    </span>
+                    <CheckCircle2 size={24} color="#22C55E" />
+                    <div>
+                        <div style={{ color: "#22C55E", fontSize: 16, fontWeight: 700 }}>
+                            Création terminée avec succès !
+                        </div>
+                        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 2 }}>
+                            Toutes les étapes du flux ont été validées.
+                        </div>
+                    </div>
                 </div>
-                {acceptedData && acceptedData.type !== "task" && acceptedData.type !== "workspace" && (
-                    <button
-                        onClick={() => {
-                            localStorage.setItem("pendingSelectedHierarchy", JSON.stringify({
-                                type: acceptedData.type,
-                                id: acceptedData.id,
-                                name: acceptedData.name
-                            }));
-                            navigate("/workspace");
-                        }}
-                        style={{
-                            background: "rgba(34,197,94,0.15)",
-                            border: "1px solid rgba(34,197,94,0.4)",
-                            borderRadius: 8, padding: "6px 14px",
-                            color: "#22C55E", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        }}
-                        className="btn-voir-entity"
-                        data-type={acceptedData.type}
-                        data-id={acceptedData.id}
-                        data-name={acceptedData.name}
-                    >
-                        Voir
-                    </button>
-                )}
-                {acceptedData && acceptedData.type === "task" && acceptedData.listOrSprintId && (
-                    <button
-                        onClick={() => {
-                            localStorage.setItem("pendingSelectedHierarchy", JSON.stringify({
-                                type: acceptedData.listOrSprintType,
-                                id: acceptedData.listOrSprintId,
-                                name: acceptedData.listOrSprintName
-                            }));
-                            navigate("/workspace");
-                        }}
-                        style={{
-                            background: "rgba(34,197,94,0.15)",
-                            border: "1px solid rgba(34,197,94,0.4)",
-                            borderRadius: 8, padding: "6px 14px",
-                            color: "#22C55E", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        }}
-                        className="btn-voir-entity"
-                        data-type={acceptedData.listOrSprintType}
-                        data-id={acceptedData.listOrSprintId}
-                        data-name={acceptedData.listOrSprintName}
-                    >
-                        Voir
-                    </button>
-                )}
+
+                <div style={{
+                    background: "rgba(0,0,0,0.2)",
+                    borderRadius: 10,
+                    padding: "14px 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10
+                }}>
+                    {createdSteps.map((step, idx) => {
+                        const stepIcon = ENTITY_ICONS[step.intent] ?? <Zap size={16} color="#a89ef5" />;
+                        const stepLabel = ENTITY_LABELS[step.intent] ?? step.intent;
+                        return (
+                            <div key={idx} style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                paddingBottom: idx < createdSteps.length - 1 ? 10 : 0,
+                                borderBottom: idx < createdSteps.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none"
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ display: "flex", alignItems: "center" }}>{stepIcon}</span>
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: "white" }}>
+                                            {step.name}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                                            {stepLabel} créé
+                                        </div>
+                                    </div>
+                                </div>
+                                {step.data && (
+                                    <button
+                                        onClick={() => {
+                                            localStorage.setItem("pendingSelectedHierarchy", JSON.stringify({
+                                                type: step.data.type === "list" ? "liste" : step.data.type,
+                                                id: step.data.id,
+                                                name: step.data.name
+                                            }));
+                                            navigate("/workspace");
+                                        }}
+                                        style={{
+                                            background: "rgba(34,197,94,0.15)",
+                                            border: "1px solid rgba(34,197,94,0.4)",
+                                            borderRadius: 8, padding: "4px 10px",
+                                            color: "#22C55E", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                        }}
+                                    >
+                                        Voir
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <button
+                    onClick={() => {
+                        navigate("/workspace");
+                    }}
+                    style={{
+                        background: "linear-gradient(135deg, #22C55E, #15803D)",
+                        border: "none",
+                        borderRadius: 10,
+                        padding: "10px 0",
+                        color: "white",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        textAlign: "center"
+                    }}
+                >
+                    Aller au Tableau de bord
+                </button>
+            </div>
+        );
+    }
+
+    if (!localEntity) {
+        return (
+            <div style={{
+                background: "rgba(83,74,183,0.08)",
+                border: "1px solid rgba(83,74,183,0.3)",
+                borderRadius: 16, padding: "18px 20px",
+                fontFamily: "'DM Sans', sans-serif",
+                maxWidth: 480,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                color: "rgba(255,255,255,0.6)"
+            }}>
+                <Loader2 size={16} className="animate-spin" />
+                Chargement de l'étape...
             </div>
         );
     }
@@ -1196,12 +1332,28 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                     color: white;
                 }
             `}</style>
-            {/* Header */}
+
+            {flowSteps.length > 1 && (
+                <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                    {flowSteps.map((_, idx) => (
+                        <div key={idx} style={{
+                            flex: 1, height: 4, borderRadius: 2,
+                            background: idx === currentStepIndex
+                                ? "linear-gradient(90deg, #534AB7, #7c3aed)"
+                                : idx < currentStepIndex
+                                    ? "#22C55E"
+                                    : "rgba(255,255,255,0.1)",
+                            transition: "all 0.3s ease"
+                        }} />
+                    ))}
+                </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <span style={{ fontSize: 22 }}>{icon}</span>
                 <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#a89ef5" }}>
-                        IA — Créer un(e) {label}
+                        Étape {currentStepIndex + 1} / {flowSteps.length} — Créer un(e) {label}
                     </div>
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
                         {generated.explanation}
@@ -1209,273 +1361,232 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                 </div>
             </div>
 
-            {/* Editable Fields — or batch summary */}
-            {/* Editable Fields — or batch summary */}
-            {isArray && editingItemIndex === null ? (
-                <div style={{
-                    background: "rgba(0,0,0,0.25)", borderRadius: 10,
-                    padding: "14px 16px", marginBottom: 14,
-                }}>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 10 }}>
-                        {(localEntity as any[]).length} {label}(s) à créer (cliquez pour modifier) :
-                    </div>
-                    {(localEntity as any[]).map((item: any, i: number) => (
-                        <div key={i} onClick={() => setEditingItemIndex(i)} style={{
-                            display: "flex", alignItems: "center", gap: 8,
-                            padding: "7px 10px", marginBottom: 6,
-                            background: "rgba(83,74,183,0.1)", borderRadius: 8,
-                            fontSize: 13, color: "rgba(255,255,255,0.85)",
-                            cursor: "pointer", transition: "background 0.2s"
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = "rgba(83,74,183,0.2)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "rgba(83,74,183,0.1)"}
-                        >
-                            <span style={{ color: "#a89ef5", fontWeight: 700, minWidth: 20 }}>{i + 1}.</span>
-                            <span>{item.title || item.name || JSON.stringify(item)}</span>
-                            {item.priority && (
-                                <span style={{
-                                    marginLeft: "auto", fontSize: 11, padding: "2px 8px", borderRadius: 6,
-                                    background: "rgba(83,74,183,0.2)", color: "#a89ef5",
-                                }}>{item.priority}</span>
-                            )}
-                            <span style={{ display: "flex", alignItems: "center", marginLeft: 4 }}><Pencil size={14} color="rgba(255,255,255,0.4)" /></span>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div style={{
-                    background: "rgba(0,0,0,0.25)", borderRadius: 10,
-                    padding: "16px", marginBottom: 14,
-                }}>
-                    {isArray && editingItemIndex !== null && (
-                        <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                            <button
-                                onClick={() => setEditingItemIndex(null)}
-                                style={{
-                                    background: "transparent", border: "none", color: "#a89ef5",
-                                    fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, padding: 0
-                                }}
-                            >
-                                ← Retour à la liste
-                            </button>
-                            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
-                                Édition de l'élément #{editingItemIndex + 1}
-                            </div>
-                        </div>
-                    )}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-                        {Object.entries(currentItem)
-                    .filter(([key]) => {
-                        if (key === "workspaceId") return false;
+            <div style={{
+                background: "rgba(0,0,0,0.25)", borderRadius: 10,
+                padding: "16px", marginBottom: 14,
+            }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                    {Object.entries(localEntity)
+                        .filter(([key]) => {
+                            if (key === "workspaceId") {
+                                return currentStep.intent === "space";
+                            }
 
-                        if (generated.intent === "workspace") {
-                            return key === "name" || key === "slug";
-                        }
-                        if (generated.intent === "space") {
-                            return key === "name" || key === "description" || key === "color" || key === "isPrivate";
-                        }
-                        if (generated.intent === "folder") {
-                            return key === "name" || key === "description" || key === "spaceId" || key === "isHidden";
-                        }
-                        if (generated.intent === "sprint") {
-                            return key === "name" || key === "startDate" || key === "endDate" || key === "goal" || key === "isActive" || key === "spaceId" || key === "folderId";
-                        }
-                        if (generated.intent === "liste") {
-                            return key === "name" || key === "type" || key === "order" || key === "spaceId" || key === "folderId" || key === "sprintId";
-                        }
-                        if (generated.intent === "task") {
-                            return key === "title" || key === "description" || key === "status" || key === "priority" || key === "dueDate" || key === "spaceId" || key === "folderId" || key === "listeId" || key === "sprintId" || key === "assigneeId" || key === "assigneeIds";
-                        }
+                            if (currentStep.intent === "workspace") {
+                                return key === "name" || key === "slug";
+                            }
+                            if (currentStep.intent === "space") {
+                                return key === "name" || key === "description" || key === "color" || key === "isPrivate";
+                            }
+                            if (currentStep.intent === "folder") {
+                                return key === "name" || key === "description" || key === "spaceId" || key === "isHidden";
+                            }
+                            if (currentStep.intent === "sprint") {
+                                return key === "name" || key === "startDate" || key === "endDate" || key === "goal" || key === "isActive" || key === "spaceId" || key === "folderId";
+                            }
+                            if (currentStep.intent === "liste") {
+                                return key === "name" || key === "type" || key === "order" || key === "spaceId" || key === "folderId" || key === "sprintId";
+                            }
+                            if (currentStep.intent === "task") {
+                                return key === "title" || key === "description" || key === "status" || key === "priority" || key === "dueDate" || key === "spaceId" || key === "folderId" || key === "listeId" || key === "sprintId" || key === "assigneeId" || key === "assigneeIds";
+                            }
 
-                        return true;
-                    })
-                    .map(([key, value]) => {
-                        const fieldLabel = FIELD_LABELS[key] ?? key;
-                        const val = value as string;
+                            return true;
+                        })
+                        .map(([key, value]) => {
+                            const fieldLabel = FIELD_LABELS[key] ?? key;
+                            const val = value as string;
 
-                        let inputElement;
+                            let inputElement;
 
-                        const inputStyle = {
-                            background: "rgba(255,255,255,0.05)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "8px", padding: "6px 10px",
-                            color: "white", fontSize: "13px",
-                            width: "100%", fontFamily: "'DM Sans', sans-serif"
-                        };
+                            const inputStyle = {
+                                background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: "8px", padding: "6px 10px",
+                                color: "white", fontSize: "13px",
+                                width: "100%", fontFamily: "'DM Sans', sans-serif"
+                            };
 
-                        if (generated.intent === "sprint" && key === "startDate") {
-                            inputElement = (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            if (currentStep.intent === "sprint" && key === "startDate") {
+                                inputElement = (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                        <input
+                                            type="date"
+                                            value={toDateOnly(val) || getTodayDateOnly()}
+                                            onChange={e => handleChange(key, e.target.value)}
+                                            style={inputStyle}
+                                        />
+                                        <select
+                                            className="ai-form-select"
+                                            value={String(sprintDurationWeeks)}
+                                            onChange={e => handleSprintDurationChange((e.target.value === "2" ? 2 : 1) as 1 | 2)}
+                                            style={inputStyle}
+                                        >
+                                            <option value="1">Durée: 1 semaine</option>
+                                            <option value="2">Durée: 2 semaines</option>
+                                        </select>
+                                    </div>
+                                );
+                            } else if (currentStep.intent === "sprint" && key === "endDate") {
+                                inputElement = (
                                     <input
                                         type="date"
-                                        value={toDateOnly(val) || getTodayDateOnly()}
-                                        onChange={e => handleChange(key, e.target.value)}
-                                        style={inputStyle}
+                                        value={toDateOnly(val)}
+                                        readOnly
+                                        style={{ ...inputStyle, opacity: 0.8 }}
                                     />
-                                    <select
-                                        className="ai-form-select"
-                                        value={String(sprintDurationWeeks)}
-                                        onChange={e => handleSprintDurationChange((e.target.value === "2" ? 2 : 1) as 1 | 2)}
-                                        style={inputStyle}
-                                    >
-                                        <option value="1">Durée: 1 semaine</option>
-                                        <option value="2">Durée: 2 semaines</option>
+                                );
+                            } else if (key === "status") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="TO_DO">À faire (TO_DO)</option>
+                                        <option value="IN_DEV">En dev (IN_DEV)</option>
+                                        <option value="IN_TEST">En test (IN_TEST)</option>
+                                        <option value="IN_REVIEW">En revue (IN_REVIEW)</option>
+                                        <option value="DONE">Terminé (DONE)</option>
                                     </select>
-                                </div>
-                            );
-                        } else if (generated.intent === "sprint" && key === "endDate") {
-                            inputElement = (
-                                <input
-                                    type="date"
-                                    value={toDateOnly(val)}
-                                    readOnly
-                                    style={{ ...inputStyle, opacity: 0.8 }}
-                                />
-                            );
-                        } else if (key === "status") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="TO_DO">À faire (TO_DO)</option>
-                                    <option value="IN_DEV">En dev (IN_DEV)</option>
-                                    <option value="IN_TEST">En test (IN_TEST)</option>
-                                    <option value="IN_REVIEW">En revue (IN_REVIEW)</option>
-                                    <option value="DONE">Terminé (DONE)</option>
-                                </select>
-                            );
-                        } else if (key === "priority") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="LOW">Basse (LOW)</option>
-                                    <option value="MEDIUM">Moyenne (MEDIUM)</option>
-                                    <option value="HIGH">Haute (HIGH)</option>
-                                    <option value="URGENT">Urgente (URGENT)</option>
-                                </select>
-                            );
-                        } else if (key === "listeId") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="">-- Sélectionner une Liste --</option>
-                                    {listesOptions.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                </select>
-                            );
-                        } else if (key === "sprintId") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="">-- Sélectionner un Sprint --</option>
-                                    {sprintsOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            );
-                        } else if (key === "spaceId") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="">-- Sélectionner un Space --</option>
-                                    {spacesOptions.map(s => <option key={s.id} value={s.id}>{s.spaceName || s.name}</option>)}
-                                </select>
-                            );
-                        } else if (key === "folderId") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="">-- Sélectionner un Folder --</option>
-                                    {foldersOptions.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                </select>
-                            );
-                        } else if (key === "type" && generated.intent === "liste") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val || "SPRINT"} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="SPRINT">Sprint</option>
-                                    <option value="PHASE">Phase</option>
-                                </select>
-                            );
-                        } else if (key === "isPrivate" || key === "isActive" || key === "isHidden") {
-                            inputElement = (
-                                <select className="ai-form-select" value={String(value)} onChange={e => handleChange(key, e.target.value === "true")} style={inputStyle}>
-                                    <option value="true">Oui</option>
-                                    <option value="false">Non</option>
-                                </select>
-                            );
-                        } else if (key === "description" || key === "goal") {
-                            inputElement = <textarea value={val || ""} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />;
-                        } else if (key === "color") {
-                            inputElement = <input type="color" value={val || "#534AB7"} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, height: "38px", padding: "2px 6px", cursor: "pointer" }} />;
-                        } else if (key === "assigneeId") {
-                            inputElement = (
-                                <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
-                                    <option value="">-- Non assignée --</option>
-                                    {membersOptions.map(m => (
-                                        <option key={m.userId} value={m.userId}>
-                                            {m.userName} ({m.role})
-                                        </option>
-                                    ))}
-                                </select>
-                            );
-                        } else if (key === "assigneeIds") {
-                            const currentIds = Array.isArray(value) ? value : [];
-                            inputElement = (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <div style={{
-                                        display: "flex", flexWrap: "wrap", gap: 6,
-                                        padding: "6px 10px", minHeight: "38px",
-                                        background: "rgba(255,255,255,0.03)",
-                                        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
-                                    }}>
-                                        {currentIds.length === 0 ? (
-                                            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 13, alignSelf: "center" }}>
-                                                Aucun membre assigné
-                                            </span>
-                                        ) : (
-                                            currentIds.map(id => {
-                                                const m = membersOptions.find(opt => opt.userId === id);
-                                                return (
-                                                    <div key={id} style={{
-                                                        display: "flex", alignItems: "center", gap: 4,
-                                                        background: "rgba(108,99,255,0.2)", border: "1px solid rgba(108,99,255,0.3)",
-                                                        borderRadius: 6, padding: "2px 8px", fontSize: 12, color: "#a89ef5"
-                                                    }}>
-                                                        <span>{m ? m.userName : id}</span>
-                                                        <button type="button" onClick={() => {
-                                                            handleChange(key, currentIds.filter(x => x !== id));
-                                                        }} style={{
-                                                            background: "none", border: "none", color: "rgba(255,255,255,0.5)",
-                                                            cursor: "pointer", display: "flex", alignItems: "center", padding: 0
-                                                        }}><X size={12} /></button>
-                                                    </div>
-                                                );
-                                            })
-                                        )}
-                                    </div>
-                                    <select className="ai-form-select" value="" onChange={e => {
-                                        const newId = e.target.value;
-                                        if (newId && !currentIds.includes(newId)) {
-                                            handleChange(key, [...currentIds, newId]);
-                                        }
-                                    }} style={inputStyle}>
-                                        <option value="">-- Ajouter un membre... --</option>
-                                        {membersOptions.filter(m => !currentIds.includes(m.userId)).map(m => (
+                                );
+                            } else if (key === "priority") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="LOW">Basse (LOW)</option>
+                                        <option value="MEDIUM">Moyenne (MEDIUM)</option>
+                                        <option value="HIGH">Haute (HIGH)</option>
+                                        <option value="URGENT">Urgente (URGENT)</option>
+                                    </select>
+                                );
+                            } else if (key === "listeId") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="">-- Sélectionner une Liste --</option>
+                                        {listesOptions.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                    </select>
+                                );
+                            } else if (key === "sprintId") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="">-- Sélectionner un Sprint --</option>
+                                        {sprintsOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                );
+                            } else if (key === "spaceId") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="">-- Sélectionner un Space --</option>
+                                        {spacesOptions.map(s => <option key={s.id} value={s.id}>{s.spaceName || s.name}</option>)}
+                                    </select>
+                                );
+                            } else if (key === "folderId") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="">-- Sélectionner un Folder --</option>
+                                        {foldersOptions.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                    </select>
+                                );
+                            } else if (key === "workspaceId") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="">-- Sélectionner un Workspace --</option>
+                                        {workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                    </select>
+                                );
+                            } else if (key === "type" && currentStep.intent === "liste") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || "SPRINT"} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="SPRINT">Sprint</option>
+                                        <option value="PHASE">Phase</option>
+                                    </select>
+                                );
+                            } else if (key === "isPrivate" || key === "isActive" || key === "isHidden") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={String(value)} onChange={e => handleChange(key, e.target.value === "true")} style={inputStyle}>
+                                        <option value="true">Oui</option>
+                                        <option value="false">Non</option>
+                                    </select>
+                                );
+                            } else if (key === "description" || key === "goal") {
+                                inputElement = <textarea value={val || ""} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />;
+                            } else if (key === "color") {
+                                inputElement = <input type="color" value={val || "#534AB7"} onChange={e => handleChange(key, e.target.value)} style={{ ...inputStyle, height: "38px", padding: "2px 6px", cursor: "pointer" }} />;
+                            } else if (key === "assigneeId") {
+                                inputElement = (
+                                    <select className="ai-form-select" value={val || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle}>
+                                        <option value="">-- Non assignée --</option>
+                                        {membersOptions.map(m => (
                                             <option key={m.userId} value={m.userId}>
                                                 {m.userName} ({m.role})
                                             </option>
                                         ))}
                                     </select>
+                                );
+                            } else if (key === "assigneeIds") {
+                                const currentIds = Array.isArray(value) ? value : [];
+                                inputElement = (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                        <div style={{
+                                            display: "flex", flexWrap: "wrap", gap: 6,
+                                            padding: "6px 10px", minHeight: "38px",
+                                            background: "rgba(255,255,255,0.03)",
+                                            border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
+                                        }}>
+                                            {currentIds.length === 0 ? (
+                                                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 13, alignSelf: "center" }}>
+                                                    Aucun membre assigné
+                                                </span>
+                                            ) : (
+                                                currentIds.map(id => {
+                                                    const m = membersOptions.find(opt => opt.userId === id);
+                                                    return (
+                                                        <div key={id} style={{
+                                                            display: "flex", alignItems: "center", gap: 4,
+                                                            background: "rgba(108,99,255,0.2)", border: "1px solid rgba(108,99,255,0.3)",
+                                                            borderRadius: 6, padding: "2px 8px", fontSize: 12, color: "#a89ef5"
+                                                        }}>
+                                                            <span>{m ? m.userName : id}</span>
+                                                            <button type="button" onClick={() => {
+                                                                handleChange(key, currentIds.filter(x => x !== id));
+                                                            }} style={{
+                                                                background: "none", border: "none", color: "rgba(255,255,255,0.5)",
+                                                                cursor: "pointer", display: "flex", alignItems: "center", padding: 0
+                                                            }}><X size={12} /></button>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                        <select className="ai-form-select" value="" onChange={e => {
+                                            const newId = e.target.value;
+                                            if (newId && !currentIds.includes(newId)) {
+                                                handleChange(key, [...currentIds, newId]);
+                                            }
+                                        }} style={inputStyle}>
+                                            <option value="">-- Ajouter un membre... --</option>
+                                            {membersOptions.filter(m => !currentIds.includes(m.userId)).map(m => (
+                                                <option key={m.userId} value={m.userId}>
+                                                    {m.userName} ({m.role})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                );
+                            } else {
+                                const isDate = key.toLowerCase().includes("date");
+                                const formattedVal = isDate ? toDateOnly(val) : val;
+                                inputElement = <input type={isDate ? "date" : "text"} value={formattedVal || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle} />;
+                            }
+
+                            return (
+                                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                                        {fieldLabel}
+                                    </span>
+                                    {inputElement}
                                 </div>
                             );
-                        } else {
-                            const isDate = key.toLowerCase().includes("date");
-                            const formattedVal = isDate ? toDateOnly(val) : val;
-                            inputElement = <input type={isDate ? "date" : "text"} value={formattedVal || ""} onChange={e => handleChange(key, e.target.value)} style={inputStyle} />;
-                        }
-
-                        return (
-                            <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-                                    {fieldLabel}
-                                </span>
-                                {inputElement}
-                            </div>
-                        );
-                    })}
-            </div>
+                        })}
                 </div>
-            )}
+            </div>
+
             {error && (
                 <div style={{
                     fontSize: 12, color: "#E24B4A", marginBottom: 10,
@@ -1485,7 +1596,6 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                 </div>
             )}
 
-            {/* Actions */}
             <div style={{ display: "flex", gap: 10 }}>
                 <button
                     onClick={onReject}
@@ -1498,7 +1608,7 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     }}
                 >
-                    <X size={13} /> Refuser
+                    <X size={13} /> {currentStepIndex > 0 ? "Abandonner" : "Refuser"}
                 </button>
                 <button
                     onClick={handleAccept}
@@ -1511,14 +1621,13 @@ function AIConfirmCard({ generated, workspaceId, onAccept, onReject }: AIConfirm
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     }}
                 >
-                    {isAccepting ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                    Confirmer
+                    {isAccepting ? <Loader2 size={13} className="animate-spin" /> : (currentStepIndex < flowSteps.length - 1 ? <ArrowRight size={13} /> : <Check size={13} />)}
+                    {currentStepIndex < flowSteps.length - 1 ? "Suivant" : "Confirmer"}
                 </button>
             </div>
         </div>
     );
 }
-
 // ============================================================================
 // PAGE IA
 // ============================================================================
@@ -2196,11 +2305,25 @@ export default function AIPage() {
                 return;
             }
             console.error("ERREUR CRITIQUE handleSend:", err);
-            setStatusText("Erreur lors de l'analyse.");
-            setErrorFeedback("Une erreur s'est produite. Veuillez reessayer plus tard.");
+            
+            const errMsg = err?.message || String(err);
+            let userFriendlyMsg = "Une petite erreur s'est produite de notre côté. Veuillez réessayer dans un instant.";
+            
+            if (errMsg.includes("Failed to fetch") || errMsg.includes("NetworkError")) {
+                userFriendlyMsg = "Impossible de joindre l'assistant IA. Vérifiez que votre connexion internet fonctionne et réessayez.";
+            } else if (errMsg.includes("timeout") || errMsg.includes("timed out") || errMsg.includes("delay")) {
+                userFriendlyMsg = "L'assistant IA a mis trop de temps à répondre. Réessayez dans quelques secondes.";
+            } else if (errMsg.includes("503") || errMsg.includes("502") || errMsg.includes("unavailable") || errMsg.includes("overloaded")) {
+                userFriendlyMsg = "Notre assistant est très sollicité en ce moment. Attendez une petite minute avant de retenter !";
+            } else if (errMsg.includes("parse") || errMsg.includes("JSON") || errMsg.includes("format") || errMsg.includes("syntax")) {
+                userFriendlyMsg = "L'assistant a eu un petit hoquet de réflexion. Reformulez légèrement votre demande et réessayez !";
+            }
+            
+            setStatusText("");
+            setErrorFeedback(userFriendlyMsg);
             setMessages(prev => ([
                 ...prev,
-                { role: "assistant", content: "Une erreur s'est produite. Veuillez reessayer plus tard.", timestamp: new Date() },
+                { role: "assistant", content: userFriendlyMsg, timestamp: new Date() },
             ]));
         } finally {
             setIsTyping(false);
@@ -2635,45 +2758,30 @@ export default function AIPage() {
                                                         ) : (
                                                             <div className="msg-ai-content markdown-content">
                                                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                                                                {m.generated && m.generated.intent !== "unknown" && (
+                                                                {m.generated && (m.generated.flow || (m.generated.intent && m.generated.intent !== "unknown")) && (
                                                                     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-                                                                        {(() => {
-                                                                            const entities = Array.isArray(m.generated.entity)
-                                                                                ? m.generated.entity
-                                                                                : (m.generated.entity ? [m.generated.entity] : []);
-                                                                            return entities.map((entityItem, entityIndex) => {
-                                                                                const total = entities.length;
-                                                                                const explanation = total > 1
-                                                                                    ? `${m.generated!.explanation} (${entityIndex + 1}/${total})`
-                                                                                    : m.generated!.explanation;
-                                                                                const generatedItem = { ...m.generated!, entity: entityItem, explanation };
-                                                                                return (
-                                                                                    <AIConfirmCard
-                                                                                        key={`${i}-${entityIndex}`}
-                                                                                        generated={generatedItem}
-                                                                                        workspaceId={activeWorkspace?.id}
-                                                                                        onAccept={async (localEntity) => {
-                                                                                            const res = await handleConfirmEntity({ ...generatedItem, entity: localEntity });
-                                                                                            setAcceptedCards(prev => new Set(prev).add(i));
-                                                                                            return res;
-                                                                                        }}
-                                                                                        onReject={() => {
-                                                                                            setMessages(prev => prev.map((msg, msgIndex) => {
-                                                                                                if (msgIndex !== i || !msg.generated) return msg;
-                                                                                                const current = Array.isArray(msg.generated.entity)
-                                                                                                    ? msg.generated.entity
-                                                                                                    : (msg.generated.entity ? [msg.generated.entity] : []);
-                                                                                                if (current.length <= 1) {
-                                                                                                    return { ...msg, generated: undefined };
-                                                                                                }
-                                                                                                const nextEntities = current.filter((_, idx) => idx !== entityIndex);
-                                                                                                return { ...msg, generated: { ...msg.generated, entity: nextEntities } };
-                                                                                            }));
-                                                                                        }}
-                                                                                    />
-                                                                                );
-                                                                            });
-                                                                        })()}
+                                                                        <AIConfirmCard
+                                                                            key={i}
+                                                                            generated={m.generated}
+                                                                            workspaceId={activeWorkspace?.id}
+                                                                            workspaces={workspaces}
+                                                                            onAccept={async (localEntity, stepIntent, stepEndpoint) => {
+                                                                                const res = await handleConfirmEntity({
+                                                                                    intent: stepIntent || m.generated!.intent,
+                                                                                    endpoint: stepEndpoint || m.generated!.endpoint,
+                                                                                    entity: localEntity,
+                                                                                    explanation: m.generated!.explanation
+                                                                                });
+                                                                                setAcceptedCards(prev => new Set(prev).add(i));
+                                                                                return res;
+                                                                            }}
+                                                                            onReject={() => {
+                                                                                setMessages(prev => prev.map((msg, msgIndex) => {
+                                                                                    if (msgIndex !== i) return msg;
+                                                                                    return { ...msg, generated: undefined };
+                                                                                }));
+                                                                            }}
+                                                                        />
                                                                     </div>
                                                                 )}
                                                             </div>
