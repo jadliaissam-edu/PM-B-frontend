@@ -19,7 +19,7 @@ import {
 } from "../api/workspaceApi";
 import type { WorkspaceResponseDto } from "../api/workspaceApi";
 import { analyzeRepo, validateRepo, addRepository, indexRepositories, generateEntity, getRepositories } from "../api/iaApi";
-import type { GenerateEntityResponse } from "../api/iaApi";
+import type { GenerateEntityResponse, EntityIntent } from "../api/iaApi";
 import { IA_REPO_BASE_URL } from "../config/baseURL";
 import { createTask, getTasksByListe } from "../api/taskApi";
 import type { TaskResponseDto } from "../api/taskApi";
