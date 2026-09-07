@@ -1,73 +1,75 @@
-# React + TypeScript + Vite.
+# PM-B Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules
+Interface web du gestionnaire de projet **PM-B** — une plateforme collaborative de gestion de projets avec vues Kanban et liste, assistant IA et intégration GitHub.
 
-Currently, two official plugins are available:
+## 🛠️ Stack technique
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** + **TypeScript**
+- **Vite** (build)
+- **Tailwind CSS** (styles)
+- **React Router** (navigation)
+- **dnd-kit** (drag & drop)
+- **Framer Motion** (animations)
+- **Lucide React** (icônes)
 
-## React Compiler
+## ✨ Fonctionnalités
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Dashboard** : vue d'ensemble des projets
+- **Board View** : gestion Kanban avec **drag & drop**
+- **List View** : affichage en liste
+- **Workspaces & Espaces** : organisation des projets
+- **Tâches & Sprints** : création, édition, suivi
+- **Assistant IA** : posez des questions sur vos dépôts GitHub
+- **Notifications** : centre de notifications
+- **Invitations** : rejoindre un espace par email
+- **Authentification** : login, inscription, MFA
 
-## Expanding the ESLint configuration
+## 🚀 Démarrage rapide
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prérequis
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js 18+
+- npm
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Configuration
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+L'URL de base de l'API est configurée dans `src/config/baseURL.tsx`.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Lancer en développement
+
+```bash
+npm run dev
 ```
+
+L'application est disponible sur `http://localhost:5173`.
+
+### Build de production
+
+```bash
+npm run build
+npm run preview
+```
+
+## 📁 Structure
+
+```
+src/
+├── api/          # Appels API (auth, workspace, task, ...)
+├── components/   # Composants UI (Board, List, Sidebar, ...)
+├── config/       # Configuration (baseURL)
+├── forms/        # Formulaires
+├── pages/        # Pages (Dashboard, Login, Settings, ...)
+└── assets/       # Ressources statiques
+```
+
+## 🔗 Projets liés
+
+- [PM-B-backend](https://github.com/jadliaissam-edu/PM-B-backend) — API Spring Boot
+- [PM-B-ia](https://github.com/jadliaissam-edu/PM-B-ia) — service d'intelligence artificielle
+- [PM-B-infra](https://github.com/jadliaissam-edu/PM-B-infra) — déploiement (Docker, Terraform, Ansible)
