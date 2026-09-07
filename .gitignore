@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Fichiers de logs de build / brouillons
+build_errors*.txt
+tsc_*.txt
+final_syntax_check.txt
